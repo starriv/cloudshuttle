@@ -12,6 +12,8 @@ go vet ./... && go tool mygo vet
 go tool mygo generate       # 修改 locales/*.json 之后执行
 ```
 
+构建后打开应用默认只显示状态栏图标，不弹主窗口、不显示 Dock 图标（还没有存储和任务时会打开主窗口，方便第一次配置）；点击状态栏菜单中的「打开云梭」进入主界面。关闭主窗口后应用继续运行，退出请使用状态栏菜单。
+
 `go tool mygo` 会运行 `go.mod` 里锁定版本的 MyGo CLI。
 
 只有一个环境：调试也用 `mygo build` 打出的正式包，不用 `mygo dev`。`mygo dev` 会把应用改名为「CloudShuttle Dev」、标识加上 `.dev`，数据目录和钥匙串条目都和正式包分开，所以不再使用；代价是没有改代码后自动重建，改完要重新打包。
@@ -19,8 +21,8 @@ go tool mygo generate       # 修改 locales/*.json 之后执行
 ## 发布
 
 ```sh
-go tool mygo build -platform darwin/universal   # build/cloudshuttle-<版本>.dmg，Intel 与 Apple 芯片通用
-go tool mygo build -platform darwin/arm64       # build/cloudshuttle-<版本>-arm64.dmg，仅 Apple 芯片
+go tool mygo build -platform darwin/universal   # build/darwin-universal/cloudshuttle-<版本>.dmg，Intel 与 Apple 芯片通用
+go tool mygo build -platform darwin/arm64       # build/darwin-arm64/cloudshuttle-<版本>-arm64.dmg，仅 Apple 芯片
 go tool mygo build -platform windows/amd64      # build/windows-amd64/cloudshuttle-setup-<版本>-amd64.exe，需要 NSIS（brew install makensis）
 ```
 

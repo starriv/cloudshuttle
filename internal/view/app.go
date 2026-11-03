@@ -47,6 +47,18 @@ const (
 // recentRuns is how many runs the overview lists.
 const recentRuns = 8
 
+// Snapshot is what the window last read of the configuration and of the
+// recent runs, which the status menu shows too: a change is read once for
+// both. Its slices are not changed after Reload.
+type Snapshot struct {
+	Tasks      []domain.Task
+	Storages   []domain.Storage
+	Recent     []domain.Run
+	TaskErr    error
+	StorageErr error
+	RecentErr  error
+}
+
 // App is the state of the window.
 type App struct {
 	svc  *service.Service
@@ -55,6 +67,7 @@ type App struct {
 
 	page string
 
+	snapshot Snapshot
 	storages []domain.Storage
 	tasks    []domain.Task
 	settings domain.Settings
@@ -120,23 +133,36 @@ func (a *App) Reload() {
 	if a.storages, err = a.svc.Storages(ctx); err != nil {
 		a.loadErr = err
 	}
+	storageErr := err
 	if a.tasks, err = a.svc.Tasks(ctx); err != nil {
 		a.loadErr = err
 	}
+	taskErr := err
 	if a.lastRuns, err = a.svc.LastRuns(ctx); err != nil {
 		a.loadErr = err
 	}
-	if a.recent, err = a.svc.Runs(ctx, store.RunFilter{Limit: recentRuns}); err != nil {
-		a.loadErr = err
+	// Read enough for the status menu too, which dedupes by task and lists
+	// the newest 5; the overview shows the first recentRuns of them.
+	runs, recentErr := a.svc.Runs(ctx, store.RunFilter{Limit: store.DefaultRunLimit})
+	if recentErr != nil {
+		a.loadErr = recentErr
 	}
+	a.recent = runs[:min(len(runs), recentRuns)]
 	if a.week, err = a.svc.Runs(ctx, store.RunFilter{Since: a.now().AddDate(0, 0, -7), Limit: 10000}); err != nil {
 		a.loadErr = err
+	}
+	a.snapshot = Snapshot{
+		Tasks: a.tasks, Storages: a.storages, Recent: runs,
+		TaskErr: taskErr, StorageErr: storageErr, RecentErr: recentErr,
 	}
 	a.settings = a.svc.Settings()
 	a.showAppearance()
 	a.reloadHistory()
 	a.ReloadProgress()
 }
+
+// Snapshot returns what the window last read, for the status menu.
+func (a *App) Snapshot() Snapshot { return a.snapshot }
 
 // showAppearance gives the host the appearance of the settings, once per
 // change: a restored backup brings its own.

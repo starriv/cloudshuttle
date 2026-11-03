@@ -54,13 +54,13 @@ func newRegistrar() service.Registrar {
 }
 
 // wakeApp opens the app in the background, with no window showing, for it
-// to tell a failure of the scheduler's.
+// to tell a failure of the scheduler's. The window starts hidden.
 func wakeApp() {
 	bundle, _, _, ok := appBundle()
 	if !ok {
 		return
 	}
-	if out, err := exec.Command("open", "-g", "-j", "-a", bundle, "--args", backgroundArg).CombinedOutput(); err != nil {
+	if out, err := exec.Command("open", "-g", "-j", "-a", bundle).CombinedOutput(); err != nil {
 		slog.Warn("open the app to tell a failure", "err", err, "out", string(out))
 	}
 }

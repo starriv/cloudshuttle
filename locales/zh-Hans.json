@@ -314,6 +314,94 @@
   "runProblemLargeDelete": "此次同步将删除目标中的大部分文件，已停止运行，目标未被修改。如确需执行，请在任务菜单中选择「仍然运行」。",
   "errorLoad": "无法读取应用数据：{error}",
   "errorAction": "操作未能完成：{error}",
+  "trayMiniStats": "{tasks} 个任务 · {storages} 个存储",
+  "@trayMiniStats": {
+    "placeholders": {
+      "tasks": {
+        "type": "int",
+        "example": 3
+      },
+      "storages": {
+        "type": "int",
+        "example": 2
+      }
+    }
+  },
+  "trayStatsUnavailable": "暂时无法读取任务和存储数量",
+  "trayRecent": "最近任务",
+  "trayPreparing": "正在检查文件…",
+  "trayNoRecent": "暂无已结束的任务",
+  "trayLoadFailed": "无法读取最近任务",
+  "trayMore": "还有 {count} 个任务，打开云梭查看",
+  "@trayMore": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": 2
+      }
+    }
+  },
+  "trayIdle": "就绪",
+  "trayActivity": "{running} 个运行中 · {queued} 个等待运行",
+  "@trayActivity": {
+    "placeholders": {
+      "running": {
+        "type": "int",
+        "example": 1
+      },
+      "queued": {
+        "type": "int",
+        "example": 2
+      }
+    }
+  },
+  "trayRunning": "{count} 个运行中",
+  "@trayRunning": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": 1
+      }
+    }
+  },
+  "trayQueued": "{count} 个等待运行",
+  "@trayQueued": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": 2
+      }
+    }
+  },
+  "trayRunLine": "{name} — {status}",
+  "@trayRunLine": {
+    "description": "A run in the status menu: its task's name and state.",
+    "placeholders": {
+      "name": {
+        "type": "String",
+        "example": "Photos"
+      },
+      "status": {
+        "type": "String",
+        "example": "Running"
+      }
+    }
+  },
+  "trayDetail": "{first} · {second}",
+  "@trayDetail": {
+    "description": "Joins two parts of a detail line in the status menu.",
+    "placeholders": {
+      "first": {
+        "type": "String",
+        "example": "50%"
+      },
+      "second": {
+        "type": "String",
+        "example": "1 MB of 2 MB"
+      }
+    }
+  },
+  "trayQuit": "退出",
   "trayOpen": "打开云梭",
   "notifyFailedTitle": "{name} 运行失败",
   "notifySkippedTitle": "{name} 未能运行",

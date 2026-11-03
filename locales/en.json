@@ -796,6 +796,94 @@
       }
     }
   },
+  "trayMiniStats": "{tasks, plural, one {# task} other {# tasks}} · {storages, plural, one {# storage} other {# storages}}",
+  "@trayMiniStats": {
+    "placeholders": {
+      "tasks": {
+        "type": "int",
+        "example": 3
+      },
+      "storages": {
+        "type": "int",
+        "example": 2
+      }
+    }
+  },
+  "trayStatsUnavailable": "Task and storage counts unavailable",
+  "trayRecent": "Recent tasks",
+  "trayPreparing": "Checking files…",
+  "trayNoRecent": "No completed tasks yet",
+  "trayLoadFailed": "Unable to load recent tasks",
+  "trayMore": "{count, plural, one {# more task} other {# more tasks}} — open CloudShuttle to view",
+  "@trayMore": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": 2
+      }
+    }
+  },
+  "trayIdle": "Ready",
+  "trayActivity": "{running} running · {queued} queued",
+  "@trayActivity": {
+    "placeholders": {
+      "running": {
+        "type": "int",
+        "example": 1
+      },
+      "queued": {
+        "type": "int",
+        "example": 2
+      }
+    }
+  },
+  "trayRunning": "{count} running",
+  "@trayRunning": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": 1
+      }
+    }
+  },
+  "trayQueued": "{count} queued",
+  "@trayQueued": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": 2
+      }
+    }
+  },
+  "trayRunLine": "{name} — {status}",
+  "@trayRunLine": {
+    "description": "A run in the status menu: its task's name and state.",
+    "placeholders": {
+      "name": {
+        "type": "String",
+        "example": "Photos"
+      },
+      "status": {
+        "type": "String",
+        "example": "Running"
+      }
+    }
+  },
+  "trayDetail": "{first} · {second}",
+  "@trayDetail": {
+    "description": "Joins two parts of a detail line in the status menu.",
+    "placeholders": {
+      "first": {
+        "type": "String",
+        "example": "50%"
+      },
+      "second": {
+        "type": "String",
+        "example": "1 MB of 2 MB"
+      }
+    }
+  },
+  "trayQuit": "Quit",
   "trayOpen": "Open CloudShuttle",
   "notifyFailedTitle": "{name} failed",
   "notifySkippedTitle": "{name} did not start",

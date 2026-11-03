@@ -48,7 +48,9 @@ func kindLabel(k domain.Kind) string {
 	return locales.KindS3()
 }
 
-func statusLabel(s domain.Status) string {
+// StatusLabel returns a run's status as the word the app shows, also where
+// no window draws it, as the status menu does.
+func StatusLabel(s domain.Status) string {
 	switch s {
 	case domain.StatusRunning:
 		return locales.StatusRunning()
@@ -76,15 +78,17 @@ func status(c *ui.Context, s domain.Status) {
 // statusIn shows a status in color: a run in progress turns its icon.
 func statusIn(c *ui.Context, s domain.Status, color ui.Color) {
 	ui.Row(c).Gap(6).AlignItems(ui.Center).TextColor(color).Children(func() {
-		icon := ui.Icon(c, statusIcon(s))
+		icon := ui.Icon(c, StatusIcon(s))
 		if s == domain.StatusRunning {
 			icon.Rotate(icon.Loop("spin", time.Second, ui.Linear) * 360)
 		}
-		ui.Text(c, statusLabel(s)).SingleLine()
+		ui.Text(c, StatusLabel(s)).SingleLine()
 	})
 }
 
-func statusIcon(s domain.Status) *ui.SVG {
+// StatusIcon returns a run's status as the icon the app shows, also where no
+// window draws it, as the status menu does.
+func StatusIcon(s domain.Status) *ui.SVG {
 	switch s {
 	case domain.StatusRunning:
 		return icons.Running

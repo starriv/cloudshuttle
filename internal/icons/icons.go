@@ -37,6 +37,7 @@ var (
 	Test     = load("plug-connected")
 	Success  = load("circle-check")
 	Untested = load("circle-dashed")
+	Idle     = load("circle")
 	Failed   = load("circle-x")
 	Stopped  = load("alert-triangle")
 	Warning  = load("alert-triangle")

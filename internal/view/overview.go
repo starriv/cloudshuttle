@@ -386,3 +386,10 @@ func (a *App) stop(taskID string) {
 		a.toastError(err)
 	}
 }
+
+// OpenRun opens a run selected from the status menu. Call on the main thread.
+// The view is kept current by Reload on every change, so this only shows the
+// history of that run, without reading it all again.
+func (a *App) OpenRun(taskID, runID string) {
+	a.openHistory(taskID, "", runID)
+}

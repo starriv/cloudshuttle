@@ -3258,6 +3258,162 @@ func (msgs Messages) ErrorAction(error string) string {
 	return Catalog.Format(msgs.locale, "errorAction", map[string]any{"error": error})
 }
 
+// TrayMiniStats says "{tasks, plural, one {# task} other {# tasks}} · {storages, plural, one {# storage} other {# storages}}"
+// in the language the app shows.
+func TrayMiniStats(tasks int, storages int) string {
+	return In(i18n.Locale()).TrayMiniStats(tasks, storages)
+}
+
+// TrayMiniStats says "{tasks, plural, one {# task} other {# tasks}} · {storages, plural, one {# storage} other {# storages}}"
+// in the language of msgs.
+func (msgs Messages) TrayMiniStats(tasks int, storages int) string {
+	return Catalog.Format(msgs.locale, "trayMiniStats", map[string]any{"tasks": tasks, "storages": storages})
+}
+
+// TrayStatsUnavailable says "Task and storage counts unavailable"
+// in the language the app shows.
+func TrayStatsUnavailable() string { return In(i18n.Locale()).TrayStatsUnavailable() }
+
+// TrayStatsUnavailable says "Task and storage counts unavailable"
+// in the language of msgs.
+func (msgs Messages) TrayStatsUnavailable() string {
+	return Catalog.Format(msgs.locale, "trayStatsUnavailable", nil)
+}
+
+// TrayRecent says "Recent tasks"
+// in the language the app shows.
+func TrayRecent() string { return In(i18n.Locale()).TrayRecent() }
+
+// TrayRecent says "Recent tasks"
+// in the language of msgs.
+func (msgs Messages) TrayRecent() string {
+	return Catalog.Format(msgs.locale, "trayRecent", nil)
+}
+
+// TrayPreparing says "Checking files…"
+// in the language the app shows.
+func TrayPreparing() string { return In(i18n.Locale()).TrayPreparing() }
+
+// TrayPreparing says "Checking files…"
+// in the language of msgs.
+func (msgs Messages) TrayPreparing() string {
+	return Catalog.Format(msgs.locale, "trayPreparing", nil)
+}
+
+// TrayNoRecent says "No completed tasks yet"
+// in the language the app shows.
+func TrayNoRecent() string { return In(i18n.Locale()).TrayNoRecent() }
+
+// TrayNoRecent says "No completed tasks yet"
+// in the language of msgs.
+func (msgs Messages) TrayNoRecent() string {
+	return Catalog.Format(msgs.locale, "trayNoRecent", nil)
+}
+
+// TrayLoadFailed says "Unable to load recent tasks"
+// in the language the app shows.
+func TrayLoadFailed() string { return In(i18n.Locale()).TrayLoadFailed() }
+
+// TrayLoadFailed says "Unable to load recent tasks"
+// in the language of msgs.
+func (msgs Messages) TrayLoadFailed() string {
+	return Catalog.Format(msgs.locale, "trayLoadFailed", nil)
+}
+
+// TrayMore says "{count, plural, one {# more task} other {# more tasks}} — open CloudShuttle to view"
+// in the language the app shows.
+func TrayMore(count int) string { return In(i18n.Locale()).TrayMore(count) }
+
+// TrayMore says "{count, plural, one {# more task} other {# more tasks}} — open CloudShuttle to view"
+// in the language of msgs.
+func (msgs Messages) TrayMore(count int) string {
+	return Catalog.Format(msgs.locale, "trayMore", map[string]any{"count": count})
+}
+
+// TrayIdle says "Ready"
+// in the language the app shows.
+func TrayIdle() string { return In(i18n.Locale()).TrayIdle() }
+
+// TrayIdle says "Ready"
+// in the language of msgs.
+func (msgs Messages) TrayIdle() string {
+	return Catalog.Format(msgs.locale, "trayIdle", nil)
+}
+
+// TrayActivity says "{running} running · {queued} queued"
+// in the language the app shows.
+func TrayActivity(running int, queued int) string {
+	return In(i18n.Locale()).TrayActivity(running, queued)
+}
+
+// TrayActivity says "{running} running · {queued} queued"
+// in the language of msgs.
+func (msgs Messages) TrayActivity(running int, queued int) string {
+	return Catalog.Format(msgs.locale, "trayActivity", map[string]any{"running": running, "queued": queued})
+}
+
+// TrayRunning says "{count} running"
+// in the language the app shows.
+func TrayRunning(count int) string { return In(i18n.Locale()).TrayRunning(count) }
+
+// TrayRunning says "{count} running"
+// in the language of msgs.
+func (msgs Messages) TrayRunning(count int) string {
+	return Catalog.Format(msgs.locale, "trayRunning", map[string]any{"count": count})
+}
+
+// TrayQueued says "{count} queued"
+// in the language the app shows.
+func TrayQueued(count int) string { return In(i18n.Locale()).TrayQueued(count) }
+
+// TrayQueued says "{count} queued"
+// in the language of msgs.
+func (msgs Messages) TrayQueued(count int) string {
+	return Catalog.Format(msgs.locale, "trayQueued", map[string]any{"count": count})
+}
+
+// TrayRunLine says "{name} — {status}"
+// in the language the app shows.
+//
+// A run in the status menu: its task's name and state.
+func TrayRunLine(name string, status string) string {
+	return In(i18n.Locale()).TrayRunLine(name, status)
+}
+
+// TrayRunLine says "{name} — {status}"
+// in the language of msgs.
+//
+// A run in the status menu: its task's name and state.
+func (msgs Messages) TrayRunLine(name string, status string) string {
+	return Catalog.Format(msgs.locale, "trayRunLine", map[string]any{"name": name, "status": status})
+}
+
+// TrayDetail says "{first} · {second}"
+// in the language the app shows.
+//
+// Joins two parts of a detail line in the status menu.
+func TrayDetail(first string, second string) string {
+	return In(i18n.Locale()).TrayDetail(first, second)
+}
+
+// TrayDetail says "{first} · {second}"
+// in the language of msgs.
+//
+// Joins two parts of a detail line in the status menu.
+func (msgs Messages) TrayDetail(first string, second string) string {
+	return Catalog.Format(msgs.locale, "trayDetail", map[string]any{"first": first, "second": second})
+}
+
+// TrayQuit says "Quit"
+// in the language the app shows.
+func TrayQuit() string { return In(i18n.Locale()).TrayQuit() }
+
+// TrayQuit says "Quit"
+// in the language of msgs.
+func (msgs Messages) TrayQuit() string {
+	return Catalog.Format(msgs.locale, "trayQuit", nil)
+}
+
 // TrayOpen says "Open CloudShuttle"
 // in the language the app shows.
 func TrayOpen() string { return In(i18n.Locale()).TrayOpen() }

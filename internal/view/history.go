@@ -26,7 +26,7 @@ func (a *App) historyTaskOptions() []string {
 func (a *App) historyStatusOptions() []string {
 	labels := []string{locales.HistoryAllStatuses()}
 	for _, s := range historyStatuses {
-		labels = append(labels, statusLabel(s))
+		labels = append(labels, StatusLabel(s))
 	}
 	return labels
 }

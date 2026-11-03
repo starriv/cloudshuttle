@@ -34,13 +34,9 @@ import (
 //go:embed tray.png
 var trayIcon []byte
 
-// The app's arguments, which only the system passes: schedulerArg starts
-// the scheduler instead of the window, and backgroundArg the window hidden,
-// as the scheduler opens the app to tell a failure.
-const (
-	schedulerArg  = "--scheduler"
-	backgroundArg = "--background"
-)
+// The app's argument, which only the system passes: schedulerArg starts the
+// scheduler instead of the app.
+const schedulerArg = "--scheduler"
 
 func main() {
 	if slices.Contains(os.Args[1:], schedulerArg) {
@@ -50,6 +46,8 @@ func main() {
 	if !mygo.App.RequestSingleInstanceLock() {
 		return // the running instance comes to the front
 	}
+
+	mygo.App.SetActivationPolicy(mygo.ActivationPolicyAccessory)
 
 	dir, err := mygo.App.Path(mygo.PathUserData)
 	if err != nil {
@@ -66,7 +64,8 @@ func main() {
 
 	host := &windowHost{}
 	var svc *service.Service
-	var isl *notchIsland // set once the app is ready, before the service starts
+	var tray *taskTray // accessed only on the main thread
+	var isl *notchIsland
 	runsChanged := func() {
 		if isl != nil {
 			isl.SetRuns(svc.Active())
@@ -78,11 +77,21 @@ func main() {
 		DataDir:   dir,
 		Registrar: newRegistrar(),
 		OnChange: func() {
-			host.update(func(a *view.App) { a.Reload() })
+			host.update(func(a *view.App) {
+				a.Reload()
+				if tray != nil {
+					tray.set(a.Snapshot())
+				}
+			})
 			runsChanged()
 		},
 		OnProgress: func() {
-			host.update(func(a *view.App) { a.ReloadProgress() })
+			host.update(func(a *view.App) {
+				a.ReloadProgress()
+				if tray != nil {
+					tray.update()
+				}
+			})
 			runsChanged()
 		},
 		OnRunFinished: func(r domain.Run) {
@@ -114,47 +123,51 @@ func main() {
 			// desktop's material through it, as Finder's and Mail's do.
 			TitleBarStyle: mygo.TitleBarHidden,
 			Vibrancy:      mygo.VibrancySidebar,
-			Hidden:        mygo.App.WasOpenedAtLogin() || slices.Contains(os.Args[1:], backgroundArg),
+			Hidden:        true,
 			Content:       ui.View(app.View),
 		})
 		host.win = win
 
 		// Closing the window hides it, and the island goes on showing the
 		// runs. The schedules do not need it: the system runs them.
+		trayAvailable := true
 		win.OnClose(func(e *mygo.CloseEvent) {
 			if !quitting {
 				e.PreventDefault()
-				win.Hide()
+				if trayAvailable {
+					win.Hide()
+				} else {
+					mygo.App.Quit()
+				}
 			}
 		})
 		show := func() {
+			// Restore, so a window the user minimized comes back too: with no
+			// Dock icon, the status menu is the only way to it.
+			win.Restore()
 			win.Show()
 			win.Focus()
 		}
 		mygo.App.OnSecondInstance(func([]string, string) { show() })
-		mygo.App.OnActivate(func(hasVisibleWindows bool) {
-			if !hasVisibleWindows {
-				show()
-			}
-		})
+		// The island is a visible panel even when the main window is hidden,
+		// so hasVisibleWindows says nothing about the window: reopening the
+		// app always brings the window back.
+		mygo.App.OnActivate(func(bool) { show() })
 
-		if _, err := mygo.NewTray(mygo.TrayOptions{
-			ID:             "main",
-			Icon:           trayIcon,
-			IconIsTemplate: true,
-			ToolTip:        locales.AppName(),
-			Menu: mygo.NewMenu([]*mygo.MenuItem{
-				{Label: locales.TrayOpen(), Click: func(*mygo.MenuItem, *mygo.Window) { show() }},
-				mygo.Separator(),
-				{Role: mygo.RoleQuit},
-			}),
-		}); err != nil {
-			// Without a tray, closing the window must not leave the app
-			// running unseen.
+		statusIcon, err := mygo.NewTray(mygo.TrayOptions{
+			ID: "main", Icon: trayIcon, IconIsTemplate: true, ToolTip: locales.AppName(),
+		})
+		if err != nil {
 			slog.Warn("tray", "err", err)
-			if runtime.GOOS != "darwin" {
-				quitting = true
-			}
+			mygo.App.SetActivationPolicy(mygo.ActivationPolicyRegular)
+			show()
+			trayAvailable = false
+		} else {
+			tray = &taskTray{tray: statusIcon, svc: svc, show: show, openRun: func(r domain.Run) {
+				host.update(func(a *view.App) { a.OpenRun(r.TaskID, r.ID) })
+				show()
+			}}
+			tray.set(app.Snapshot())
 		}
 
 		isl = newIsland()
@@ -165,6 +178,13 @@ func main() {
 			mygo.App.SetMenu(appMenu())
 		}
 
+		// A first run has nothing in the status menu yet: open the window so
+		// the person sees where to add a storage and a task. Later launches,
+		// and a wake to tell a failure, leave the window hidden.
+		if firstRun(app.Snapshot()) {
+			show()
+		}
+
 		if err := svc.Start(context.Background()); err != nil {
 			slog.Error("start the service", "err", err)
 		}
@@ -173,6 +193,14 @@ func main() {
 	if err := mygo.App.Run(); err != nil {
 		log.Fatal(err)
 	}
+}
+
+// firstRun reports whether the app is not set up at all, with no storage and
+// no task: the window then opens by itself, so a new person finds where to
+// start. Someone who set up a storage, or removed every task, has been here
+// and is left in the menu bar, at login too.
+func firstRun(s view.Snapshot) bool {
+	return s.TaskErr == nil && s.StorageErr == nil && len(s.Tasks) == 0 && len(s.Storages) == 0
 }
 
 // appMenu is the system's menu bar: the default one, whose About shows the
