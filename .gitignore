@@ -1,0 +1,15 @@
+# mygo build output and development state
+/build/
+/.mygo/
+mygo_windows_*.syso
+.gocache/
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# a stray build of the app at the repository root
+/cloudshuttle
+*.swp

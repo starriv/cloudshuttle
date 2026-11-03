@@ -1,0 +1,846 @@
+{
+  "@@locale": "en",
+  "appName": "CloudShuttle",
+  "menuAbout": "About CloudShuttle",
+  "@menuAbout": {
+    "description": "The application menu's item that shows the system's About panel."
+  },
+  "navOverview": "Overview",
+  "navTasks": "Tasks",
+  "navStorages": "Storages",
+  "navHistory": "History",
+  "navSettings": "Settings",
+  "settingsTransferTitle": "Transfers",
+  "settingsTransfers": "Files at a time",
+  "settingsTransfersHint": "Higher values transfer faster but use more network bandwidth.",
+  "settingsCheckers": "Checks at a time",
+  "settingsCheckersHint": "Higher values compare files faster but put more load on the server.",
+  "settingsRetries": "Retries",
+  "settingsRetriesHint": "The number of times a failed operation is retried.",
+  "settingsBandwidth": "Speed limit",
+  "settingsBandwidthHint": "Limits the transfer speed of each run. Useful for a NAS on Wi-Fi or a slow connection.",
+  "settingsNoLimit": "No limit",
+  "settingsSpeed": "{mbps} MB/s",
+  "@settingsSpeed": {
+    "description": "A speed cap, in megabytes per second.",
+    "placeholders": {
+      "mbps": {
+        "type": "int",
+        "example": "10"
+      }
+    }
+  },
+  "settingsNotifyTitle": "Notifications",
+  "settingsNotifyFailed": "Notify when a run fails",
+  "settingsNotifySkipped": "Notify when a scheduled run cannot start",
+  "settingsHistoryTitle": "History",
+  "settingsRetention": "Keep runs and logs for",
+  "settingsRetentionHint": "Older runs and logs are deleted. Synced files are not affected.",
+  "settingsKeepForever": "Forever",
+  "settingsKeepDays": "{count, plural, one {# day} other {# days}}",
+  "@settingsKeepDays": {
+    "description": "How long the history is kept.",
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "90"
+      }
+    }
+  },
+  "settingsBackupTitle": "Backup",
+  "settingsBackupICloud": "Back up the configuration to iCloud Drive",
+  "settingsBackupICloudHint": "Stores an encrypted copy of your storages, tasks and settings in the CloudShuttle folder in iCloud Drive, updated after each change. Secrets remain in the system keychain.",
+  "settingsBackupPassword": "Backup password",
+  "settingsBackupPasswordHint": "Required to restore a backup. If the password is lost, the backup cannot be opened.",
+  "settingsBackupPasswordSet": "Set. Required to restore a backup. If the password is lost, the backup cannot be opened.",
+  "settingsBackupPasswordMissing": "Backups are paused. Backups are now encrypted; set a password to resume.",
+  "settingsBackupPasswordChange": "Change password",
+  "settingsBackupPasswordNew": "Password",
+  "settingsBackupPasswordConfirm": "Confirm password",
+  "errorPasswordMismatch": "The passwords do not match.",
+  "errorPasswordRequired": "Set a password to encrypt backups.",
+  "restoreTitle": "Restore from a backup",
+  "restoreHint": "Replaces the storages, tasks and settings with those in a backup. Run history is kept.",
+  "restoreOpen": "Restore…",
+  "restoreMessage": "The storages, tasks and settings in the backup will replace the current ones. Run history is kept. Backups do not include storage passwords; after restoring on another computer, enter them again.",
+  "restoreFile": "Backup file",
+  "restoreChoose": "Choose…",
+  "restorePassword": "Password",
+  "restorePasswordHint": "The password set when the backup was created. Unencrypted backups from earlier versions do not require a password.",
+  "restoreButton": "Replace and restore",
+  "restoreBusy": "Restoring…",
+  "restoreDone": "Restored from the backup.",
+  "restoreWrongPassword": "The password is incorrect, or the backup has been modified since it was created.",
+  "restoreNotBackup": "This file is not a CloudShuttle backup.",
+  "restoreRunsActive": "Tasks are running. Restore after they finish.",
+  "restoreNewer": "This backup was created by a newer version of CloudShuttle. Update the app to restore it.",
+  "settingsSave": "Save",
+  "settingsSaved": "Settings saved",
+  "settingsApplied": "Changes apply to runs started after saving.",
+  "errorOutOfRange": "Choose a value within the allowed range.",
+  "errorICloudUnavailable": "Turn on iCloud Drive in System Settings to enable backups.",
+  "overviewTasks": "Tasks",
+  "overviewStorages": "Storages",
+  "overviewFailing": "Last run failed",
+  "overviewRunning": "Running now",
+  "overviewRecent": "Recent runs",
+  "overviewScheduledOf": "{count, plural, =0 {None scheduled} one {# scheduled} other {# scheduled}}",
+  "@overviewScheduledOf": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "2"
+      }
+    }
+  },
+  "overviewWorking": "{count, plural, =0 {None tested yet} one {# available} other {# available}}",
+  "@overviewWorking": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "2"
+      }
+    }
+  },
+  "overviewBroken": "{count, plural, one {# unable to connect} other {# unable to connect}}",
+  "@overviewBroken": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "1"
+      }
+    }
+  },
+  "overviewWeek": "Runs, last 7 days",
+  "overviewNoneFailed": "None failed",
+  "overviewSomeFailed": "{count, plural, one {# failed} other {# failed}}",
+  "@overviewSomeFailed": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "2"
+      }
+    }
+  },
+  "overviewAllWell": "All tasks succeeded on their last run",
+  "overviewFailingNote": "Tasks whose last run failed",
+  "overviewOpenRun": "View this run of {task}",
+  "@overviewOpenRun": {
+    "placeholders": {
+      "task": {
+        "type": "String",
+        "example": "Photos"
+      }
+    }
+  },
+  "overviewOpenTask": "View the runs of {task}",
+  "@overviewOpenTask": {
+    "placeholders": {
+      "task": {
+        "type": "String",
+        "example": "Photos"
+      }
+    }
+  },
+  "overviewNoRuns": "No runs yet. Runs appear here after a task runs.",
+  "rcloneVersion": "rclone {version}",
+  "@rcloneVersion": {
+    "description": "The version of rclone compiled into the app: the About panel's credits, and under the overview where the system has no About panel.",
+    "placeholders": {
+      "version": {
+        "type": "String",
+        "example": "v1.75.2"
+      }
+    }
+  },
+  "tasksAdd": "Add task",
+  "tasksEmpty": "No tasks yet. A task copies or syncs a folder to a storage, manually or on a schedule.",
+  "tasksColumnName": "Name",
+  "tasksColumnRoute": "Source and destination",
+  "tasksRouteCopy": "Copy to {destination}",
+  "@tasksRouteCopy": {
+    "description": "Second line of a task's route: its mode and destination.",
+    "placeholders": {
+      "destination": {
+        "type": "String",
+        "example": "R2: pictures"
+      }
+    }
+  },
+  "tasksRouteSync": "Sync to {destination}",
+  "@tasksRouteSync": {
+    "placeholders": {
+      "destination": {
+        "type": "String",
+        "example": "R2: pictures"
+      }
+    }
+  },
+  "tasksColumnSchedule": "Schedule",
+  "tasksColumnLastRun": "Last run",
+  "tasksManual": "Manual",
+  "tasksNever": "Never",
+  "tasksNextRun": "Next {time}",
+  "@tasksNextRun": {
+    "description": "When a scheduled task runs next, already formatted.",
+    "placeholders": {
+      "time": {
+        "type": "String",
+        "example": "Nov 4, 03:00"
+      }
+    }
+  },
+  "taskRun": "Run",
+  "taskDryRun": "Dry run",
+  "taskStop": "Stop",
+  "taskWaiting": "Waiting to run",
+  "taskEdit": "Edit…",
+  "taskDelete": "Delete…",
+  "taskRunAnyway": "Run anyway…",
+  "taskRunAnywayTitle": "Run {name} anyway?",
+  "@taskRunAnywayTitle": {
+    "description": "Confirmation before a sync that skips the check on deletes.",
+    "placeholders": {
+      "name": {
+        "type": "String",
+        "example": "Photos"
+      }
+    }
+  },
+  "taskRunAnywayMessage": "This sync may delete most of the files in the destination, or all of them if the source is empty. Continue only if this is intended.",
+  "taskRunAnywayButton": "Run anyway",
+  "taskActions": "Actions for {name}",
+  "@taskActions": {
+    "description": "Accessible name of a task's actions menu.",
+    "placeholders": {
+      "name": {
+        "type": "String",
+        "example": "Photos"
+      }
+    }
+  },
+  "taskStarted": "Started {name}",
+  "@taskStarted": {
+    "description": "Toast after a task starts by hand.",
+    "placeholders": {
+      "name": {
+        "type": "String",
+        "example": "Photos"
+      }
+    }
+  },
+  "taskDeleteTitle": "Delete {name}?",
+  "@taskDeleteTitle": {
+    "placeholders": {
+      "name": {
+        "type": "String",
+        "example": "Photos"
+      }
+    }
+  },
+  "taskDeleteMessage": "Its run history is kept.",
+  "taskDeleted": "Task deleted",
+  "taskDialogNew": "New task",
+  "taskDialogEdit": "Edit task",
+  "taskFieldName": "Name",
+  "taskFieldSource": "Source",
+  "taskFieldDestination": "Destination",
+  "taskFieldFolder": "Folder",
+  "taskFieldPrefix": "Path in bucket",
+  "taskFieldPrefixHint": "Leave empty for the top of the bucket.",
+  "taskFieldSharePath": "Share and folder",
+  "taskFieldSharePathHint": "Starts with the share name, for example Documents/Photos. Click Browse to choose one.",
+  "taskRelayHint": "Neither location is on this computer, so files are relayed through it. A wired connection is recommended for better speed.",
+  "taskChooseFolder": "Choose…",
+  "taskBrowse": "Browse…",
+  "browseTitle": "Choose a folder in {storage}",
+  "@browseTitle": {
+    "placeholders": {
+      "storage": {
+        "type": "String",
+        "example": "NAS"
+      }
+    }
+  },
+  "browsePath": "Path",
+  "browseFolders": "Folders",
+  "browseHint": "Double-click a folder or press Return to open it.",
+  "browseLoading": "Reading folders…",
+  "browseEmpty": "This folder has no subfolders. Choose this folder, or use the path above to go back.",
+  "browseShares": "Shares",
+  "browseShareName": "Share name",
+  "browseOpen": "Open",
+  "browseShareHint": "Share not listed? After a share is renamed, the NAS may list it under its old name for some time. Enter the share name to open it.",
+  "browseShareGone": "The share {share} no longer exists on the server and may have been renamed. Choose the share again.",
+  "@browseShareGone": {
+    "placeholders": {
+      "share": {
+        "type": "String",
+        "example": "Documents"
+      }
+    }
+  },
+  "browseFailed": "Unable to read folders: {error}",
+  "@browseFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String",
+        "example": "connection refused"
+      }
+    }
+  },
+  "browseChooseCurrent": "Choose this folder",
+  "browseChoose": "Choose {name}",
+  "@browseChoose": {
+    "placeholders": {
+      "name": {
+        "type": "String",
+        "example": "2024"
+      }
+    }
+  },
+  "taskFieldMode": "Mode",
+  "taskFieldSchedule": "Schedule",
+  "taskScheduleNext": "Runs next {time}.",
+  "@taskScheduleNext": {
+    "placeholders": {
+      "time": {
+        "type": "String",
+        "example": "Nov 4, 2026, 03:00"
+      }
+    }
+  },
+  "repeatOff": "Manual",
+  "repeatHourly": "Hourly",
+  "repeatDaily": "Daily",
+  "repeatWeekly": "Weekly",
+  "repeatMonthly": "Monthly",
+  "scheduleEvery": "Interval",
+  "scheduleDays": "Days",
+  "scheduleDay": "Day of the month",
+  "scheduleTime": "Time",
+  "scheduleEveryHours": "{count, plural, one {Every hour} other {Every # hours}}",
+  "@scheduleEveryHours": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "6"
+      }
+    }
+  },
+  "scheduleDayOfMonth": "The {day, selectordinal, one {#st} two {#nd} few {#rd} other {#th}}",
+  "@scheduleDayOfMonth": {
+    "placeholders": {
+      "day": {
+        "type": "int",
+        "example": "1"
+      }
+    }
+  },
+  "scheduleDaily": "Daily at {time}",
+  "@scheduleDaily": {
+    "placeholders": {
+      "time": {
+        "type": "String",
+        "example": "21:00"
+      }
+    }
+  },
+  "scheduleWorkdays": "Weekdays at {time}",
+  "@scheduleWorkdays": {
+    "placeholders": {
+      "time": {
+        "type": "String",
+        "example": "21:00"
+      }
+    }
+  },
+  "scheduleWeekends": "Weekends at {time}",
+  "@scheduleWeekends": {
+    "placeholders": {
+      "time": {
+        "type": "String",
+        "example": "10:00"
+      }
+    }
+  },
+  "scheduleWeekly": "Every {days} at {time}",
+  "@scheduleWeekly": {
+    "description": "A weekly schedule: the days are joined with scheduleDaySeparator.",
+    "placeholders": {
+      "days": {
+        "type": "String",
+        "example": "Mon, Thu"
+      },
+      "time": {
+        "type": "String",
+        "example": "21:00"
+      }
+    }
+  },
+  "scheduleDaySeparator": ", ",
+  "@scheduleDaySeparator": {
+    "description": "Goes between the days of a weekly schedule."
+  },
+  "scheduleMonthly": "Monthly on the {day, selectordinal, one {#st} two {#nd} few {#rd} other {#th}} at {time}",
+  "@scheduleMonthly": {
+    "placeholders": {
+      "day": {
+        "type": "int",
+        "example": "1"
+      },
+      "time": {
+        "type": "String",
+        "example": "03:00"
+      }
+    }
+  },
+  "scheduleBySystem": "Runs even after CloudShuttle quits. Runs missed while the computer was off or asleep run once when it starts up or wakes.",
+  "scheduleInApp": "Runs only while CloudShuttle is running, including when its window is closed.",
+  "scheduleBlocked": "CloudShuttle is not allowed to run in the background. Scheduled tasks run only while CloudShuttle is running.",
+  "scheduleOpenSettings": "Open Login Items",
+  "scheduleAskOnSave": "After saving, you will be asked whether scheduled tasks may run after CloudShuttle quits.",
+  "scheduleInAppChosen": "Runs only while CloudShuttle is running, including when its window is closed. You can change this in Settings.",
+  "backgroundAskTitle": "Allow scheduled tasks to run after CloudShuttle quits?",
+  "backgroundAskMessage": "CloudShuttle will add a background item to Login Items & Extensions in macOS. At each scheduled time, the system starts it in the background to run tasks, whether or not CloudShuttle is running. Runs missed while the computer was off or asleep run once when it starts up or wakes.",
+  "backgroundAskNote": "If you choose Only while running, tasks that come due after CloudShuttle quits run the next time it opens. You can change this at any time in Settings.",
+  "backgroundAllow": "Allow",
+  "backgroundDecline": "Only while running",
+  "settingsScheduleTitle": "Scheduled tasks",
+  "settingsBackground": "Run scheduled tasks after CloudShuttle quits",
+  "settingsBackgroundHint": "The system starts CloudShuttle's background item at the scheduled times; it is listed in System Settings > General > Login Items & Extensions. When off, scheduled tasks run only while CloudShuttle is running.",
+  "@scheduleOpenSettings": {
+    "description": "Opens System Settings > General > Login Items, where the person allows apps in the background."
+  },
+  "taskScheduleOff": "Runs only when started manually.",
+  "taskScheduleLastDay": "In months without a {day, selectordinal, one {#st} two {#nd} few {#rd} other {#th}}, runs on the last day of the month.",
+  "@taskScheduleLastDay": {
+    "placeholders": {
+      "day": {
+        "type": "int",
+        "example": "31"
+      }
+    }
+  },
+  "taskSave": "Save task",
+  "taskSaved": "Task saved",
+  "locationThisComputer": "This computer",
+  "modeCopy": "Copy",
+  "modeSync": "Sync",
+  "modeCopyHint": "Copies new and changed files and overwrites files in the destination that differ. Never deletes files.",
+  "modeSyncHint": "Makes the destination identical to the source; files not in the source are deleted from the destination. If a sync would delete most of the destination, it stops for confirmation.",
+  "storagesAdd": "Add storage",
+  "storagesEmpty": "No storages yet. Add an S3-compatible bucket, such as Amazon S3 or Cloudflare R2, or an SMB server such as a NAS.",
+  "storagesColumnName": "Name",
+  "storagesColumnKind": "Type",
+  "storagesColumnAddress": "Address",
+  "storagesColumnStatus": "Status",
+  "checkOK": "Available",
+  "checkFailed": "Failed",
+  "checkNone": "Not tested",
+  "checkNoneHint": "Test the connection to verify that the storage is available.",
+  "checkOKAt": "Connection test succeeded, {time}",
+  "@checkOKAt": {
+    "placeholders": {
+      "time": {
+        "type": "String",
+        "example": "Nov 3, 2026, 1:20 PM"
+      }
+    }
+  },
+  "checkFailedAt": "Connection test failed, {time}: {reason}",
+  "@checkFailedAt": {
+    "placeholders": {
+      "time": {
+        "type": "String",
+        "example": "Nov 3, 2026, 1:20 PM"
+      },
+      "reason": {
+        "type": "String",
+        "example": "Could not reach the server."
+      }
+    }
+  },
+  "storageTest": "Test connection",
+  "storageTestShort": "Test",
+  "storageTesting": "Testing…",
+  "storageTestPassed": "Connected to {name}",
+  "@storageTestPassed": {
+    "placeholders": {
+      "name": {
+        "type": "String",
+        "example": "R2"
+      }
+    }
+  },
+  "storageTestFailed": "Unable to connect: {error}",
+  "@storageTestFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String",
+        "example": "403 Forbidden"
+      }
+    }
+  },
+  "storageEdit": "Edit…",
+  "storageDelete": "Delete…",
+  "storageActions": "Actions for {name}",
+  "@storageActions": {
+    "placeholders": {
+      "name": {
+        "type": "String",
+        "example": "R2"
+      }
+    }
+  },
+  "storageDeleteTitle": "Delete {name}?",
+  "@storageDeleteTitle": {
+    "placeholders": {
+      "name": {
+        "type": "String",
+        "example": "R2"
+      }
+    }
+  },
+  "storageDeleteMessage": "Its secret access key will be removed from the system keychain. Files in the bucket are not affected.",
+  "storageDeleteMessageShare": "Its password will be removed from the system keychain. Files on the server are not affected.",
+  "storageDeleted": "Storage deleted",
+  "storageInUse": "This storage is used by a task. Edit or delete the task first.",
+  "storageDialogNew": "New storage",
+  "storageDialogEdit": "Edit storage",
+  "storageFieldKind": "Type",
+  "kindS3": "S3 bucket",
+  "kindSMB": "SMB server",
+  "storageFieldName": "Name",
+  "storageFieldProvider": "Provider",
+  "storageFieldEndpoint": "Endpoint",
+  "storageEndpointHint": "The S3 API URL of the service. Leave empty for Amazon S3.",
+  "storagePlaintextWarning": "This address uses http://, so keys and files are transmitted without encryption. Use https:// unless this is a trusted server on your local network.",
+  "storageFieldRegion": "Region",
+  "storageRegionHint": "Optional for most providers. For Cloudflare R2, enter auto.",
+  "storageFieldBucket": "Bucket",
+  "storageFieldAccessKeyId": "Access key ID",
+  "storageFieldSecret": "Secret access key",
+  "storageSecretHint": "Stored in the system keychain, not in the app's database.",
+  "storageSecretKeptHint": "Stored in the system keychain. Leave empty to keep the current key.",
+  "storageFieldHost": "Server",
+  "storageHostHint": "Host name or IP address, for example nas.local or 192.168.1.20.",
+  "storageServersUnverified": "These servers were discovered by network broadcast and have not been verified. Confirm that the address belongs to your device before signing in.",
+  "storageFieldPort": "Port",
+  "storageFieldUsername": "User name",
+  "storageUsernameHint": "For shares that allow guest access, enter guest.",
+  "storageFieldPassword": "Password",
+  "storagePasswordHint": "Stored in the system keychain. Can be left empty when the user name is guest.",
+  "storagePasswordKeptHint": "Stored in the system keychain. Leave empty to keep the current password.",
+  "storageSharesNone": "The server has no shares accessible to this account.",
+  "storageFieldFound": "Discovered servers",
+  "storageFindServers": "Search the network",
+  "storageFindingServers": "Searching the network…",
+  "storageFindAgain": "Search again",
+  "storageServersNone": "No SMB servers found. For servers that do not use Bonjour, enter the address directly. If macOS requested local network access, allow it and search again.",
+  "storageServersFailed": "Unable to search the network: {error}",
+  "@storageServersFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String",
+        "example": "no network interface can send multicast"
+      }
+    }
+  },
+  "storageUseServer": "Use {name} at {host}",
+  "@storageUseServer": {
+    "placeholders": {
+      "name": {
+        "type": "String",
+        "example": "DiskStation"
+      },
+      "host": {
+        "type": "String",
+        "example": "nas.local"
+      }
+    }
+  },
+  "storageSave": "Save storage",
+  "storageSaved": "Storage saved",
+  "providerAWS": "Amazon S3",
+  "providerCloudflare": "Cloudflare R2",
+  "providerAlibaba": "Alibaba Cloud OSS",
+  "providerTencentCOS": "Tencent Cloud COS",
+  "providerHuaweiOBS": "Huawei Cloud OBS",
+  "providerMinio": "MinIO",
+  "providerOther": "Other S3-compatible",
+  "historyFilterTask": "Task",
+  "historyAllTasks": "All tasks",
+  "historyFilterStatus": "Status",
+  "historyAllStatuses": "All statuses",
+  "historyColumnStarted": "Started",
+  "historyColumnTask": "Task",
+  "historyColumnStatus": "Status",
+  "historyColumnDuration": "Duration",
+  "historyColumnTransferred": "Transferred",
+  "historyEmpty": "No runs yet. Runs appear here when tasks run manually or on a schedule.",
+  "historyNoMatch": "No runs match these filters.",
+  "historyDetailTitle": "Run details",
+  "historyDetailClose": "Close",
+  "historyDetailNone": "Select a run to view its details.",
+  "historyChooseAll": "Select all",
+  "historyChoose": "Select the run of {task} at {time}",
+  "@historyChoose": {
+    "placeholders": {
+      "task": {
+        "type": "String",
+        "example": "Photos"
+      },
+      "time": {
+        "type": "String",
+        "example": "Nov 3, 2026, 1:15 PM"
+      }
+    }
+  },
+  "historyDeleteNone": "Delete",
+  "historyDelete": "{count, plural, one {Delete # run} other {Delete # runs}}",
+  "@historyDelete": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "3"
+      }
+    }
+  },
+  "historyDeleteItem": "{count, plural, one {Delete # run…} other {Delete # runs…}}",
+  "@historyDeleteItem": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "3"
+      }
+    }
+  },
+  "historyDeleteTitle": "{count, plural, one {Delete # run?} other {Delete # runs?}}",
+  "@historyDeleteTitle": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "3"
+      }
+    }
+  },
+  "historyDeleteMessage": "Their logs will also be deleted. Synced files are not affected.",
+  "historyDeleteKeepsRunning": "{count, plural, one {The # run in progress will be kept.} other {The # runs in progress will be kept.}}",
+  "@historyDeleteKeepsRunning": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "1"
+      }
+    }
+  },
+  "historyDeleteRunning": "Runs in progress cannot be deleted. Stop the run first.",
+  "historyDeleted": "{count, plural, one {# file deleted} other {# files deleted}}",
+  "@historyDeleted": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "2"
+      }
+    }
+  },
+  "historyChosen": "{count, plural, one {# run selected.} other {# runs selected. Select a single run to view its details.}}",
+  "@historyChosen": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "3"
+      }
+    }
+  },
+  "historyTrigger": "Trigger",
+  "historyCounts": "Files",
+  "historyDeletedShort": "{count} deleted",
+  "historyLimit": "Showing the newest {count} runs.",
+  "@historyLimit": {
+    "description": "A note that the history shows only the newest runs, as older ones are kept but not read.",
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "200"
+      }
+    }
+  },
+  "@historyDeletedShort": {
+    "description": "What a run deleted, short enough for a table cell.",
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "3"
+      }
+    }
+  },
+  "historyChecked": "{count, plural, one {# file checked} other {# files checked}}",
+  "@historyChecked": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "12"
+      }
+    }
+  },
+  "historyErrors": "{count, plural, one {# error} other {# errors}}",
+  "@historyErrors": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "1"
+      }
+    }
+  },
+  "historyMessage": "Message",
+  "historyProblem": "Why it stopped",
+  "historyLog": "Log",
+  "historyLogCopy": "Copy log",
+  "historyLogCopied": "Log copied",
+  "historyLogNone": "No log is available for this run. It ran before logging was introduced.",
+  "historyLogFailed": "Unable to read the log: {error}",
+  "@historyLogFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String",
+        "example": "database is locked"
+      }
+    }
+  },
+  "statusRunning": "Running",
+  "statusSuccess": "Succeeded",
+  "statusFailed": "Failed",
+  "statusCanceled": "Stopped",
+  "triggerManual": "Manual",
+  "triggerScheduled": "Scheduled",
+  "dryRunBadge": "Dry run",
+  "transferred": "{count, plural, one {# file} other {# files}}, {size}",
+  "@transferred": {
+    "description": "What a run transferred: the number of files and their size, already formatted.",
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "3"
+      },
+      "size": {
+        "type": "String",
+        "example": "12.4 MB"
+      }
+    }
+  },
+  "progress": "{done} of {total}",
+  "@progress": {
+    "description": "Bytes transferred so far of the total, already formatted.",
+    "placeholders": {
+      "done": {
+        "type": "String",
+        "example": "4.1 MB"
+      },
+      "total": {
+        "type": "String",
+        "example": "12.4 MB"
+      }
+    }
+  },
+  "speed": "{speed}/s",
+  "@speed": {
+    "placeholders": {
+      "speed": {
+        "type": "String",
+        "example": "2.3 MB"
+      }
+    }
+  },
+  "buttonCancel": "Cancel",
+  "buttonDelete": "Delete",
+  "errorRequired": "Required.",
+  "errorTooLong": "Must be 64 characters or fewer.",
+  "errorInvalid": "Select one of the options.",
+  "errorInvalidUrl": "Enter a URL that starts with https://.",
+  "errorInvalidHost": "Enter a host name or an IP address, such as nas.local.",
+  "errorInvalidPort": "Enter a port from 1 to 65535.",
+  "errorUnreachable": "Unable to reach the server. Make sure it is turned on and connected to this network.",
+  "errorAuthFailed": "The server rejected the user name or password, or this account does not have access to the share.",
+  "errorShareNotFound": "The server has no share with this name. Click Browse to choose one of its shares.",
+  "errorShareRequired": "Choose a share on the server, or a folder in one.",
+  "errorNotAbsolute": "Enter a full path, such as /Users/name/Documents.",
+  "errorUnknownStorage": "Choose a storage.",
+  "errorSameLocation": "The source and the destination are the same.",
+  "errorNested": "One folder is inside the other. Choose folders that do not contain each other.",
+  "errorInvalidPath": "Paths cannot contain “..”. Choose the folder directly.",
+  "errorForbiddenDestination": "This folder cannot be used as a sync destination because it is a system folder, your home folder, or contains CloudShuttle data.",
+  "errorSharedDestination": "Another task also writes to this folder. Tasks that share a destination may delete each other's files; choose a different folder.",
+  "errorNoDays": "Choose at least one day.",
+  "errorNameTaken": "This name is already in use.",
+  "errorTaskRunning": "The task is running. Stop it first.",
+  "errorDestinationBusy": "Another task is currently writing to this destination. Run this task after it finishes.",
+  "runProblemEmptySource": "The source is empty, so the sync stopped before deleting any files from the destination. To empty the destination, run the task with Run anyway.",
+  "runProblemLargeDelete": "The sync stopped because it would delete most of the files in the destination. No files were deleted. To proceed, run the task with Run anyway.",
+  "errorLoad": "Unable to read app data: {error}",
+  "@errorLoad": {
+    "placeholders": {
+      "error": {
+        "type": "String",
+        "example": "database is locked"
+      }
+    }
+  },
+  "errorAction": "Unable to complete the action: {error}",
+  "@errorAction": {
+    "placeholders": {
+      "error": {
+        "type": "String",
+        "example": "disk full"
+      }
+    }
+  },
+  "trayOpen": "Open CloudShuttle",
+  "notifyFailedTitle": "{name} failed",
+  "notifySkippedTitle": "{name} did not start",
+  "notifyDestinationBusy": "Another task is writing to this destination. The task will be retried at the next scheduled time.",
+  "@notifyFailedTitle": {
+    "placeholders": {
+      "name": {
+        "type": "String",
+        "example": "Photos"
+      }
+    }
+  },
+  "islandFinished": "{name} finished",
+  "@islandFinished": {
+    "description": "The island, as a run ends well.",
+    "placeholders": {
+      "name": {
+        "type": "String",
+        "example": "Photos"
+      }
+    }
+  },
+  "islandStopped": "{name} stopped",
+  "@islandStopped": {
+    "placeholders": {
+      "name": {
+        "type": "String",
+        "example": "Photos"
+      }
+    }
+  },
+  "islandMore": "+{count}",
+  "@islandMore": {
+    "description": "The island's right side, while more runs go on than the one it shows.",
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "2"
+      }
+    }
+  },
+  "settingsAppearanceTitle": "Appearance",
+  "settingsAppearance": "Theme",
+  "settingsAppearanceHint": "Takes effect immediately. System matches the macOS appearance.",
+  "appearanceSystem": "System",
+  "appearanceLight": "Light",
+  "appearanceDark": "Dark"
+}
