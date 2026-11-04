@@ -26,7 +26,7 @@ go tool mygo generate       # 修改 locales/*.json 之后执行
 git tag v1.2.0 && git push origin main v1.2.0
 ```
 
-workflow 先检查标签和 `version` 一致，建立草稿 Release `v<版本>`，再同时打三个包，连同各自的更新文件上传到草稿：
+workflow 先检查标签和 `version` 一致，建立草稿 Release `v<版本>`，再依次打三个包，连同各自的更新文件上传到草稿（不能同时：每个包都要合并草稿里的 `SHA256SUMS` 再传回，两个 macOS 包还都上传 `install.sh`，同时上传会互相覆盖）：
 
 | 任务 | 运行在 | 安装包 |
 |---|---|---|

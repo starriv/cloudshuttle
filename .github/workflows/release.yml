@@ -37,6 +37,10 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
+      # One at a time: each build reads the release's SHA256SUMS, merges its
+      # own lines and uploads it again, and both macOS builds upload
+      # install.sh, so builds uploading together clobber each other.
+      max-parallel: 1
       matrix:
         include:
           - { name: macOS universal, os: macos-latest, platform: darwin/universal }
