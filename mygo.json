@@ -11,7 +11,8 @@
   },
   "updates": {
     "publicKey": "CPNt87YC4TqQAXCpuf40wIAEUA7t6RhltbgFUW0Qpdo=",
-    "github": "starriv/cloudshuttle"
+    "github": "starriv/cloudshuttle",
+    "deltas": 0
   },
   "macos": {
     "infoPlist": {

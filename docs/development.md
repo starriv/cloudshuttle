@@ -55,7 +55,8 @@ CI 必须用和 `signingIdentity` 同一张证书签名：钥匙串按证书认�
 已安装的云梭从 GitHub 最新的 Release 读取更新（见 architecture.md「自动更新」），更新必须用更新私钥签名：
 
 - 私钥由 `go tool mygo keygen` 生成一次（`mygo-update.key`，默认在 `~/Library/Application Support/mygo/update-keys/`），公钥 `mygo-update.pub` 的内容写在 `mygo.json` 的 `updates.publicKey`。私钥**不进仓库**，另存一份离线备份：丢了它，已安装的应用就再也收不到更新；别人拿到它，就能向用户推送代码。不要再运行 `keygen -force`，那会换掉这对密钥。
-- 有私钥时，每个平台在安装包旁边多出 `cloudshuttle-<版本>-<平台>.tar.gz`、从前几个版本来的增量包 `*.delta`，以及清单 `update-<平台>.json`。增量包要读已发布的版本，所以第一个带更新的版本没有增量包。
+- 有私钥时，每个平台在安装包旁边多出更新包 `cloudshuttle-<版本>-<平台>.tar.gz` 和清单 `update-<平台>.json`。应用从最新 Release 读清单、下载清单指向的更新包，所以这两种文件必须留在 Release 里。`mygo.json` 的 `updates.deltas` 为 0，不生成增量包 `*.delta`，让 Release 的文件保持精简；更新包只有十几到二十几 MB。
+- 打包还会上传命令行安装脚本 `install.sh`、`install.ps1` 和校验和 `SHA256SUMS`。云梭不提供命令行安装，workflow 最后的 `tidy-release` 会删掉它们；安装包的 SHA-256 写在 Release 说明里。
 - 只有发布并设为 Latest 的 Release 会推给用户；草稿和预发布版不会。
 
 没有 `updates` 配置或没有私钥打出的包不能自动更新，设置页会说明并链接到下载页。1.1.0 及更早的版本没有更新功能，用户需要手动装一次第一个带更新的版本。

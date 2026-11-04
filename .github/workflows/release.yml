@@ -84,3 +84,21 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           MYGO_UPDATER_PRIVATE_KEY: ${{ secrets.MYGO_UPDATER_PRIVATE_KEY }}
         run: go tool mygo build -platform "${{ matrix.platform }}" -upload
+
+  # The release keeps what people download, the installers, and what the
+  # app updates from, update-*.json and the archives they point to. The
+  # builds also upload scripts that install from a terminal, which the app
+  # does not offer, and the checksums those scripts check (the release
+  # notes list the installers' checksums): they need SHA256SUMS while they
+  # build, so it goes once they are done.
+  tidy-release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Remove the install scripts and SHA256SUMS
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for asset in install.sh install.ps1 SHA256SUMS; do
+            gh release delete-asset "$GITHUB_REF_NAME" "$asset" --repo "$GITHUB_REPOSITORY" --yes || true
+          done
