@@ -80,7 +80,9 @@ CREATE TABLE IF NOT EXISTS settings (
     retention_days INTEGER NOT NULL,
     backup_icloud  INTEGER NOT NULL DEFAULT 0,
     background     INTEGER NOT NULL DEFAULT 0, -- domain.Consent
-    appearance     INTEGER NOT NULL DEFAULT 0  -- domain.Appearance
+    appearance     INTEGER NOT NULL DEFAULT 0, -- domain.Appearance
+    check_updates  INTEGER NOT NULL DEFAULT 1,
+    install_updates INTEGER NOT NULL DEFAULT 0
 );
 
 -- The log of each run, apart from runs so that listing them stays light.

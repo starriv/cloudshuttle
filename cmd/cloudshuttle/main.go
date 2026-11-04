@@ -19,6 +19,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
+	"sync/atomic"
 	"syscall"
 
 	"github.com/egoist/mygo"
@@ -27,6 +28,7 @@ import (
 	"github.com/starriv/cloudshuttle/internal/engine"
 	"github.com/starriv/cloudshuttle/internal/service"
 	"github.com/starriv/cloudshuttle/internal/store"
+	"github.com/starriv/cloudshuttle/internal/updates"
 	"github.com/starriv/cloudshuttle/internal/view"
 	"github.com/starriv/cloudshuttle/locales"
 )
@@ -66,6 +68,35 @@ func main() {
 	var svc *service.Service
 	var tray *taskTray // accessed only on the main thread
 	var isl *notchIsland
+	var show func()             // shows the main window, once it exists
+	var windowShown atomic.Bool // the main window is on screen
+	openUpdates := func() {     // the settings' Updates card, on the main thread
+		host.update(func(a *view.App) { a.OpenUpdates() })
+		if show != nil {
+			show()
+		}
+	}
+	var upd *updates.Updater
+	upd = updates.New(updates.Options{
+		Source:  mygoUpdates{},
+		Current: mygo.App.Version(),
+		// Every run counts, the scheduler's too: the person asked to
+		// wait for the tasks, and a restart would stop the window's.
+		Runs:     func() int { return len(svc.Active()) },
+		Quiet:    func() bool { return !windowShown.Load() },
+		Relaunch: func() { relaunchIntoUpdate(dir, windowShown.Load()) },
+		OnChange: func() {
+			host.update(func(*view.App) {
+				if tray != nil {
+					tray.setUpdate(upd.State())
+				}
+			})
+		},
+		OnAvailable: func(version string) {
+			notifyUpdate(version, openUpdates)
+		},
+	})
+
 	runsChanged := func() {
 		if isl != nil {
 			isl.SetRuns(svc.Active())
@@ -84,6 +115,14 @@ func main() {
 				}
 			})
 			runsChanged()
+			// A restored backup brings its own choice; a run that started
+			// or ended may be the one a restart waits for. Off this
+			// goroutine, which may hold the service's lock.
+			go func() {
+				st := svc.Settings()
+				upd.SetAutomatic(st.CheckUpdates, st.InstallUpdates)
+				upd.RunsChanged()
+			}()
 		},
 		OnProgress: func() {
 			host.update(func(a *view.App) {
@@ -98,6 +137,7 @@ func main() {
 			if isl != nil {
 				isl.Finished(r)
 			}
+			go upd.RunsChanged()
 		},
 		OnNotify: notifyFailure,
 		OnRefused: func(t domain.Task, err error) {
@@ -105,6 +145,7 @@ func main() {
 		},
 	})
 	app := view.New(svc, host)
+	app.SetUpdater(upd)
 	host.app = app
 
 	var quitting bool // OnBeforeQuit and OnClose run on the main thread
@@ -141,7 +182,12 @@ func main() {
 				}
 			}
 		})
-		show := func() {
+		win.OnShow(func() { windowShown.Store(true) })
+		win.OnHide(func() {
+			windowShown.Store(false)
+			go upd.RunsChanged() // an update installed by itself waits for this
+		})
+		show = func() {
 			// Restore, so a window the user minimized comes back too: with no
 			// Dock icon, the status menu is the only way to it.
 			win.Restore()
@@ -166,7 +212,10 @@ func main() {
 			tray = &taskTray{tray: statusIcon, svc: svc, show: show, openRun: func(r domain.Run) {
 				host.update(func(a *view.App) { a.OpenRun(r.TaskID, r.ID) })
 				show()
-			}}
+			}, onUpdate: func(s updates.State) {
+				openUpdates()
+				updateStep(upd, s)
+			}, updateState: upd.State()}
 			tray.set(app.Snapshot())
 		}
 
@@ -175,19 +224,25 @@ func main() {
 		// The About panel says what app this is; it says the rclone a run
 		// uses too, where the window no longer does.
 		if runtime.GOOS == "darwin" {
-			mygo.App.SetMenu(appMenu())
+			mygo.App.SetMenu(appMenu(func() {
+				openUpdates()
+				upd.Check()
+			}))
 		}
 
 		// A first run has nothing in the status menu yet: open the window so
 		// the person sees where to add a storage and a task. Later launches,
 		// and a wake to tell a failure, leave the window hidden.
-		if firstRun(app.Snapshot()) {
+		if firstRun(app.Snapshot()) || shownBeforeUpdate(dir) {
 			show()
 		}
 
 		if err := svc.Start(context.Background()); err != nil {
 			slog.Error("start the service", "err", err)
 		}
+		st := svc.Settings()
+		upd.SetAutomatic(st.CheckUpdates, st.InstallUpdates)
+		upd.Start(context.Background())
 	})
 
 	if err := mygo.App.Run(); err != nil {
@@ -205,10 +260,11 @@ func firstRun(s view.Snapshot) bool {
 
 // appMenu is the system's menu bar: the default one, whose About shows the
 // standard panel, with the rclone compiled into the app as its credits.
-func appMenu() *mygo.Menu {
+func appMenu(checkForUpdates func()) *mygo.Menu {
 	return mygo.NewMenu([]*mygo.MenuItem{
 		{Role: mygo.RoleAppMenu, Submenu: []*mygo.MenuItem{
 			{Label: locales.MenuAbout(), Click: func(*mygo.MenuItem, *mygo.Window) { showAbout() }},
+			{Label: locales.MenuCheckUpdates(), Click: func(*mygo.MenuItem, *mygo.Window) { checkForUpdates() }},
 			mygo.Separator(),
 			{Role: mygo.RoleServices},
 			mygo.Separator(),

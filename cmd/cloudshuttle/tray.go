@@ -11,6 +11,7 @@ import (
 	"github.com/starriv/cloudshuttle/internal/format"
 	"github.com/starriv/cloudshuttle/internal/icons"
 	"github.com/starriv/cloudshuttle/internal/service"
+	"github.com/starriv/cloudshuttle/internal/updates"
 	"github.com/starriv/cloudshuttle/internal/view"
 	"github.com/starriv/cloudshuttle/locales"
 	"golang.org/x/text/width"
@@ -70,6 +71,32 @@ type taskTray struct {
 	loadFailed bool
 	rows       []trayRow
 	items      []*mygo.MenuItem
+	// onUpdate takes the next step of the update, from the menu's update
+	// item: none without it. updateState is what the item shows.
+	onUpdate    func(updates.State)
+	updateState updates.State
+	updateItem  *mygo.MenuItem
+}
+
+// setUpdate shows where the update is in its item, without rebuilding the
+// menu.
+func (t *taskTray) setUpdate(s updates.State) {
+	t.updateState = s
+	if t.updateItem != nil {
+		t.updateItem.SetLabel(trayUpdateLabel(s))
+	}
+}
+
+// trayUpdateLabel names the next step of the update: install the version
+// found, restart into the one installed, or check.
+func trayUpdateLabel(s updates.State) string {
+	switch s.Phase {
+	case updates.PhaseAvailable, updates.PhaseInstallFailed:
+		return locales.TrayInstallUpdate(s.Version)
+	case updates.PhaseReady:
+		return locales.TrayRestartUpdate()
+	}
+	return locales.MenuCheckUpdates()
 }
 
 type trayRow struct {
@@ -131,7 +158,14 @@ func (t *taskTray) update() {
 		t.items = append(t.items, item)
 	}
 	items := append([]*mygo.MenuItem(nil), t.items...)
-	items = append(items, mygo.Separator(),
+	items = append(items, mygo.Separator())
+	t.updateItem = nil
+	if t.onUpdate != nil {
+		t.updateItem = &mygo.MenuItem{Label: trayUpdateLabel(t.updateState), Icon: menuIcons()[icons.Download],
+			Click: func(*mygo.MenuItem, *mygo.Window) { t.onUpdate(t.updateState) }}
+		items = append(items, t.updateItem)
+	}
+	items = append(items,
 		&mygo.MenuItem{Label: locales.TrayOpen(), Icon: menuIcons()[icons.Overview], Click: func(*mygo.MenuItem, *mygo.Window) { t.show() }},
 		mygo.Separator(), &mygo.MenuItem{Role: mygo.RoleQuit, Label: locales.TrayQuit()})
 	t.tray.SetMenu(mygo.NewMenu(items))

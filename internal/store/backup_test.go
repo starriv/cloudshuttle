@@ -134,6 +134,7 @@ func TestRestoreConfig(t *testing.T) {
 	settings.RetentionDays = 30
 	settings.Background = domain.ConsentGiven   // the other computer's answer
 	settings.Appearance = domain.AppearanceDark // a preference, restored
+	settings.CheckUpdates, settings.InstallUpdates = false, true
 	if err := from.PutStorage(ctx, st); err != nil {
 		t.Fatal(err)
 	}

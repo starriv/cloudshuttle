@@ -19,6 +19,11 @@ type Settings struct {
 	Background Consent
 	// Appearance is light, dark, or the system's.
 	Appearance Appearance
+	// CheckUpdates lets the app check for a newer version on its own;
+	// InstallUpdates lets it then download it and restart into it, when
+	// no task runs and its window is closed.
+	CheckUpdates   bool
+	InstallUpdates bool
 }
 
 // Appearance is the look the window takes: the system's, light or dark.
@@ -54,6 +59,7 @@ func DefaultSettings() Settings {
 		NotifySkipped: true,
 		RetentionDays: 90,
 		BackupICloud:  false,
+		CheckUpdates:  true,
 	}
 }
 

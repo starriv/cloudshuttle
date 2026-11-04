@@ -17,6 +17,7 @@ CloudShuttle is a Go desktop app built with MyGo native UI, with rclone compiled
 - `internal/discovery` finds SMB servers with mDNS, in pure Go; only `service` calls it.
 - `internal/seal` encrypts the backups with a password (Argon2id, XChaCha20-Poly1305, `golang.org/x/crypto`); only `service` calls it. Plaintext of a backup never leaves the data folder.
 - `internal/service` orchestrates. The view calls it, never the store or the engine. Two processes run it on one database: the window (`OwnerApp`) and the scheduler the system starts (`OwnerScheduler`, `RunDue`); anything that runs tasks must hold across both (see `service/schedule.go`).
+- `internal/updates` decides when to check for, download and restart into a new version (restarts wait until no task runs); `mygo.Updater` does the download, signature check and swap. It imports no other package of the app; `cmd` creates it and hands it to the view.
 - `internal/launchagent` registers the scheduler with the system (launchd on macOS); `cmd` hands it to `service` as a `Registrar`.
 - `internal/view` is the native UI; `internal/island` is the notch pill's state and view. Both share `internal/icons` and `internal/format`.
 - `cmd/cloudshuttle` wires the window, tray, credential store, notifications, the scheduler process (`--scheduler`, no window, no `mygo.App.Run`) and, on macOS, the island's window. AppKit calls go through `purego/objc` in `_darwin.go` files, on the main thread (`mygo.RunOnMain`), with a no-op beside them for other systems.

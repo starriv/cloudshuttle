@@ -15,6 +15,7 @@ import (
 	"github.com/starriv/cloudshuttle/internal/icons"
 	"github.com/starriv/cloudshuttle/internal/service"
 	"github.com/starriv/cloudshuttle/internal/store"
+	"github.com/starriv/cloudshuttle/internal/updates"
 	"github.com/starriv/cloudshuttle/locales"
 )
 
@@ -61,9 +62,10 @@ type Snapshot struct {
 
 // App is the state of the window.
 type App struct {
-	svc  *service.Service
-	host Host
-	now  func() time.Time
+	svc     *service.Service
+	host    Host
+	updater *updates.Updater // nil without one
+	now     func() time.Time
 
 	page string
 

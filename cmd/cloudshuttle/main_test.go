@@ -30,7 +30,8 @@ func TestFirstRunOpensTheWindow(t *testing.T) {
 // TestAppMenuStartsWithTheAboutThePanelShows guards the About the window
 // no longer says: the app menu's first item opens the system's panel.
 func TestAppMenuStartsWithTheAboutThePanelShows(t *testing.T) {
-	items := appMenu().Items()
+	checked := 0
+	items := appMenu(func() { checked++ }).Items()
 	if len(items) == 0 || items[0].Role != mygo.RoleAppMenu {
 		t.Fatal("the menu bar does not start with the app menu")
 	}
@@ -40,5 +41,13 @@ func TestAppMenuStartsWithTheAboutThePanelShows(t *testing.T) {
 	}
 	if about := sub[0]; about.Label != locales.MenuAbout() || about.Click == nil {
 		t.Fatalf("first item = %q (click %t), want %q", about.Label, about.Click != nil, locales.MenuAbout())
+	}
+	// Check for Updates comes next, as in other Mac apps.
+	if len(sub) < 2 || sub[1].Label != locales.MenuCheckUpdates() {
+		t.Fatal("the app menu has no Check for Updates after About")
+	}
+	sub[1].Click(sub[1], nil)
+	if checked != 1 {
+		t.Fatal("Check for Updates did not check")
 	}
 }

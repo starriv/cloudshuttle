@@ -20,13 +20,45 @@ go tool mygo generate       # 修改 locales/*.json 之后执行
 
 ## 发布
 
+发布在 GitHub Actions 上打包（`.github/workflows/release.yml`），不依赖本机。改好 `mygo.json` 的 `version`，提交后推送同名标签：
+
 ```sh
-go tool mygo build -platform darwin/universal   # build/darwin-universal/cloudshuttle-<版本>.dmg，Intel 与 Apple 芯片通用
-go tool mygo build -platform darwin/arm64       # build/darwin-arm64/cloudshuttle-<版本>-arm64.dmg，仅 Apple 芯片
-go tool mygo build -platform windows/amd64      # build/windows-amd64/cloudshuttle-setup-<版本>-amd64.exe，需要 NSIS（brew install makensis）
+git tag v1.2.0 && git push origin main v1.2.0
 ```
 
-版本号在 `mygo.json` 的 `version`。两个 DMG 和 Windows 安装程序上传到 GitHub Release，标签为 `v<版本>`。
+workflow 先检查标签和 `version` 一致，建立草稿 Release `v<版本>`，再同时打三个包，连同各自的更新文件上传到草稿：
+
+| 任务 | 运行在 | 安装包 |
+|---|---|---|
+| macOS universal | macOS | `cloudshuttle-<版本>.dmg`，Intel 与 Apple 芯片通用 |
+| macOS Apple silicon | macOS | `cloudshuttle-<版本>-arm64.dmg` |
+| Windows x64 | Ubuntu（NSIS 来自 apt） | `cloudshuttle-setup-<版本>-amd64.exe` |
+
+全部完成后，在 GitHub 上检查草稿、补写说明，发布并设为 Latest，已安装的应用下次检查时就会更新到它。某个任务失败时，「Re-run failed jobs」重打那一个，会上传到同一个草稿。
+
+本机也能打同样的包（`go tool mygo build -platform darwin/universal` 等，Windows 需要 `brew install makensis`），设置下文的私钥并加上 `-upload` 就和 CI 一样上传到草稿。
+
+### 仓库 Secrets
+
+workflow 用到三个 Secret（Settings > Secrets and variables > Actions，或用 `gh secret set`）：
+
+| Secret | 内容 |
+|---|---|
+| `MYGO_UPDATER_PRIVATE_KEY` | 更新私钥 `mygo-update.key` 的内容：`gh secret set MYGO_UPDATER_PRIVATE_KEY < mygo-update.key` |
+| `MACOS_CERTIFICATE` | `macos.signingIdentity` 那张证书连同私钥导出的 `.p12`（钥匙串访问 > 我的证书 > 导出），base64：`base64 -i cert.p12 \| gh secret set MACOS_CERTIFICATE` |
+| `MACOS_CERTIFICATE_PASSWORD` | 导出 `.p12` 时设的密码 |
+
+CI 必须用和 `signingIdentity` 同一张证书签名：钥匙串按证书认应用，换一张证书，用户更新后每个密钥都会再询问一次（见「签名」）。证书过期或更换时，同时更新 `mygo.json` 和这两个 Secret。
+
+### 自动更新
+
+已安装的云梭从 GitHub 最新的 Release 读取更新（见 architecture.md「自动更新」），更新必须用更新私钥签名：
+
+- 私钥由 `go tool mygo keygen` 生成一次（`mygo-update.key`，默认在 `~/Library/Application Support/mygo/update-keys/`），公钥 `mygo-update.pub` 的内容写在 `mygo.json` 的 `updates.publicKey`。私钥**不进仓库**，另存一份离线备份：丢了它，已安装的应用就再也收不到更新；别人拿到它，就能向用户推送代码。不要再运行 `keygen -force`，那会换掉这对密钥。
+- 有私钥时，每个平台在安装包旁边多出 `cloudshuttle-<版本>-<平台>.tar.gz`、从前几个版本来的增量包 `*.delta`，以及清单 `update-<平台>.json`。增量包要读已发布的版本，所以第一个带更新的版本没有增量包。
+- 只有发布并设为 Latest 的 Release 会推给用户；草稿和预发布版不会。
+
+没有 `updates` 配置或没有私钥打出的包不能自动更新，设置页会说明并链接到下载页。1.1.0 及更早的版本没有更新功能，用户需要手动装一次第一个带更新的版本。
 
 ## 签名
 
@@ -43,6 +75,8 @@ go tool mygo build -platform windows/amd64      # build/windows-amd64/cloudshutt
 | 存储、任务、设置、运行历史和每次运行的日志 | 应用数据目录下的 `cloudshuttle.db`（SQLite）：macOS 为 `~/Library/Application Support/CloudShuttle`，Linux 为 `~/.config/CloudShuttle`，Windows 为 `%AppData%\CloudShuttle` |
 | iCloud 备份（开启时） | `~/Library/Mobile Documents/com~apple~CloudDocs/CloudShuttle/cloudshuttle.backup`，加密，包含存储、任务、设置和调度去重状态 |
 | 备份密钥 | 系统凭据存储，键名 `backup/key`（由密码拉伸出的密钥，不是密码本身） |
+| 已装好、等应用退出后换上的更新 | 应用旁边的隐藏文件夹 `.CloudShuttle.app.update-*`，换上后删除 |
+| 更新后重新打开主窗口的标记 | 数据目录下的 `show-after-update`，新版本启动时删除 |
 | 应用自身的日志（不含密钥） | 同一目录下的 `cloudshuttle.log`，后台调度进程的行带 `process=scheduler` |
 | 进程锁（窗口、后台调度、传输轮换、配置维护） | 同一目录下的 `app.lock`、`scheduler.lock`、`transfer.lock`、`maintenance.lock`，内容为空 |
 | 定时任务的系统登记（macOS） | `~/Library/LaunchAgents/com.starriv.cloudshuttle.scheduler.plist`；没有任何定时任务、或未允许在退出后运行时删除 |

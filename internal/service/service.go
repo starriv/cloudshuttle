@@ -354,6 +354,15 @@ func (s *Service) SetAppearance(ctx context.Context, a domain.Appearance) error 
 	return err
 }
 
+// SetUpdates keeps whether the app checks for updates on its own and
+// whether it installs them by itself, and nothing else of the settings.
+func (s *Service) SetUpdates(ctx context.Context, check, install bool) error {
+	st := s.Settings()
+	st.CheckUpdates, st.InstallUpdates = check, install
+	_, err := s.SaveSettings(ctx, st)
+	return err
+}
+
 // backupIfEnabled copies the configuration into the person's iCloud Drive
 // when they allow it. It returns at once; a change that arrives while a
 // copy is being written queues one more copy, so the latest change reaches

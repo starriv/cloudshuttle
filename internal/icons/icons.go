@@ -43,4 +43,5 @@ var (
 	Warning  = load("alert-triangle")
 	Running  = load("loader-2")
 	Settings = load("settings")
+	Download = load("download")
 )

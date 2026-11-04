@@ -930,5 +930,101 @@
   "settingsAppearanceHint": "Takes effect immediately. System matches the macOS appearance.",
   "appearanceSystem": "System",
   "appearanceLight": "Light",
-  "appearanceDark": "Dark"
+  "appearanceDark": "Dark",
+  "settingsUpdatesTitle": "Updates",
+  "updatesVersion": "CloudShuttle {version}",
+  "@updatesVersion": {
+    "description": "The version running now, in the settings' Updates card.",
+    "placeholders": {
+      "version": {
+        "type": "String",
+        "example": "1.2.0"
+      }
+    }
+  },
+  "updatesIdle": "Not checked yet.",
+  "updatesChecking": "Checking for updates…",
+  "updatesUpToDate": "Up to date. Last checked {time}.",
+  "@updatesUpToDate": {
+    "placeholders": {
+      "time": {
+        "type": "String",
+        "example": "Nov 4, 2026, 10:32 AM"
+      }
+    }
+  },
+  "updatesAvailable": "Version {version} is available.",
+  "@updatesAvailable": {
+    "placeholders": {
+      "version": {
+        "type": "String",
+        "example": "1.3.0"
+      }
+    }
+  },
+  "updatesDownloading": "Downloading version {version}…",
+  "@updatesDownloading": {
+    "placeholders": {
+      "version": {
+        "type": "String",
+        "example": "1.3.0"
+      }
+    }
+  },
+  "updatesReady": "Version {version} is installed and takes effect when CloudShuttle restarts, or the next time it opens.",
+  "@updatesReady": {
+    "placeholders": {
+      "version": {
+        "type": "String",
+        "example": "1.3.0"
+      }
+    }
+  },
+  "updatesWaiting": "{count, plural, one {Restarts when the running task finishes.} other {Restarts when the # running tasks finish.}}",
+  "@updatesWaiting": {
+    "description": "After the person asked to restart into an update while tasks run: the app waits for them.",
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "2"
+      }
+    }
+  },
+  "updatesCheckFailed": "Could not check for updates. Check your network connection and try again.",
+  "updatesInstallFailed": "Could not install the update. Try again, or download it from the download page.",
+  "updatesUnavailable": "This copy of CloudShuttle cannot update itself. Move it to the Applications folder, or get new versions from the download page.",
+  "updatesCheck": "Check for Updates",
+  "updatesInstall": "Download and Install",
+  "updatesRestart": "Restart Now",
+  "updatesCancelRestart": "Cancel Restart",
+  "updatesReleaseNotes": "Release Notes",
+  "updatesDownloadPage": "Open Download Page",
+  "settingsCheckUpdates": "Check for updates automatically",
+  "settingsCheckUpdatesHint": "Checks once a day. Takes effect immediately.",
+  "settingsInstallUpdates": "Download and install updates automatically",
+  "settingsInstallUpdatesHint": "CloudShuttle restarts into a new version when no task is running and its window is closed.",
+  "menuCheckUpdates": "Check for Updates…",
+  "@menuCheckUpdates": {
+    "description": "The application menu's and status menu's item that checks for a newer version."
+  },
+  "trayInstallUpdate": "Install Update {version}",
+  "@trayInstallUpdate": {
+    "placeholders": {
+      "version": {
+        "type": "String",
+        "example": "1.3.0"
+      }
+    }
+  },
+  "trayRestartUpdate": "Restart to Update",
+  "notifyUpdateTitle": "CloudShuttle {version} is available",
+  "@notifyUpdateTitle": {
+    "placeholders": {
+      "version": {
+        "type": "String",
+        "example": "1.3.0"
+      }
+    }
+  },
+  "notifyUpdateBody": "Click to see what's new and install it."
 }

@@ -143,6 +143,9 @@ func (a *App) saveSettings() {
 		BackupICloud:  f.backupICloud,
 		Background:    a.settings.Background,
 		Appearance:    a.settings.Appearance,
+		// Kept at once by their card, as the appearance is.
+		CheckUpdates:   a.settings.CheckUpdates,
+		InstallUpdates: a.settings.InstallUpdates,
 	}
 	switch {
 	case f.background:
@@ -199,6 +202,7 @@ func (a *App) settingsPage(c *ui.Context) {
 				result(c, text, true)
 			}
 			a.appearanceCard(c)
+			a.updatesCard(c)
 			settingsCard(c, locales.SettingsTransferTitle(), []settingsRow{
 				{label: locales.SettingsTransfers(), hint: locales.SettingsTransfersHint(), control: func(label string) {
 					ui.Select(c, &f.transfers, numberLabels(transferValues)).Label(label).Width(selectWidth)

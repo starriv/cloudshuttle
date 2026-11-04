@@ -13,6 +13,7 @@ import (
 	"github.com/starriv/cloudshuttle/internal/format"
 	"github.com/starriv/cloudshuttle/internal/icons"
 	"github.com/starriv/cloudshuttle/internal/service"
+	"github.com/starriv/cloudshuttle/internal/updates"
 	"github.com/starriv/cloudshuttle/internal/view"
 	"github.com/starriv/cloudshuttle/locales"
 )
@@ -329,5 +330,41 @@ func TestTrayPlurals(t *testing.T) {
 	}
 	if got := trayStatusText([]service.Active{{}}); strings.Contains(got, "queued") {
 		t.Errorf("one transfer and no queue = %q, want no queue", got)
+	}
+}
+
+// TestTrayUpdateItem names the next step of the update above Open, follows
+// the update without rebuilding the menu, and hands its step to onUpdate.
+func TestTrayUpdateItem(t *testing.T) {
+	stubTrayDate(t)
+	fake := &fakeTray{}
+	var clicked []updates.Phase
+	tray := &taskTray{tray: fake, svc: &fakeTrayService{}, show: func() {}, openRun: func(domain.Run) {},
+		onUpdate: func(s updates.State) { clicked = append(clicked, s.Phase) }}
+	tray.set(view.Snapshot{})
+	if tray.updateItem == nil || tray.updateItem.Label != locales.MenuCheckUpdates() {
+		t.Fatalf("update item = %+v", tray.updateItem)
+	}
+	menus := len(fake.menus)
+	tray.setUpdate(updates.State{Phase: updates.PhaseAvailable, Version: "1.3.0"})
+	if tray.updateItem.Label != locales.TrayInstallUpdate("1.3.0") {
+		t.Fatalf("label = %q", tray.updateItem.Label)
+	}
+	tray.updateItem.Click(tray.updateItem, nil)
+	tray.setUpdate(updates.State{Phase: updates.PhaseReady, Version: "1.3.0"})
+	if tray.updateItem.Label != locales.TrayRestartUpdate() {
+		t.Fatalf("label = %q", tray.updateItem.Label)
+	}
+	if len(fake.menus) != menus {
+		t.Fatal("the menu was rebuilt for the update")
+	}
+	if len(clicked) != 1 || clicked[0] != updates.PhaseAvailable {
+		t.Fatalf("clicked %v", clicked)
+	}
+
+	plain := &taskTray{tray: &fakeTray{}, svc: &fakeTrayService{}, show: func() {}, openRun: func(domain.Run) {}}
+	plain.set(view.Snapshot{})
+	if plain.updateItem != nil {
+		t.Fatal("an update item without onUpdate")
 	}
 }

@@ -16,7 +16,7 @@ import (
 // Rasterize the shared Tabler SVGs once at Retina resolution.
 var menuIcons = sync.OnceValue(func() map[*ui.SVG]*mygo.MenuIcon {
 	result := make(map[*ui.SVG]*mygo.MenuIcon)
-	for _, svg := range []*ui.SVG{icons.Overview, icons.Tasks, icons.History, icons.Success, icons.Failed, icons.Stopped, icons.Running, icons.Untested, icons.Idle} {
+	for _, svg := range []*ui.SVG{icons.Overview, icons.Tasks, icons.History, icons.Success, icons.Failed, icons.Stopped, icons.Running, icons.Untested, icons.Idle, icons.Download} {
 		var data bytes.Buffer
 		if err := png.Encode(&data, menuIconImage(svg)); err != nil {
 			// A missing icon leaves the menu usable, so it is not worth a

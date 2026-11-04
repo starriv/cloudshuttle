@@ -439,6 +439,8 @@ func TestSchedulesThatRanInTheBackgroundStayAllowed(t *testing.T) {
 		for _, q := range []string{
 			`ALTER TABLE settings DROP COLUMN background`,
 			`ALTER TABLE settings DROP COLUMN appearance`,
+			`ALTER TABLE settings DROP COLUMN check_updates`,
+			`ALTER TABLE settings DROP COLUMN install_updates`,
 			`PRAGMA user_version = 8`,
 		} {
 			if _, err := st.db.Exec(q); err != nil {
@@ -462,6 +464,10 @@ func TestSchedulesThatRanInTheBackgroundStayAllowed(t *testing.T) {
 		}
 		if got.Background != want {
 			t.Errorf("scheduled %v: consent = %v, want %v", scheduled, got.Background, want)
+		}
+		// Updates came after: checked for on its own, installed when asked.
+		if !got.CheckUpdates || got.InstallUpdates {
+			t.Errorf("scheduled %v: updates check %v, install %v; want true, false", scheduled, got.CheckUpdates, got.InstallUpdates)
 		}
 	}
 }

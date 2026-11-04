@@ -18,8 +18,10 @@ func TestBandwidthLimitIsAppliedAndReset(t *testing.T) {
 	}
 	for i, limit := range []int{1, 0, 2} {
 		var configured int64
+		var cloned bool
 		start := time.Now()
 		p, err := Run(context.Background(), Job{ID: "bandwidth", Source: Location{Path: src}, Destination: Location{Path: t.TempDir()}, BandwidthMBps: limit, Log: func(line Line) {
+			cloned = cloned || strings.Contains(line.Text, "server-side copy")
 			if strings.HasPrefix(line.Text, "rclone ") {
 				out, err := rc.Calls.Get("core/bwlimit").Fn(context.Background(), rc.Params{})
 				if err != nil {
@@ -39,7 +41,9 @@ func TestBandwidthLimitIsAppliedAndReset(t *testing.T) {
 		if configured != want {
 			t.Fatalf("run %d limiter=%d", i, configured)
 		}
-		if limit == 1 && time.Since(start) < time.Second {
+		// On APFS, rclone clones a local file instead of streaming it, which
+		// takes no bandwidth to limit.
+		if limit == 1 && !cloned && time.Since(start) < time.Second {
 			t.Fatalf("copied %d bytes too quickly", p.Bytes)
 		}
 		// Reset is observable without a timing-dependent assertion on slow machines.

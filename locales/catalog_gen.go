@@ -3551,3 +3551,289 @@ func AppearanceDark() string { return In(i18n.Locale()).AppearanceDark() }
 func (msgs Messages) AppearanceDark() string {
 	return Catalog.Format(msgs.locale, "appearanceDark", nil)
 }
+
+// SettingsUpdatesTitle says "Updates"
+// in the language the app shows.
+func SettingsUpdatesTitle() string { return In(i18n.Locale()).SettingsUpdatesTitle() }
+
+// SettingsUpdatesTitle says "Updates"
+// in the language of msgs.
+func (msgs Messages) SettingsUpdatesTitle() string {
+	return Catalog.Format(msgs.locale, "settingsUpdatesTitle", nil)
+}
+
+// UpdatesVersion says "CloudShuttle {version}"
+// in the language the app shows.
+//
+// The version running now, in the settings' Updates card.
+func UpdatesVersion(version string) string { return In(i18n.Locale()).UpdatesVersion(version) }
+
+// UpdatesVersion says "CloudShuttle {version}"
+// in the language of msgs.
+//
+// The version running now, in the settings' Updates card.
+func (msgs Messages) UpdatesVersion(version string) string {
+	return Catalog.Format(msgs.locale, "updatesVersion", map[string]any{"version": version})
+}
+
+// UpdatesIdle says "Not checked yet."
+// in the language the app shows.
+func UpdatesIdle() string { return In(i18n.Locale()).UpdatesIdle() }
+
+// UpdatesIdle says "Not checked yet."
+// in the language of msgs.
+func (msgs Messages) UpdatesIdle() string {
+	return Catalog.Format(msgs.locale, "updatesIdle", nil)
+}
+
+// UpdatesChecking says "Checking for updates…"
+// in the language the app shows.
+func UpdatesChecking() string { return In(i18n.Locale()).UpdatesChecking() }
+
+// UpdatesChecking says "Checking for updates…"
+// in the language of msgs.
+func (msgs Messages) UpdatesChecking() string {
+	return Catalog.Format(msgs.locale, "updatesChecking", nil)
+}
+
+// UpdatesUpToDate says "Up to date. Last checked {time}."
+// in the language the app shows.
+func UpdatesUpToDate(time_ string) string { return In(i18n.Locale()).UpdatesUpToDate(time_) }
+
+// UpdatesUpToDate says "Up to date. Last checked {time}."
+// in the language of msgs.
+func (msgs Messages) UpdatesUpToDate(time_ string) string {
+	return Catalog.Format(msgs.locale, "updatesUpToDate", map[string]any{"time": time_})
+}
+
+// UpdatesAvailable says "Version {version} is available."
+// in the language the app shows.
+func UpdatesAvailable(version string) string { return In(i18n.Locale()).UpdatesAvailable(version) }
+
+// UpdatesAvailable says "Version {version} is available."
+// in the language of msgs.
+func (msgs Messages) UpdatesAvailable(version string) string {
+	return Catalog.Format(msgs.locale, "updatesAvailable", map[string]any{"version": version})
+}
+
+// UpdatesDownloading says "Downloading version {version}…"
+// in the language the app shows.
+func UpdatesDownloading(version string) string { return In(i18n.Locale()).UpdatesDownloading(version) }
+
+// UpdatesDownloading says "Downloading version {version}…"
+// in the language of msgs.
+func (msgs Messages) UpdatesDownloading(version string) string {
+	return Catalog.Format(msgs.locale, "updatesDownloading", map[string]any{"version": version})
+}
+
+// UpdatesReady says "Version {version} is installed and takes effect when CloudShuttle restarts, or the next time it opens."
+// in the language the app shows.
+func UpdatesReady(version string) string { return In(i18n.Locale()).UpdatesReady(version) }
+
+// UpdatesReady says "Version {version} is installed and takes effect when CloudShuttle restarts, or the next time it opens."
+// in the language of msgs.
+func (msgs Messages) UpdatesReady(version string) string {
+	return Catalog.Format(msgs.locale, "updatesReady", map[string]any{"version": version})
+}
+
+// UpdatesWaiting says "{count, plural, one {Restarts when the running task finishes.} other {Restarts when the # running tasks finish.}}"
+// in the language the app shows.
+//
+// After the person asked to restart into an update while tasks run: the app
+// waits for them.
+func UpdatesWaiting(count int) string { return In(i18n.Locale()).UpdatesWaiting(count) }
+
+// UpdatesWaiting says "{count, plural, one {Restarts when the running task finishes.} other {Restarts when the # running tasks finish.}}"
+// in the language of msgs.
+//
+// After the person asked to restart into an update while tasks run: the app
+// waits for them.
+func (msgs Messages) UpdatesWaiting(count int) string {
+	return Catalog.Format(msgs.locale, "updatesWaiting", map[string]any{"count": count})
+}
+
+// UpdatesCheckFailed says "Could not check for updates. Check your network connection and try again."
+// in the language the app shows.
+func UpdatesCheckFailed() string { return In(i18n.Locale()).UpdatesCheckFailed() }
+
+// UpdatesCheckFailed says "Could not check for updates. Check your network connection and try again."
+// in the language of msgs.
+func (msgs Messages) UpdatesCheckFailed() string {
+	return Catalog.Format(msgs.locale, "updatesCheckFailed", nil)
+}
+
+// UpdatesInstallFailed says "Could not install the update. Try again, or download it from the download page."
+// in the language the app shows.
+func UpdatesInstallFailed() string { return In(i18n.Locale()).UpdatesInstallFailed() }
+
+// UpdatesInstallFailed says "Could not install the update. Try again, or download it from the download page."
+// in the language of msgs.
+func (msgs Messages) UpdatesInstallFailed() string {
+	return Catalog.Format(msgs.locale, "updatesInstallFailed", nil)
+}
+
+// UpdatesUnavailable says "This copy of CloudShuttle cannot update itself. Move it to the Applications folder, or get new versions from the down…"
+// in the language the app shows.
+func UpdatesUnavailable() string { return In(i18n.Locale()).UpdatesUnavailable() }
+
+// UpdatesUnavailable says "This copy of CloudShuttle cannot update itself. Move it to the Applications folder, or get new versions from the down…"
+// in the language of msgs.
+func (msgs Messages) UpdatesUnavailable() string {
+	return Catalog.Format(msgs.locale, "updatesUnavailable", nil)
+}
+
+// UpdatesCheck says "Check for Updates"
+// in the language the app shows.
+func UpdatesCheck() string { return In(i18n.Locale()).UpdatesCheck() }
+
+// UpdatesCheck says "Check for Updates"
+// in the language of msgs.
+func (msgs Messages) UpdatesCheck() string {
+	return Catalog.Format(msgs.locale, "updatesCheck", nil)
+}
+
+// UpdatesInstall says "Download and Install"
+// in the language the app shows.
+func UpdatesInstall() string { return In(i18n.Locale()).UpdatesInstall() }
+
+// UpdatesInstall says "Download and Install"
+// in the language of msgs.
+func (msgs Messages) UpdatesInstall() string {
+	return Catalog.Format(msgs.locale, "updatesInstall", nil)
+}
+
+// UpdatesRestart says "Restart Now"
+// in the language the app shows.
+func UpdatesRestart() string { return In(i18n.Locale()).UpdatesRestart() }
+
+// UpdatesRestart says "Restart Now"
+// in the language of msgs.
+func (msgs Messages) UpdatesRestart() string {
+	return Catalog.Format(msgs.locale, "updatesRestart", nil)
+}
+
+// UpdatesCancelRestart says "Cancel Restart"
+// in the language the app shows.
+func UpdatesCancelRestart() string { return In(i18n.Locale()).UpdatesCancelRestart() }
+
+// UpdatesCancelRestart says "Cancel Restart"
+// in the language of msgs.
+func (msgs Messages) UpdatesCancelRestart() string {
+	return Catalog.Format(msgs.locale, "updatesCancelRestart", nil)
+}
+
+// UpdatesReleaseNotes says "Release Notes"
+// in the language the app shows.
+func UpdatesReleaseNotes() string { return In(i18n.Locale()).UpdatesReleaseNotes() }
+
+// UpdatesReleaseNotes says "Release Notes"
+// in the language of msgs.
+func (msgs Messages) UpdatesReleaseNotes() string {
+	return Catalog.Format(msgs.locale, "updatesReleaseNotes", nil)
+}
+
+// UpdatesDownloadPage says "Open Download Page"
+// in the language the app shows.
+func UpdatesDownloadPage() string { return In(i18n.Locale()).UpdatesDownloadPage() }
+
+// UpdatesDownloadPage says "Open Download Page"
+// in the language of msgs.
+func (msgs Messages) UpdatesDownloadPage() string {
+	return Catalog.Format(msgs.locale, "updatesDownloadPage", nil)
+}
+
+// SettingsCheckUpdates says "Check for updates automatically"
+// in the language the app shows.
+func SettingsCheckUpdates() string { return In(i18n.Locale()).SettingsCheckUpdates() }
+
+// SettingsCheckUpdates says "Check for updates automatically"
+// in the language of msgs.
+func (msgs Messages) SettingsCheckUpdates() string {
+	return Catalog.Format(msgs.locale, "settingsCheckUpdates", nil)
+}
+
+// SettingsCheckUpdatesHint says "Checks once a day. Takes effect immediately."
+// in the language the app shows.
+func SettingsCheckUpdatesHint() string { return In(i18n.Locale()).SettingsCheckUpdatesHint() }
+
+// SettingsCheckUpdatesHint says "Checks once a day. Takes effect immediately."
+// in the language of msgs.
+func (msgs Messages) SettingsCheckUpdatesHint() string {
+	return Catalog.Format(msgs.locale, "settingsCheckUpdatesHint", nil)
+}
+
+// SettingsInstallUpdates says "Download and install updates automatically"
+// in the language the app shows.
+func SettingsInstallUpdates() string { return In(i18n.Locale()).SettingsInstallUpdates() }
+
+// SettingsInstallUpdates says "Download and install updates automatically"
+// in the language of msgs.
+func (msgs Messages) SettingsInstallUpdates() string {
+	return Catalog.Format(msgs.locale, "settingsInstallUpdates", nil)
+}
+
+// SettingsInstallUpdatesHint says "CloudShuttle restarts into a new version when no task is running and its window is closed."
+// in the language the app shows.
+func SettingsInstallUpdatesHint() string { return In(i18n.Locale()).SettingsInstallUpdatesHint() }
+
+// SettingsInstallUpdatesHint says "CloudShuttle restarts into a new version when no task is running and its window is closed."
+// in the language of msgs.
+func (msgs Messages) SettingsInstallUpdatesHint() string {
+	return Catalog.Format(msgs.locale, "settingsInstallUpdatesHint", nil)
+}
+
+// MenuCheckUpdates says "Check for Updates…"
+// in the language the app shows.
+//
+// The application menu's and status menu's item that checks for a newer
+// version.
+func MenuCheckUpdates() string { return In(i18n.Locale()).MenuCheckUpdates() }
+
+// MenuCheckUpdates says "Check for Updates…"
+// in the language of msgs.
+//
+// The application menu's and status menu's item that checks for a newer
+// version.
+func (msgs Messages) MenuCheckUpdates() string {
+	return Catalog.Format(msgs.locale, "menuCheckUpdates", nil)
+}
+
+// TrayInstallUpdate says "Install Update {version}"
+// in the language the app shows.
+func TrayInstallUpdate(version string) string { return In(i18n.Locale()).TrayInstallUpdate(version) }
+
+// TrayInstallUpdate says "Install Update {version}"
+// in the language of msgs.
+func (msgs Messages) TrayInstallUpdate(version string) string {
+	return Catalog.Format(msgs.locale, "trayInstallUpdate", map[string]any{"version": version})
+}
+
+// TrayRestartUpdate says "Restart to Update"
+// in the language the app shows.
+func TrayRestartUpdate() string { return In(i18n.Locale()).TrayRestartUpdate() }
+
+// TrayRestartUpdate says "Restart to Update"
+// in the language of msgs.
+func (msgs Messages) TrayRestartUpdate() string {
+	return Catalog.Format(msgs.locale, "trayRestartUpdate", nil)
+}
+
+// NotifyUpdateTitle says "CloudShuttle {version} is available"
+// in the language the app shows.
+func NotifyUpdateTitle(version string) string { return In(i18n.Locale()).NotifyUpdateTitle(version) }
+
+// NotifyUpdateTitle says "CloudShuttle {version} is available"
+// in the language of msgs.
+func (msgs Messages) NotifyUpdateTitle(version string) string {
+	return Catalog.Format(msgs.locale, "notifyUpdateTitle", map[string]any{"version": version})
+}
+
+// NotifyUpdateBody says "Click to see what's new and install it."
+// in the language the app shows.
+func NotifyUpdateBody() string { return In(i18n.Locale()).NotifyUpdateBody() }
+
+// NotifyUpdateBody says "Click to see what's new and install it."
+// in the language of msgs.
+func (msgs Messages) NotifyUpdateBody() string {
+	return Catalog.Format(msgs.locale, "notifyUpdateBody", nil)
+}

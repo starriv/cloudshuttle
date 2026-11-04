@@ -107,6 +107,10 @@ INSERT INTO schedule_starts(task_id, started_at)
 	 UPDATE settings SET background = 1 WHERE EXISTS (SELECT 1 FROM tasks WHERE schedule != '');`),
 	// 10: the window's appearance, the system's until the person picks one.
 	sqlStep(`ALTER TABLE settings ADD COLUMN appearance INTEGER NOT NULL DEFAULT 0;`),
+	// 11: the app updates itself: it checks on its own unless the person
+	// turns it off, and installs by itself only when they allow it.
+	sqlStep(`ALTER TABLE settings ADD COLUMN check_updates INTEGER NOT NULL DEFAULT 1;
+	 ALTER TABLE settings ADD COLUMN install_updates INTEGER NOT NULL DEFAULT 0;`),
 }
 
 // Store is the app's database. Its methods are safe from any goroutine.
@@ -159,11 +163,11 @@ func seedSettings(db *sql.DB) error {
 	d := domain.DefaultSettings()
 	_, err := db.Exec(`
 		INSERT INTO settings (id, transfers, checkers, retries, bandwidth_mbps,
-			notify_failed, notify_skipped, retention_days, backup_icloud)
-		VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?)
+			notify_failed, notify_skipped, retention_days, backup_icloud, check_updates, install_updates)
+		VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (id) DO NOTHING`,
 		d.Transfers, d.Checkers, d.Retries, d.BandwidthMBps, d.NotifyFailed, d.NotifySkipped,
-		d.RetentionDays, d.BackupICloud)
+		d.RetentionDays, d.BackupICloud, d.CheckUpdates, d.InstallUpdates)
 	return err
 }
 
@@ -174,13 +178,15 @@ func (s *Store) Settings(ctx context.Context) (domain.Settings, error) {
 		st                                        domain.Settings
 		notifyFailed, notifySkipped, backupICloud int
 		background, appearance                    int
+		checkUpdates, installUpdates              int
 	)
 	err := s.db.QueryRowContext(ctx, `
 		SELECT transfers, checkers, retries, bandwidth_mbps, notify_failed, notify_skipped,
-			retention_days, backup_icloud, background, appearance
+			retention_days, backup_icloud, background, appearance, check_updates, install_updates
 		FROM settings WHERE id = 1`).
 		Scan(&st.Transfers, &st.Checkers, &st.Retries, &st.BandwidthMBps,
-			&notifyFailed, &notifySkipped, &st.RetentionDays, &backupICloud, &background, &appearance)
+			&notifyFailed, &notifySkipped, &st.RetentionDays, &backupICloud, &background, &appearance,
+			&checkUpdates, &installUpdates)
 	if errors.Is(err, sql.ErrNoRows) {
 		return domain.DefaultSettings(), nil
 	}
@@ -191,6 +197,7 @@ func (s *Store) Settings(ctx context.Context) (domain.Settings, error) {
 	st.BackupICloud = backupICloud != 0
 	st.Background = domain.Consent(background)
 	st.Appearance = domain.Appearance(appearance)
+	st.CheckUpdates, st.InstallUpdates = checkUpdates != 0, installUpdates != 0
 	return st, nil
 }
 
@@ -198,17 +205,19 @@ func (s *Store) Settings(ctx context.Context) (domain.Settings, error) {
 func (s *Store) PutSettings(ctx context.Context, st domain.Settings) error {
 	_, err := s.db.ExecContext(ctx, `
 		INSERT INTO settings (id, transfers, checkers, retries, bandwidth_mbps,
-			notify_failed, notify_skipped, retention_days, backup_icloud, background, appearance)
-		VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			notify_failed, notify_skipped, retention_days, backup_icloud, background, appearance,
+			check_updates, install_updates)
+		VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (id) DO UPDATE SET
 			transfers = excluded.transfers, checkers = excluded.checkers, retries = excluded.retries,
 			bandwidth_mbps = excluded.bandwidth_mbps, notify_failed = excluded.notify_failed,
 			notify_skipped = excluded.notify_skipped, retention_days = excluded.retention_days,
 			backup_icloud = excluded.backup_icloud, background = excluded.background,
-			appearance = excluded.appearance`,
+			appearance = excluded.appearance, check_updates = excluded.check_updates,
+			install_updates = excluded.install_updates`,
 		st.Transfers, st.Checkers, st.Retries, st.BandwidthMBps,
 		st.NotifyFailed, st.NotifySkipped, st.RetentionDays, st.BackupICloud, int(st.Background),
-		int(st.Appearance))
+		int(st.Appearance), st.CheckUpdates, st.InstallUpdates)
 	return err
 }
 
@@ -728,7 +737,7 @@ func mapConstraint(err error) error {
 // settingsColumns are those a backup restores: whether the app may run in
 // the background is this computer's, and stays.
 const settingsColumns = `id, transfers, checkers, retries, bandwidth_mbps, notify_failed, notify_skipped,
-	retention_days, backup_icloud, appearance`
+	retention_days, backup_icloud, appearance, check_updates, install_updates`
 
 // RestoreConfig replaces the storages, tasks and settings with those of the
 // database at path, a backup BackupConfig wrote, in one transaction; the
