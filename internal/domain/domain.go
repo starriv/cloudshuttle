@@ -169,8 +169,30 @@ type Task struct {
 	// ScheduleSince is when the schedule was set as it is: the times it
 	// passed before then are not runs the task missed.
 	ScheduleSince time.Time
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
+	// TrashDays is how long the task's runs keep the files they delete or
+	// replace, in the trash of the destination: TrashFollow takes the
+	// settings', TrashOff keeps none, and more is that many days.
+	TrashDays int
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+// What a task's TrashDays may say besides a number of days.
+const (
+	TrashFollow = 0
+	TrashOff    = -1
+)
+
+// Trash is how many days the task's runs keep what they delete or replace,
+// with settings: 0 for none.
+func (t Task) Trash(settings Settings) int {
+	switch t.TrashDays {
+	case TrashFollow:
+		return max(settings.TrashDays, 0)
+	case TrashOff:
+		return 0
+	}
+	return t.TrashDays
 }
 
 // Trigger says what started a run.
@@ -208,6 +230,9 @@ type Stats struct {
 	Deletes        int64
 	Errors         int64
 	Speed          float64 // bytes per second
+	// Trashed is the files a sync moved into the destination's trash: those
+	// it deleted, and the earlier versions of those it replaced.
+	Trashed int64
 }
 
 // Run is one execution of a task. TaskName keeps the task's name at the time,
@@ -223,10 +248,21 @@ type Run struct {
 	Message  string
 	// Problem is why the run was stopped before deleting anything, for
 	// the view to explain in the person's language; "" otherwise.
-	Problem    string
-	Stats      Stats
+	Problem string
+	Stats   Stats
+	// Trash is the folder, relative to the destination, that the run moved
+	// the files it deleted or replaced into; "" when it moved none.
+	Trash      string
 	StartedAt  time.Time
 	FinishedAt time.Time
+}
+
+// StoppedDeletes is what a sync the delete check stopped would have
+// deleted: how many files, and the paths of the first of them, relative to
+// the destination.
+type StoppedDeletes struct {
+	Total int
+	Paths []string
 }
 
 // Duration is how long the run took, or has taken so far.

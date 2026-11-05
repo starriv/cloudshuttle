@@ -27,6 +27,7 @@ const (
 	FieldDestination Field = "destination"
 	FieldMode        Field = "mode"
 	FieldSchedule    Field = "schedule"
+	FieldTrash       Field = "trash"
 	FieldSettings    Field = "settings"
 	// The password that encrypts the backups, and the same typed again.
 	FieldBackupPassword Field = "backupPassword"
@@ -286,6 +287,7 @@ type TaskInput struct {
 	Destination Location
 	Mode        Mode
 	Schedule    Schedule
+	TrashDays   int // as Task.TrashDays
 }
 
 // Normalize trims the input's text and cleans its paths.
@@ -345,6 +347,9 @@ func (in TaskInput) Validate(storages []Storage) error {
 	}
 	if code := in.Schedule.Validate(); code != "" {
 		p = append(p, Problem{FieldSchedule, code})
+	}
+	if in.TrashDays < TrashOff || in.TrashDays > 3650 {
+		p = append(p, Problem{FieldTrash, CodeOutOfRange})
 	}
 	if len(p) > 0 {
 		return p

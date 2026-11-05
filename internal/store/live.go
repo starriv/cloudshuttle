@@ -74,8 +74,8 @@ func (s *Store) LiveRuns(ctx context.Context) ([]LiveRun, error) {
 		r := &l.Run
 		if err := rows.Scan(&r.ID, &r.TaskID, &r.TaskName, &r.Mode, &r.Trigger, &r.DryRun, &r.Status,
 			&r.Message, &r.Problem, &r.Stats.Bytes, &r.Stats.TotalBytes, &r.Stats.Transfers, &r.Stats.TotalTransfers,
-			&r.Stats.Checks, &r.Stats.Deletes, &r.Stats.Errors, &r.Stats.Speed, &started, &finished,
-			&l.Owner, &l.Queued); err != nil {
+			&r.Stats.Checks, &r.Stats.Deletes, &r.Stats.Errors, &r.Stats.Speed, &r.Stats.Trashed, &r.Trash,
+			&started, &finished, &l.Owner, &l.Queued); err != nil {
 			return nil, err
 		}
 		r.StartedAt, r.FinishedAt = fromMillis(started), fromMillis(finished)

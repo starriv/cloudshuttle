@@ -161,10 +161,14 @@ func (a *App) run(task domain.Task, dryRun, force bool) {
 // confirmRunAnyway asks before a sync that skips the check on deletes: it
 // may delete most of the destination, or all of it when the source is empty.
 func (a *App) confirmRunAnyway(task domain.Task) {
+	message := locales.TaskRunAnywayMessage()
+	if days := task.Trash(a.settings); days > 0 {
+		message += " " + locales.TaskRunAnywayTrash(days)
+	}
 	a.confirm = confirmation{
 		open:    true,
 		title:   locales.TaskRunAnywayTitle(task.Name),
-		message: locales.TaskRunAnywayMessage(),
+		message: message,
 		ok:      locales.TaskRunAnywayButton(),
 		action:  func() { a.run(task, false, true) },
 	}

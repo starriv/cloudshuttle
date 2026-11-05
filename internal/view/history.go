@@ -257,10 +257,21 @@ func (a *App) runDetail(c *ui.Context, r domain.Run) {
 				}
 			})
 		})
+		if r.Trash != "" {
+			ui.Field(c, locales.HistoryTrash(), func() {
+				ui.Column(c).Gap(2).MinWidth(0).Children(func() {
+					ui.Text(c, r.Trash).Font("monospace").Selectable()
+					ui.Text(c, locales.HistoryTrashed(int(r.Stats.Trashed))).TextColor(t.TextMuted)
+				})
+			})
+		}
 		if text := runProblemText(r.Problem); text != "" {
 			ui.Field(c, locales.HistoryProblem(), func() {
 				ui.Text(c, text).TextColor(t.TextMuted)
 			})
+		}
+		if r.Problem != "" {
+			a.wouldDelete(c, r)
 		}
 		if r.Message != "" {
 			ui.Field(c, locales.HistoryMessage(), func() {

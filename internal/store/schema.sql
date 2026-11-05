@@ -32,6 +32,9 @@ CREATE TABLE IF NOT EXISTS tasks (
     -- hand only. schedule_since is when it was set so.
     schedule            TEXT NOT NULL,
     schedule_since      INTEGER NOT NULL DEFAULT 0,
+    -- How long its runs keep what they delete or replace: 0 as the
+    -- settings say, -1 not at all, else days (domain.Task.TrashDays).
+    trash_days          INTEGER NOT NULL DEFAULT 0,
     created_at          INTEGER NOT NULL,
     updated_at          INTEGER NOT NULL
 );
@@ -64,7 +67,10 @@ CREATE TABLE IF NOT EXISTS runs (
     speed            REAL NOT NULL DEFAULT 0,
     cancel_requested INTEGER NOT NULL DEFAULT 0,
     -- A failure the window has yet to tell the person about.
-    notify           INTEGER NOT NULL DEFAULT 0
+    notify           INTEGER NOT NULL DEFAULT 0,
+    -- What a sync moved into its destination's trash, and where.
+    trashed          INTEGER NOT NULL DEFAULT 0,
+    trash            TEXT NOT NULL DEFAULT ''
 );
 
 -- The app's own settings, one row: how hard runs work, what the app tells
@@ -82,13 +88,18 @@ CREATE TABLE IF NOT EXISTS settings (
     background     INTEGER NOT NULL DEFAULT 0, -- domain.Consent
     appearance     INTEGER NOT NULL DEFAULT 0, -- domain.Appearance
     check_updates  INTEGER NOT NULL DEFAULT 1,
-    install_updates INTEGER NOT NULL DEFAULT 0
+    install_updates INTEGER NOT NULL DEFAULT 0,
+    trash_days     INTEGER NOT NULL DEFAULT 30
 );
 
--- The log of each run, apart from runs so that listing them stays light.
+-- The log of each run, apart from runs so that listing them stays light;
+-- for a sync the delete check stopped, what it would have deleted: how many
+-- files, and the first of their paths as a JSON array.
 CREATE TABLE IF NOT EXISTS run_logs (
-    run_id TEXT PRIMARY KEY,
-    log    TEXT NOT NULL
+    run_id        TEXT PRIMARY KEY,
+    log           TEXT NOT NULL,
+    deletes       TEXT NOT NULL DEFAULT '',
+    deletes_total INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE INDEX IF NOT EXISTS runs_started_at ON runs (started_at DESC);

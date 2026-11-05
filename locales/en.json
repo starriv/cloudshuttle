@@ -30,6 +30,10 @@
       }
     }
   },
+  "settingsTrashTitle": "Trash",
+  "settingsTrash": "Keep deleted and replaced files for",
+  "settingsTrashHint": "Copies and syncs move the files they delete or replace into the .cloudshuttle-trash folder of the destination, and empty what is older. A task can choose its own. When off, the files are deleted right away.",
+  "settingsTrashOff": "Off",
   "settingsNotifyTitle": "Notifications",
   "settingsNotifyFailed": "Notify when a run fails",
   "settingsNotifySkipped": "Notify when a scheduled run cannot start",
@@ -209,6 +213,28 @@
   },
   "taskRunAnywayMessage": "This sync may delete most of the files in the destination, or all of them if the source is empty. Continue only if this is intended.",
   "taskRunAnywayButton": "Run anyway",
+  "taskRunAnywayTrash": "Deleted files are moved into the .cloudshuttle-trash folder of the destination and kept for {count, plural, one {# day} other {# days}}.",
+  "@taskRunAnywayTrash": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "30"
+      }
+    }
+  },
+  "taskFieldTrash": "Trash",
+  "taskTrashFollow": "As in settings ({count, plural, one {# day} other {# days}})",
+  "@taskTrashFollow": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "30"
+      }
+    }
+  },
+  "taskTrashFollowOff": "As in settings (off)",
+  "taskTrashHint": "Files this task deletes or replaces are moved into the .cloudshuttle-trash folder of the destination.",
+  "taskTrashOffHint": "Files this task deletes or replaces are not kept.",
   "taskActions": "Actions for {name}",
   "@taskActions": {
     "description": "Accessible name of a task's actions menu.",
@@ -691,6 +717,35 @@
       "count": {
         "type": "int",
         "example": "1"
+      }
+    }
+  },
+  "historyTrash": "Moved to the trash",
+  "historyTrashed": "{count, plural, one {# file, in the destination} other {# files, in the destination}}",
+  "@historyTrashed": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "3"
+      }
+    }
+  },
+  "historyWouldDelete": "Files it would delete",
+  "historyWouldDeleteMore": "{count, plural, one {And # more file not listed} other {And # more files not listed}}",
+  "@historyWouldDeleteMore": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "20"
+      }
+    }
+  },
+  "historyWouldDeleteFailed": "Unable to read the files: {error}",
+  "@historyWouldDeleteFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String",
+        "example": "database is locked"
       }
     }
   },

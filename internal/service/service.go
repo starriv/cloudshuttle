@@ -154,6 +154,9 @@ type activeRun struct {
 	log    *runLog
 	ctx    context.Context // ends as the run is stopped
 	done   chan struct{}   // closed once the run is recorded
+	// deletes is what a sync the delete check stopped would have deleted,
+	// kept with its log.
+	deletes *domain.StoppedDeletes
 }
 
 // New makes a service. The window's then Starts; the scheduler's runs
@@ -762,6 +765,7 @@ func taskFrom(t domain.Task, in domain.TaskInput, now time.Time) domain.Task {
 		t.ScheduleSince = now
 	}
 	t.Name, t.Source, t.Destination, t.Mode, t.Schedule = in.Name, in.Source, in.Destination, in.Mode, in.Schedule
+	t.TrashDays = in.TrashDays
 	t.UpdatedAt = now
 	return t
 }
@@ -1107,7 +1111,7 @@ func (s *Service) execute(ctx context.Context, cancel context.CancelFunc, t doma
 		defer s.releaseSlot()
 		s.setQueued(t.ID, false)
 		beforeRun()
-		progress, err = s.transfer(ctx, t, run, force, settings, log, func(p engine.Progress) {
+		progress, err = s.transfer(ctx, t, run, force, settings, trashFolder(t, run, settings), log, func(p engine.Progress) {
 			s.mu.Lock()
 			a.Progress = p
 			s.mu.Unlock()
@@ -1117,8 +1121,14 @@ func (s *Service) execute(ctx context.Context, cancel context.CancelFunc, t doma
 
 	run.FinishedAt = s.now()
 	run.Stats = domain.Stats(progress)
+	if progress.Trashed > 0 {
+		run.Trash = trashFolder(t, run, settings)
+	}
 	if err != nil {
 		run.Message = err.Error()
+	}
+	if stopped := (*engine.StoppedSync)(nil); errors.As(err, &stopped) {
+		a.deletes = &domain.StoppedDeletes{Total: int(stopped.Deletes), Paths: stopped.Paths}
 	}
 	switch {
 	case errors.Is(err, context.Canceled):
@@ -1153,6 +1163,11 @@ func (s *Service) recordRun(ctx context.Context, a *activeRun, run domain.Run, s
 	text := log.String()
 	if err := retryRecord(func() error { return s.store.PutRunLog(record, run.ID, text) }); err != nil {
 		slog.Error("record run log", "run", run.ID, "err", err)
+	}
+	if a.deletes != nil {
+		if err := retryRecord(func() error { return s.store.PutRunDeletes(record, run.ID, *a.deletes) }); err != nil {
+			slog.Error("record what a stopped sync would delete", "run", run.ID, "err", err)
+		}
 	}
 	if tell && s.owner != OwnerApp {
 		if err := retryRecord(func() error { return s.store.MarkNotify(record, run.ID) }); err != nil {
@@ -1248,7 +1263,17 @@ func retryRecord(write func() error) error {
 	return err
 }
 
-func (s *Service) transfer(ctx context.Context, t domain.Task, run domain.Run, force bool, settings domain.Settings, log *runLog, progress func(engine.Progress)) (engine.Progress, error) {
+// trashFolder is the folder of the run's destination that it moves what it
+// deletes or replaces into: "" for a dry run, or when the trash is off for
+// the task.
+func trashFolder(t domain.Task, run domain.Run, settings domain.Settings) string {
+	if run.DryRun || t.Trash(settings) <= 0 {
+		return ""
+	}
+	return engine.TrashFolder(run.StartedAt)
+}
+
+func (s *Service) transfer(ctx context.Context, t domain.Task, run domain.Run, force bool, settings domain.Settings, trash string, log *runLog, progress func(engine.Progress)) (engine.Progress, error) {
 	in, err := s.validTask(ctx, t.ID, taskInput(t), run.DryRun)
 	if err != nil {
 		return engine.Progress{}, err
@@ -1267,6 +1292,7 @@ func (s *Service) transfer(ctx context.Context, t domain.Task, run domain.Run, f
 		ID: run.ID, Source: src, Destination: dst, Sync: t.Mode == domain.ModeSync, DryRun: run.DryRun,
 		Force: force, Transfers: settings.Transfers, Checkers: settings.Checkers,
 		Retries: settings.Retries, BandwidthMBps: settings.BandwidthMBps, Log: log.add,
+		Trash: trash, TrashDays: t.Trash(settings),
 	}, progress)
 }
 

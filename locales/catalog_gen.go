@@ -222,6 +222,46 @@ func (msgs Messages) SettingsSpeed(mbps int) string {
 	return Catalog.Format(msgs.locale, "settingsSpeed", map[string]any{"mbps": mbps})
 }
 
+// SettingsTrashTitle says "Trash"
+// in the language the app shows.
+func SettingsTrashTitle() string { return In(i18n.Locale()).SettingsTrashTitle() }
+
+// SettingsTrashTitle says "Trash"
+// in the language of msgs.
+func (msgs Messages) SettingsTrashTitle() string {
+	return Catalog.Format(msgs.locale, "settingsTrashTitle", nil)
+}
+
+// SettingsTrash says "Keep deleted and replaced files for"
+// in the language the app shows.
+func SettingsTrash() string { return In(i18n.Locale()).SettingsTrash() }
+
+// SettingsTrash says "Keep deleted and replaced files for"
+// in the language of msgs.
+func (msgs Messages) SettingsTrash() string {
+	return Catalog.Format(msgs.locale, "settingsTrash", nil)
+}
+
+// SettingsTrashHint says "Copies and syncs move the files they delete or replace into the .cloudshuttle-trash folder of the destination, and em…"
+// in the language the app shows.
+func SettingsTrashHint() string { return In(i18n.Locale()).SettingsTrashHint() }
+
+// SettingsTrashHint says "Copies and syncs move the files they delete or replace into the .cloudshuttle-trash folder of the destination, and em…"
+// in the language of msgs.
+func (msgs Messages) SettingsTrashHint() string {
+	return Catalog.Format(msgs.locale, "settingsTrashHint", nil)
+}
+
+// SettingsTrashOff says "Off"
+// in the language the app shows.
+func SettingsTrashOff() string { return In(i18n.Locale()).SettingsTrashOff() }
+
+// SettingsTrashOff says "Off"
+// in the language of msgs.
+func (msgs Messages) SettingsTrashOff() string {
+	return Catalog.Format(msgs.locale, "settingsTrashOff", nil)
+}
+
 // SettingsNotifyTitle says "Notifications"
 // in the language the app shows.
 func SettingsNotifyTitle() string { return In(i18n.Locale()).SettingsNotifyTitle() }
@@ -1022,6 +1062,66 @@ func TaskRunAnywayButton() string { return In(i18n.Locale()).TaskRunAnywayButton
 // in the language of msgs.
 func (msgs Messages) TaskRunAnywayButton() string {
 	return Catalog.Format(msgs.locale, "taskRunAnywayButton", nil)
+}
+
+// TaskRunAnywayTrash says "Deleted files are moved into the .cloudshuttle-trash folder of the destination and kept for {count, plural, one {# da…"
+// in the language the app shows.
+func TaskRunAnywayTrash(count int) string { return In(i18n.Locale()).TaskRunAnywayTrash(count) }
+
+// TaskRunAnywayTrash says "Deleted files are moved into the .cloudshuttle-trash folder of the destination and kept for {count, plural, one {# da…"
+// in the language of msgs.
+func (msgs Messages) TaskRunAnywayTrash(count int) string {
+	return Catalog.Format(msgs.locale, "taskRunAnywayTrash", map[string]any{"count": count})
+}
+
+// TaskFieldTrash says "Trash"
+// in the language the app shows.
+func TaskFieldTrash() string { return In(i18n.Locale()).TaskFieldTrash() }
+
+// TaskFieldTrash says "Trash"
+// in the language of msgs.
+func (msgs Messages) TaskFieldTrash() string {
+	return Catalog.Format(msgs.locale, "taskFieldTrash", nil)
+}
+
+// TaskTrashFollow says "As in settings ({count, plural, one {# day} other {# days}})"
+// in the language the app shows.
+func TaskTrashFollow(count int) string { return In(i18n.Locale()).TaskTrashFollow(count) }
+
+// TaskTrashFollow says "As in settings ({count, plural, one {# day} other {# days}})"
+// in the language of msgs.
+func (msgs Messages) TaskTrashFollow(count int) string {
+	return Catalog.Format(msgs.locale, "taskTrashFollow", map[string]any{"count": count})
+}
+
+// TaskTrashFollowOff says "As in settings (off)"
+// in the language the app shows.
+func TaskTrashFollowOff() string { return In(i18n.Locale()).TaskTrashFollowOff() }
+
+// TaskTrashFollowOff says "As in settings (off)"
+// in the language of msgs.
+func (msgs Messages) TaskTrashFollowOff() string {
+	return Catalog.Format(msgs.locale, "taskTrashFollowOff", nil)
+}
+
+// TaskTrashHint says "Files this task deletes or replaces are moved into the .cloudshuttle-trash folder of the destination."
+// in the language the app shows.
+func TaskTrashHint() string { return In(i18n.Locale()).TaskTrashHint() }
+
+// TaskTrashHint says "Files this task deletes or replaces are moved into the .cloudshuttle-trash folder of the destination."
+// in the language of msgs.
+func (msgs Messages) TaskTrashHint() string {
+	return Catalog.Format(msgs.locale, "taskTrashHint", nil)
+}
+
+// TaskTrashOffHint says "Files this task deletes or replaces are not kept."
+// in the language the app shows.
+func TaskTrashOffHint() string { return In(i18n.Locale()).TaskTrashOffHint() }
+
+// TaskTrashOffHint says "Files this task deletes or replaces are not kept."
+// in the language of msgs.
+func (msgs Messages) TaskTrashOffHint() string {
+	return Catalog.Format(msgs.locale, "taskTrashOffHint", nil)
 }
 
 // TaskActions says "Actions for {name}"
@@ -2806,6 +2906,58 @@ func HistoryErrors(count int) string { return In(i18n.Locale()).HistoryErrors(co
 // in the language of msgs.
 func (msgs Messages) HistoryErrors(count int) string {
 	return Catalog.Format(msgs.locale, "historyErrors", map[string]any{"count": count})
+}
+
+// HistoryTrash says "Moved to the trash"
+// in the language the app shows.
+func HistoryTrash() string { return In(i18n.Locale()).HistoryTrash() }
+
+// HistoryTrash says "Moved to the trash"
+// in the language of msgs.
+func (msgs Messages) HistoryTrash() string {
+	return Catalog.Format(msgs.locale, "historyTrash", nil)
+}
+
+// HistoryTrashed says "{count, plural, one {# file, in the destination} other {# files, in the destination}}"
+// in the language the app shows.
+func HistoryTrashed(count int) string { return In(i18n.Locale()).HistoryTrashed(count) }
+
+// HistoryTrashed says "{count, plural, one {# file, in the destination} other {# files, in the destination}}"
+// in the language of msgs.
+func (msgs Messages) HistoryTrashed(count int) string {
+	return Catalog.Format(msgs.locale, "historyTrashed", map[string]any{"count": count})
+}
+
+// HistoryWouldDelete says "Files it would delete"
+// in the language the app shows.
+func HistoryWouldDelete() string { return In(i18n.Locale()).HistoryWouldDelete() }
+
+// HistoryWouldDelete says "Files it would delete"
+// in the language of msgs.
+func (msgs Messages) HistoryWouldDelete() string {
+	return Catalog.Format(msgs.locale, "historyWouldDelete", nil)
+}
+
+// HistoryWouldDeleteMore says "{count, plural, one {And # more file not listed} other {And # more files not listed}}"
+// in the language the app shows.
+func HistoryWouldDeleteMore(count int) string { return In(i18n.Locale()).HistoryWouldDeleteMore(count) }
+
+// HistoryWouldDeleteMore says "{count, plural, one {And # more file not listed} other {And # more files not listed}}"
+// in the language of msgs.
+func (msgs Messages) HistoryWouldDeleteMore(count int) string {
+	return Catalog.Format(msgs.locale, "historyWouldDeleteMore", map[string]any{"count": count})
+}
+
+// HistoryWouldDeleteFailed says "Unable to read the files: {error}"
+// in the language the app shows.
+func HistoryWouldDeleteFailed(error string) string {
+	return In(i18n.Locale()).HistoryWouldDeleteFailed(error)
+}
+
+// HistoryWouldDeleteFailed says "Unable to read the files: {error}"
+// in the language of msgs.
+func (msgs Messages) HistoryWouldDeleteFailed(error string) string {
+	return Catalog.Format(msgs.locale, "historyWouldDeleteFailed", map[string]any{"error": error})
 }
 
 // HistoryMessage says "Message"

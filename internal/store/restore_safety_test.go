@@ -112,7 +112,7 @@ func TestScheduleStartsMigratedFromVersionSeven(t *testing.T) {
 	}
 	// Back to version 7: the columns of the versions after it go too.
 	if _, err := s.db.Exec(`DROP TRIGGER remember_run_start; DROP TABLE schedule_starts;
-		ALTER TABLE settings DROP COLUMN background; ALTER TABLE settings DROP COLUMN appearance; ALTER TABLE settings DROP COLUMN check_updates; ALTER TABLE settings DROP COLUMN install_updates; PRAGMA user_version=7;`); err != nil {
+		ALTER TABLE settings DROP COLUMN background; ALTER TABLE settings DROP COLUMN appearance; ALTER TABLE settings DROP COLUMN check_updates; ALTER TABLE settings DROP COLUMN install_updates; ALTER TABLE settings DROP COLUMN trash_days; ALTER TABLE tasks DROP COLUMN trash_days; ALTER TABLE runs DROP COLUMN trashed; ALTER TABLE runs DROP COLUMN trash; ALTER TABLE run_logs DROP COLUMN deletes; ALTER TABLE run_logs DROP COLUMN deletes_total; PRAGMA user_version=7;`); err != nil {
 		t.Fatal(err)
 	}
 	at := time.Now().Truncate(time.Millisecond)

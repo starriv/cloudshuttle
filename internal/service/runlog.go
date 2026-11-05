@@ -95,3 +95,9 @@ func (s *Service) RunLog(ctx context.Context, id string) (string, int, error) {
 	}
 	return log, 0, err
 }
+
+// RunDeletes returns what the run with id, a sync the delete check stopped,
+// would have deleted; domain.ErrNotFound for any other run.
+func (s *Service) RunDeletes(ctx context.Context, id string) (domain.StoppedDeletes, error) {
+	return s.store.RunDeletes(ctx, id)
+}

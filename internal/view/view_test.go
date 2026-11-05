@@ -634,6 +634,47 @@ func TestRunAnywaySkipsTheDeleteCheck(t *testing.T) {
 	}
 }
 
+func TestAStoppedSyncListsItsFilesThenRunsAnyway(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	src, dst := t.TempDir(), t.TempDir()
+	if err := os.WriteFile(filepath.Join(dst, "precious.txt"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	task, err := h.svc.CreateTask(ctx, domain.TaskInput{Name: "Alpha", Mode: domain.ModeSync,
+		Source: domain.Location{Path: src}, Destination: domain.Location{Path: dst}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.svc.Run(ctx, task.ID, service.RunOptions{Trigger: domain.TriggerManual}); err != nil {
+		t.Fatal(err)
+	}
+	h.waitFor("the stopped run", func() bool { return len(h.svc.Active()) == 0 && len(h.app.history) == 1 })
+
+	h.click(locales.NavHistory())
+	h.click("Alpha")
+	h.settle()
+	h.expect(locales.HistoryWouldDelete())
+	h.expect("precious.txt")
+
+	// From the files, a person runs it anyway; the file goes to the trash.
+	h.click(locales.TaskRunAnyway())
+	h.settle()
+	h.expect(locales.TaskRunAnywayTrash(30))
+	h.click(locales.TaskRunAnywayButton())
+	h.waitFor("the forced run", func() bool { return len(h.svc.Active()) == 0 && len(h.app.history) == 2 })
+	forced := h.app.history[0]
+	if forced.Status != domain.StatusSuccess || forced.Trash == "" {
+		t.Fatalf("run = %+v, want success into the trash", forced)
+	}
+	h.app.clearHistoryChoice()
+	h.app.historyChosen.Add(forced.ID)
+	h.settle()
+	h.expect(locales.HistoryTrash())
+	h.expect(forced.Trash)
+	h.expect(locales.HistoryTrashed(1))
+}
+
 func TestSettingsPageSaves(t *testing.T) {
 	h := newHarness(t)
 	h.click(locales.NavSettings())
@@ -644,11 +685,13 @@ func TestSettingsPageSaves(t *testing.T) {
 	h.app.settingsForm.transfers = "2"
 	h.app.settingsForm.bandwidth = locales.SettingsSpeed(10)
 	h.app.settingsForm.retention = locales.SettingsKeepDays(30)
+	h.expect(locales.SettingsTrash())
+	h.app.settingsForm.trash = locales.SettingsTrashOff()
 	h.app.saveSettings()
 	h.waitFor("the save", func() bool { return !h.app.settingsForm.saving })
 
 	got := h.svc.Settings()
-	if got.Transfers != 2 || got.BandwidthMBps != 10 || got.RetentionDays != 30 {
+	if got.Transfers != 2 || got.BandwidthMBps != 10 || got.RetentionDays != 30 || got.TrashDays != 0 {
 		t.Fatalf("settings = %+v, want the chosen values", got)
 	}
 	h.expect(locales.SettingsSaved())
@@ -720,4 +763,28 @@ func TestChoosingAnAppearanceShowsAndKeepsIt(t *testing.T) {
 	if len(h.host.shown) != n {
 		t.Fatalf("shown again on reload: %v", h.host.shown)
 	}
+}
+
+func TestATaskChoosesItsTrash(t *testing.T) {
+	h := newHarness(t)
+	src, dst := t.TempDir(), t.TempDir()
+	h.click(locales.NavTasks())
+	h.click(locales.TasksAdd())
+	h.expect(locales.TaskTrashFollow(30))
+	h.expect(locales.TaskTrashHint())
+	h.fill(locales.TaskFieldName(), "Mirror")
+	h.app.taskForm.source.path, h.app.taskForm.dest.path = src, dst
+	// What a person would choose in the select.
+	h.app.taskForm.trash = domain.TrashOff
+	h.settle()
+	h.expect(locales.TaskTrashOffHint())
+	h.click(locales.TaskSave())
+	h.settle()
+	tasks, err := h.svc.Tasks(context.Background())
+	if err != nil || len(tasks) != 1 || tasks[0].TrashDays != domain.TrashOff {
+		t.Fatalf("tasks = %+v, %v", tasks, err)
+	}
+	h.app.openTaskForm(&tasks[0])
+	h.settle()
+	h.expect(locales.SettingsTrashOff())
 }

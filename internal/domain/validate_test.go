@@ -285,3 +285,26 @@ func TestEndpointRejectsEmbeddedCredentials(t *testing.T) {
 		}
 	}
 }
+
+func TestTaskTrash(t *testing.T) {
+	settings := Settings{TrashDays: 30}
+	for _, c := range []struct{ task, settings, want int }{
+		{TrashFollow, 30, 30},
+		{TrashFollow, 0, 0},
+		{TrashOff, 30, 0},
+		{7, 0, 7},
+		{90, 30, 90},
+	} {
+		settings.TrashDays = c.settings
+		if got := (Task{TrashDays: c.task}).Trash(settings); got != c.want {
+			t.Errorf("task %d, settings %d: %d days, want %d", c.task, c.settings, got, c.want)
+		}
+	}
+	in := TaskInput{Name: "T", Source: Location{Path: "/a"}, Destination: Location{Path: "/b"}, Mode: ModeCopy}
+	for days, ok := range map[int]bool{TrashOff: true, TrashFollow: true, 7: true, -2: false, 4000: false} {
+		in.TrashDays = days
+		if got := AsProblems(in.Validate(nil)).For(FieldTrash); (got == "") != ok {
+			t.Errorf("trash days %d: problem %q", days, got)
+		}
+	}
+}

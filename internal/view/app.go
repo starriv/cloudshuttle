@@ -92,6 +92,7 @@ type App struct {
 	historyTask   string               // the label chosen in the task filter
 	historyStatus string               // the label chosen in the status filter
 	runLog        runLogView
+	runDeletes    runDeletesView
 
 	taskForm       taskForm
 	storageForm    storageForm

@@ -11,6 +11,10 @@ type Settings struct {
 	NotifyFailed  bool
 	NotifySkipped bool
 	RetentionDays int // days of run history to keep, 0 for good
+	// TrashDays is how long a run keeps the files it deletes or replaces,
+	// in a trash folder of its destination, for the tasks that follow the
+	// settings; 0 deletes them at once.
+	TrashDays int
 	// BackupICloud keeps a copy of the configuration in iCloud Drive.
 	BackupICloud bool
 	// Background is whether the person lets the system start the app to
@@ -48,7 +52,8 @@ const (
 )
 
 // DefaultSettings is how the app starts: rclone's own defaults for the
-// transfer, notifications on, and three months of history.
+// transfer, notifications on, three months of history, and a month of what
+// syncs delete or replace.
 func DefaultSettings() Settings {
 	return Settings{
 		Transfers:     4,
@@ -58,6 +63,7 @@ func DefaultSettings() Settings {
 		NotifyFailed:  true,
 		NotifySkipped: true,
 		RetentionDays: 90,
+		TrashDays:     30,
 		BackupICloud:  false,
 		CheckUpdates:  true,
 	}
@@ -76,6 +82,7 @@ func (s Settings) Validate() error {
 	add(s.Retries < 1 || s.Retries > 10)
 	add(s.BandwidthMBps < 0 || s.BandwidthMBps > 1000)
 	add(s.RetentionDays < 0 || s.RetentionDays > 3650)
+	add(s.TrashDays < 0 || s.TrashDays > 3650)
 	add(s.Appearance < AppearanceSystem || s.Appearance > AppearanceDark)
 	if len(p) > 0 {
 		return p

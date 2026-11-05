@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	_ "embed"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -111,6 +112,29 @@ INSERT INTO schedule_starts(task_id, started_at)
 	// turns it off, and installs by itself only when they allow it.
 	sqlStep(`ALTER TABLE settings ADD COLUMN check_updates INTEGER NOT NULL DEFAULT 1;
 	 ALTER TABLE settings ADD COLUMN install_updates INTEGER NOT NULL DEFAULT 0;`),
+	// 12: a run moves what it deletes or replaces into a trash folder of
+	// its destination, for a month unless the person chooses otherwise, in
+	// the settings or for a task; a sync the delete check stopped keeps
+	// what it would have deleted.
+	addTrash,
+}
+
+// addTrash is step 12. A database older than the logs of runs has no
+// run_logs yet: schema.sql creates it whole after the migrations.
+func addTrash(tx *sql.Tx) error {
+	if _, err := tx.Exec(`ALTER TABLE settings ADD COLUMN trash_days INTEGER NOT NULL DEFAULT 30;
+	 ALTER TABLE tasks ADD COLUMN trash_days INTEGER NOT NULL DEFAULT 0;
+	 ALTER TABLE runs ADD COLUMN trashed INTEGER NOT NULL DEFAULT 0;
+	 ALTER TABLE runs ADD COLUMN trash TEXT NOT NULL DEFAULT '';`); err != nil {
+		return err
+	}
+	var logs int
+	if err := tx.QueryRow(`SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = 'run_logs'`).Scan(&logs); err != nil || logs == 0 {
+		return err
+	}
+	_, err := tx.Exec(`ALTER TABLE run_logs ADD COLUMN deletes TEXT NOT NULL DEFAULT '';
+	 ALTER TABLE run_logs ADD COLUMN deletes_total INTEGER NOT NULL DEFAULT 0;`)
+	return err
 }
 
 // Store is the app's database. Its methods are safe from any goroutine.
@@ -163,11 +187,12 @@ func seedSettings(db *sql.DB) error {
 	d := domain.DefaultSettings()
 	_, err := db.Exec(`
 		INSERT INTO settings (id, transfers, checkers, retries, bandwidth_mbps,
-			notify_failed, notify_skipped, retention_days, backup_icloud, check_updates, install_updates)
-		VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			notify_failed, notify_skipped, retention_days, backup_icloud, check_updates, install_updates,
+			trash_days)
+		VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (id) DO NOTHING`,
 		d.Transfers, d.Checkers, d.Retries, d.BandwidthMBps, d.NotifyFailed, d.NotifySkipped,
-		d.RetentionDays, d.BackupICloud, d.CheckUpdates, d.InstallUpdates)
+		d.RetentionDays, d.BackupICloud, d.CheckUpdates, d.InstallUpdates, d.TrashDays)
 	return err
 }
 
@@ -182,11 +207,12 @@ func (s *Store) Settings(ctx context.Context) (domain.Settings, error) {
 	)
 	err := s.db.QueryRowContext(ctx, `
 		SELECT transfers, checkers, retries, bandwidth_mbps, notify_failed, notify_skipped,
-			retention_days, backup_icloud, background, appearance, check_updates, install_updates
+			retention_days, backup_icloud, background, appearance, check_updates, install_updates,
+			trash_days
 		FROM settings WHERE id = 1`).
 		Scan(&st.Transfers, &st.Checkers, &st.Retries, &st.BandwidthMBps,
 			&notifyFailed, &notifySkipped, &st.RetentionDays, &backupICloud, &background, &appearance,
-			&checkUpdates, &installUpdates)
+			&checkUpdates, &installUpdates, &st.TrashDays)
 	if errors.Is(err, sql.ErrNoRows) {
 		return domain.DefaultSettings(), nil
 	}
@@ -206,18 +232,18 @@ func (s *Store) PutSettings(ctx context.Context, st domain.Settings) error {
 	_, err := s.db.ExecContext(ctx, `
 		INSERT INTO settings (id, transfers, checkers, retries, bandwidth_mbps,
 			notify_failed, notify_skipped, retention_days, backup_icloud, background, appearance,
-			check_updates, install_updates)
-		VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			check_updates, install_updates, trash_days)
+		VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (id) DO UPDATE SET
 			transfers = excluded.transfers, checkers = excluded.checkers, retries = excluded.retries,
 			bandwidth_mbps = excluded.bandwidth_mbps, notify_failed = excluded.notify_failed,
 			notify_skipped = excluded.notify_skipped, retention_days = excluded.retention_days,
 			backup_icloud = excluded.backup_icloud, background = excluded.background,
 			appearance = excluded.appearance, check_updates = excluded.check_updates,
-			install_updates = excluded.install_updates`,
+			install_updates = excluded.install_updates, trash_days = excluded.trash_days`,
 		st.Transfers, st.Checkers, st.Retries, st.BandwidthMBps,
 		st.NotifyFailed, st.NotifySkipped, st.RetentionDays, st.BackupICloud, int(st.Background),
-		int(st.Appearance), st.CheckUpdates, st.InstallUpdates)
+		int(st.Appearance), st.CheckUpdates, st.InstallUpdates, st.TrashDays)
 	return err
 }
 
@@ -409,7 +435,7 @@ func (s *Store) DeleteStorage(ctx context.Context, id string) error {
 }
 
 const taskColumns = `id, name, source_storage_id, source_path, dest_storage_id, dest_path, mode, schedule,
-	schedule_since, created_at, updated_at`
+	schedule_since, trash_days, created_at, updated_at`
 
 // Tasks returns every task, by name.
 func (s *Store) Tasks(ctx context.Context) ([]domain.Task, error) {
@@ -442,15 +468,16 @@ func (s *Store) Task(ctx context.Context, id string) (domain.Task, error) {
 func (s *Store) PutTask(ctx context.Context, t domain.Task) error {
 	_, err := s.db.ExecContext(ctx, `
 		INSERT INTO tasks (`+taskColumns+`)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (id) DO UPDATE SET
 			name = excluded.name, source_storage_id = excluded.source_storage_id,
 			source_path = excluded.source_path, dest_storage_id = excluded.dest_storage_id,
 			dest_path = excluded.dest_path, mode = excluded.mode, schedule = excluded.schedule,
-			schedule_since = excluded.schedule_since, updated_at = excluded.updated_at`,
+			schedule_since = excluded.schedule_since, trash_days = excluded.trash_days,
+			updated_at = excluded.updated_at`,
 		t.ID, t.Name, nullable(t.Source.StorageID), t.Source.Path,
 		nullable(t.Destination.StorageID), t.Destination.Path, t.Mode, encodeSchedule(t.Schedule),
-		millis(t.ScheduleSince), millis(t.CreatedAt), millis(t.UpdatedAt))
+		millis(t.ScheduleSince), t.TrashDays, millis(t.CreatedAt), millis(t.UpdatedAt))
 	return mapConstraint(err)
 }
 
@@ -476,10 +503,11 @@ func (s *Store) InsertRun(ctx context.Context, r domain.Run) error {
 func (s *Store) FinishRun(ctx context.Context, r domain.Run) error {
 	res, err := s.db.ExecContext(ctx, `
 		UPDATE runs SET status = ?, message = ?, problem = ?, bytes = ?, total_bytes = ?, transfers = ?,
-			total_transfers = ?, checks = ?, deletes = ?, errors = ?, finished_at = ?, queued = 0
+			total_transfers = ?, checks = ?, deletes = ?, errors = ?, trashed = ?, trash = ?,
+			finished_at = ?, queued = 0
 		WHERE id = ?`,
 		r.Status, r.Message, r.Problem, r.Stats.Bytes, r.Stats.TotalBytes, r.Stats.Transfers,
-		r.Stats.TotalTransfers, r.Stats.Checks, r.Stats.Deletes, r.Stats.Errors,
+		r.Stats.TotalTransfers, r.Stats.Checks, r.Stats.Deletes, r.Stats.Errors, r.Stats.Trashed, r.Trash,
 		millis(r.FinishedAt), r.ID)
 	if err != nil {
 		return err
@@ -531,14 +559,16 @@ func (s *Store) Runs(ctx context.Context, f RunFilter) ([]domain.Run, error) {
 }
 
 const runColumns = `id, task_id, task_name, mode, trigger_kind, dry_run, status, message, problem, bytes,
-	total_bytes, transfers, total_transfers, checks, deletes, errors, speed, started_at, finished_at`
+	total_bytes, transfers, total_transfers, checks, deletes, errors, speed, trashed, trash, started_at,
+	finished_at`
 
 func scanRun(row scanner) (domain.Run, error) {
 	var r domain.Run
 	var started, finished int64
 	if err := row.Scan(&r.ID, &r.TaskID, &r.TaskName, &r.Mode, &r.Trigger, &r.DryRun, &r.Status,
 		&r.Message, &r.Problem, &r.Stats.Bytes, &r.Stats.TotalBytes, &r.Stats.Transfers, &r.Stats.TotalTransfers,
-		&r.Stats.Checks, &r.Stats.Deletes, &r.Stats.Errors, &r.Stats.Speed, &started, &finished); err != nil {
+		&r.Stats.Checks, &r.Stats.Deletes, &r.Stats.Errors, &r.Stats.Speed, &r.Stats.Trashed, &r.Trash,
+		&started, &finished); err != nil {
 		return domain.Run{}, err
 	}
 	r.StartedAt, r.FinishedAt = fromMillis(started), fromMillis(finished)
@@ -596,6 +626,39 @@ func (s *Store) PutRunLog(ctx context.Context, id, log string) error {
 		INSERT INTO run_logs (run_id, log) VALUES (?, ?)
 		ON CONFLICT (run_id) DO UPDATE SET log = excluded.log`, id, log)
 	return err
+}
+
+// PutRunDeletes keeps what the run with id, a sync the delete check
+// stopped, would have deleted.
+func (s *Store) PutRunDeletes(ctx context.Context, id string, d domain.StoppedDeletes) error {
+	paths, err := json.Marshal(d.Paths)
+	if err != nil {
+		return err
+	}
+	_, err = s.db.ExecContext(ctx, `
+		INSERT INTO run_logs (run_id, log, deletes, deletes_total) VALUES (?, '', ?, ?)
+		ON CONFLICT (run_id) DO UPDATE SET deletes = excluded.deletes, deletes_total = excluded.deletes_total`,
+		id, string(paths), d.Total)
+	return err
+}
+
+// RunDeletes returns what the run with id, a sync the delete check stopped,
+// would have deleted: ErrNotFound for any other run.
+func (s *Store) RunDeletes(ctx context.Context, id string) (domain.StoppedDeletes, error) {
+	var d domain.StoppedDeletes
+	var paths string
+	err := s.db.QueryRowContext(ctx, `SELECT deletes, deletes_total FROM run_logs WHERE run_id = ? AND deletes != ''`, id).
+		Scan(&paths, &d.Total)
+	if errors.Is(err, sql.ErrNoRows) {
+		return d, domain.ErrNotFound
+	}
+	if err != nil {
+		return d, err
+	}
+	if err := json.Unmarshal([]byte(paths), &d.Paths); err != nil {
+		return d, fmt.Errorf("the deletes of run %s: %w", id, err)
+	}
+	return d, nil
 }
 
 // PruneRuns deletes the runs that started before a time, with their logs,
@@ -673,7 +736,7 @@ func scanTask(row scanner) (domain.Task, error) {
 	var schedule string
 	var since, created, updated int64
 	if err := row.Scan(&t.ID, &t.Name, &src, &t.Source.Path, &dst, &t.Destination.Path, &t.Mode,
-		&schedule, &since, &created, &updated); err != nil {
+		&schedule, &since, &t.TrashDays, &created, &updated); err != nil {
 		return domain.Task{}, err
 	}
 	t.Source.StorageID, t.Destination.StorageID = src.String, dst.String
@@ -737,7 +800,7 @@ func mapConstraint(err error) error {
 // settingsColumns are those a backup restores: whether the app may run in
 // the background is this computer's, and stays.
 const settingsColumns = `id, transfers, checkers, retries, bandwidth_mbps, notify_failed, notify_skipped,
-	retention_days, backup_icloud, appearance, check_updates, install_updates`
+	retention_days, backup_icloud, appearance, check_updates, install_updates, trash_days`
 
 // RestoreConfig replaces the storages, tasks and settings with those of the
 // database at path, a backup BackupConfig wrote, in one transaction; the

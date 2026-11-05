@@ -20,6 +20,7 @@ var (
 	retryValues     = []int{1, 2, 3, 5, 10}
 	bandwidthValues = []int{0, 1, 5, 10, 50}
 	retentionValues = []int{0, 30, 90, 180, 365}
+	trashValues     = []int{0, 7, 30, 90}
 )
 
 // settingsForm is the settings page as it is edited: the labels the selects
@@ -32,6 +33,7 @@ type settingsForm struct {
 	retries       string
 	bandwidth     string
 	retention     string
+	trash         string
 	notifyFailed  bool
 	notifySkipped bool
 	backupICloud  bool
@@ -78,6 +80,18 @@ func retentionLabels() []string {
 	return out
 }
 
+func trashLabels() []string {
+	out := make([]string, len(trashValues))
+	for i, days := range trashValues {
+		if days == 0 {
+			out[i] = locales.SettingsTrashOff()
+		} else {
+			out[i] = locales.SettingsKeepDays(days)
+		}
+	}
+	return out
+}
+
 // labelAt is the label of a value, the first value's when it is unknown.
 func labelAt(values []int, labels []string, value int) string {
 	for i, n := range values {
@@ -107,6 +121,7 @@ func (a *App) loadSettingsForm() {
 	f.retries = labelAt(retryValues, numberLabels(retryValues), s.Retries)
 	f.bandwidth = labelAt(bandwidthValues, bandwidthLabels(), s.BandwidthMBps)
 	f.retention = labelAt(retentionValues, retentionLabels(), s.RetentionDays)
+	f.trash = labelAt(trashValues, trashLabels(), s.TrashDays)
 	f.notifyFailed, f.notifySkipped = s.NotifyFailed, s.NotifySkipped
 	f.backupICloud = s.BackupICloud
 	f.background = s.Background == domain.ConsentGiven
@@ -140,6 +155,7 @@ func (a *App) saveSettings() {
 		NotifyFailed:  f.notifyFailed,
 		NotifySkipped: f.notifySkipped,
 		RetentionDays: valueAt(retentionValues, retentionLabels(), f.retention),
+		TrashDays:     valueAt(trashValues, trashLabels(), f.trash),
 		BackupICloud:  f.backupICloud,
 		Background:    a.settings.Background,
 		Appearance:    a.settings.Appearance,
@@ -215,6 +231,11 @@ func (a *App) settingsPage(c *ui.Context) {
 				}},
 				{label: locales.SettingsBandwidth(), hint: locales.SettingsBandwidthHint(), control: func(label string) {
 					ui.Select(c, &f.bandwidth, bandwidthLabels()).Label(label).Width(selectWidth)
+				}},
+			})
+			settingsCard(c, locales.SettingsTrashTitle(), []settingsRow{
+				{label: locales.SettingsTrash(), hint: locales.SettingsTrashHint(), control: func(label string) {
+					ui.Select(c, &f.trash, trashLabels()).Label(label).Width(selectWidth)
 				}},
 			})
 			settingsCard(c, locales.SettingsNotifyTitle(), []settingsRow{

@@ -183,6 +183,12 @@ func TestMigrateCronSchedules(t *testing.T) {
 		ALTER TABLE settings DROP COLUMN appearance;
 		ALTER TABLE settings DROP COLUMN check_updates;
 		ALTER TABLE settings DROP COLUMN install_updates;
+		ALTER TABLE settings DROP COLUMN trash_days;
+		ALTER TABLE tasks DROP COLUMN trash_days;
+		ALTER TABLE runs DROP COLUMN trashed;
+		ALTER TABLE runs DROP COLUMN trash;
+		ALTER TABLE run_logs DROP COLUMN deletes;
+		ALTER TABLE run_logs DROP COLUMN deletes_total;
 		INSERT INTO tasks (id, name, source_path, dest_path, mode, schedule, created_at, updated_at) VALUES
 			('a', 'Nightly', '/a', '/b', 'copy', '0 3 * * *', 1, 5000),
 			('b', 'Workdays', '/c', '/d', 'copy', '30 18 * * 1-5', 1, 1),

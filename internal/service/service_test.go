@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/starriv/cloudshuttle/internal/domain"
+	"github.com/starriv/cloudshuttle/internal/engine"
 	"github.com/starriv/cloudshuttle/internal/store"
 )
 
@@ -521,16 +522,65 @@ func TestSyncRunStopsOnAnEmptySource(t *testing.T) {
 	if err != nil || !strings.Contains(log, "the preview would delete 1") {
 		t.Errorf("log = %q, %v", log, err)
 	}
+	// What it would have deleted is kept, for the person to look over.
+	if d, err := s.RunDeletes(ctx, run.ID); err != nil || d.Total != 1 || len(d.Paths) != 1 || d.Paths[0] != "precious.txt" {
+		t.Errorf("deletes = %+v, %v", d, err)
+	}
 
 	// A person who means it forces the run.
 	if _, err := s.Run(ctx, task.ID, RunOptions{Trigger: domain.TriggerManual, Force: true}); err != nil {
 		t.Fatal(err)
 	}
-	if run := wait(t, done); run.Status != domain.StatusSuccess {
-		t.Fatalf("forced run = %+v", run)
+	forced := wait(t, done)
+	if forced.Status != domain.StatusSuccess {
+		t.Fatalf("forced run = %+v", forced)
 	}
 	if _, err := os.Stat(filepath.Join(dst, "precious.txt")); !os.IsNotExist(err) {
 		t.Fatal("the forced run kept the destination's file")
+	}
+	// The trash keeps it, and the history says where.
+	if forced.Stats.Trashed != 1 || forced.Trash != engine.TrashFolder(forced.StartedAt) {
+		t.Fatalf("forced run trashed %d into %q", forced.Stats.Trashed, forced.Trash)
+	}
+	if _, err := os.Stat(filepath.Join(dst, filepath.FromSlash(forced.Trash), "precious.txt")); err != nil {
+		t.Fatalf("the trash lacks the file: %v", err)
+	}
+	if _, err := s.RunDeletes(ctx, forced.ID); !errors.Is(err, domain.ErrNotFound) {
+		t.Errorf("a run that went ahead lists deletes: %v", err)
+	}
+}
+
+func TestSyncWithoutTheTrashDeletes(t *testing.T) {
+	ctx := context.Background()
+	s, _, done := newService(t)
+	settings := s.Settings()
+	settings.TrashDays = 0
+	if _, err := s.SaveSettings(ctx, settings); err != nil {
+		t.Fatal(err)
+	}
+	src, dst := t.TempDir(), t.TempDir()
+	for _, dir := range []string{src, dst} {
+		if err := os.WriteFile(filepath.Join(dir, "kept.txt"), []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(dst, "gone.txt"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	task, err := s.CreateTask(ctx, domain.TaskInput{Name: "No trash", Mode: domain.ModeSync,
+		Source: domain.Location{Path: src}, Destination: domain.Location{Path: dst}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Run(ctx, task.ID, RunOptions{Trigger: domain.TriggerManual}); err != nil {
+		t.Fatal(err)
+	}
+	run := wait(t, done)
+	if run.Status != domain.StatusSuccess || run.Stats.Deletes != 1 || run.Stats.Trashed != 0 || run.Trash != "" {
+		t.Fatalf("run = %+v", run)
+	}
+	if _, err := os.Stat(filepath.Join(dst, engine.TrashRoot)); !os.IsNotExist(err) {
+		t.Fatal("a sync without the trash made one")
 	}
 }
 
@@ -712,5 +762,60 @@ func TestSettingsAreKept(t *testing.T) {
 	}
 	if got := s.Settings(); got != want {
 		t.Fatalf("settings = %+v after a refused save, want %+v", got, want)
+	}
+}
+
+func TestATaskChoosesItsTrash(t *testing.T) {
+	ctx := context.Background()
+	for _, c := range []struct {
+		name           string
+		mode           domain.Mode
+		settings, task int
+		trashed, kept  bool // the replaced file went to the trash; the run's folder is named
+	}{
+		{"follows the settings", domain.ModeCopy, 30, domain.TrashFollow, true, true},
+		{"off for the task", domain.ModeSync, 30, domain.TrashOff, false, false},
+		{"its own days", domain.ModeSync, 0, 7, true, true},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			s, _, done := newService(t)
+			settings := s.Settings()
+			settings.TrashDays = c.settings
+			if _, err := s.SaveSettings(ctx, settings); err != nil {
+				t.Fatal(err)
+			}
+			src, dst := t.TempDir(), t.TempDir()
+			if err := os.WriteFile(filepath.Join(src, "a.txt"), []byte("new version"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(dst, "a.txt"), []byte("old"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			task, err := s.CreateTask(ctx, domain.TaskInput{Name: "T", Mode: c.mode, TrashDays: c.task,
+				Source: domain.Location{Path: src}, Destination: domain.Location{Path: dst}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got, _ := s.store.Task(ctx, task.ID); got.TrashDays != c.task {
+				t.Fatalf("kept trash days %d, want %d", got.TrashDays, c.task)
+			}
+			if _, err := s.Run(ctx, task.ID, RunOptions{Trigger: domain.TriggerManual}); err != nil {
+				t.Fatal(err)
+			}
+			run := wait(t, done)
+			if run.Status != domain.StatusSuccess || (run.Stats.Trashed == 1) != c.trashed || (run.Trash != "") != c.kept {
+				t.Fatalf("run = %+v", run)
+			}
+			_, err = os.Stat(filepath.Join(dst, engine.TrashRoot))
+			if exists := err == nil; exists != c.trashed {
+				t.Fatalf("trash exists = %v, want %v", exists, c.trashed)
+			}
+		})
+	}
+	s, _, _ := newService(t)
+	in := domain.TaskInput{Name: "Bad", Mode: domain.ModeCopy, TrashDays: -5,
+		Source: domain.Location{Path: t.TempDir()}, Destination: domain.Location{Path: t.TempDir()}}
+	if _, err := s.CreateTask(ctx, in); domain.AsProblems(err).For(domain.FieldTrash) != domain.CodeOutOfRange {
+		t.Fatalf("bad trash days: %v", err)
 	}
 }

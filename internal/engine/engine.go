@@ -22,6 +22,7 @@ import (
 	"github.com/rclone/rclone/fs/accounting"
 	"github.com/rclone/rclone/fs/config/configmap"
 	"github.com/rclone/rclone/fs/config/obscure"
+	"github.com/rclone/rclone/fs/operations"
 	"github.com/rclone/rclone/fs/rc"
 	"github.com/rclone/rclone/fs/sync"
 
@@ -74,6 +75,12 @@ type Job struct {
 	// the source holds nothing. Without it, Run stops such a sync for a
 	// person to confirm it: a scheduled run must never empty a backup.
 	Force bool
+	// Trash, when set, is the folder of the destination, relative to it,
+	// that the job moves the files it deletes or replaces into (see
+	// TrashFolder), and TrashDays how long the trash keeps a run's folder:
+	// the job deletes the older ones once it is done. A dry run has none.
+	Trash     string
+	TrashDays int
 	// Transfers, Checkers and Retries say how hard the job works; zero
 	// leaves rclone's defaults. BandwidthMBps caps the run's speed, zero
 	// for none.
@@ -96,6 +103,9 @@ type Progress struct {
 	Deletes        int64
 	Errors         int64
 	Speed          float64
+	// Trashed is the files a job moved into the trash: those a sync
+	// deleted, and the earlier versions of those it replaced.
+	Trashed int64
 }
 
 // ErrIsFile is returned for a location that names a file, not a folder.
@@ -329,6 +339,10 @@ func Run(ctx context.Context, job Job, progress func(Progress)) (Progress, error
 			return Progress{}, fmt.Errorf("bandwidth limit: %w", err)
 		}
 	}
+	ctx, err := excludeTrash(ctx)
+	if err != nil {
+		return Progress{}, fmt.Errorf("filter: %w", err)
+	}
 	accounting.TokenBucket.SetBwLimit(ci.BwLimit.LimitAt(time.Now()).Bandwidth)
 	defer accounting.TokenBucket.SetBwLimit(fs.BwPair{})
 	stop := listen(job.ID, job.Log)
@@ -389,6 +403,26 @@ func Run(ctx context.Context, job Job, progress func(Progress)) (Progress, error
 			ci.MaxDelete = deletes
 		}
 	}
+	var trash *trashFs
+	if !job.DryRun && job.Trash != "" {
+		trash, err = useTrash(ctx, ci, job)
+		if err != nil {
+			log(appLine("ERROR", "opening the trash failed: %v", err))
+			return Progress{}, err
+		}
+		defer shutdown(trash.Fs)
+		log(appLine("INFO", "the files the run deletes or replaces go into %s, kept %d days", job.Trash, job.TrashDays))
+	}
+	measure := func() Progress {
+		p := snapshot(stats)
+		if trash != nil {
+			// Each move into the trash counts a check of rclone's: the
+			// checks tell the files compared.
+			p.Checks = max(p.Checks-trash.moves.Load(), 0)
+			p.Trashed = trash.moved.Load()
+		}
+		return p
+	}
 
 	started := time.Now()
 
@@ -402,7 +436,7 @@ func Run(ctx context.Context, job Job, progress func(Progress)) (Progress, error
 				case <-done:
 					return
 				case <-ticker.C:
-					progress(snapshot(stats))
+					progress(measure())
 				}
 			}
 		}()
@@ -414,10 +448,13 @@ func Run(ctx context.Context, job Job, progress func(Progress)) (Progress, error
 		err = sync.CopyDir(ctx, dst, src, false)
 	}
 	close(done)
-	final := snapshot(stats)
+	final := measure()
 	log(appLine("INFO", "%d of %d files, %d of %d bytes; %d checks, %d deletes, %d errors, in %s",
 		final.Transfers, final.TotalTransfers, final.Bytes, final.TotalBytes,
 		final.Checks, final.Deletes, final.Errors, time.Since(started).Round(time.Millisecond)))
+	if trash != nil && final.Trashed > 0 {
+		log(appLine("INFO", "%d files went into %s", final.Trashed, job.Trash))
+	}
 	if ctx.Err() != nil {
 		log(appLine("WARN", "stopped: %v", ctx.Err()))
 		return final, ctx.Err()
@@ -425,6 +462,9 @@ func Run(ctx context.Context, job Job, progress func(Progress)) (Progress, error
 	if err != nil {
 		err = classify(err)
 		log(appLine("ERROR", "failed: %v", err))
+	}
+	if trash != nil {
+		pruneTrash(ctx, job, group, log)
 	}
 	return final, err
 }
@@ -438,7 +478,7 @@ func checkDeletes(ctx context.Context, job Job, src, dst fs.Fs, group string, lo
 		log(appLine("WARN", "the delete check is off: a forced run may delete most of the destination"))
 		return -1, nil
 	}
-	preview, err := previewSync(ctx, src, dst, group)
+	preview, listed, err := previewSync(ctx, src, dst, group)
 	if err != nil {
 		err = classify(err)
 		log(appLine("ERROR", "the preview failed: %v", err))
@@ -455,21 +495,25 @@ func checkDeletes(ctx context.Context, job Job, src, dst fs.Fs, group string, lo
 	destination := preview.Checks
 	log(appLine("INFO", "the preview would delete %d of the destination's %d files; the source has %d",
 		preview.Deletes, destination, source))
+	stopped := &StoppedSync{Deletes: preview.Deletes, Destination: destination, Paths: listed}
 	switch {
 	case source <= 0:
 		log(appLine("ERROR", "the source holds nothing to sync: stopping before it deletes the destination (a forced run allows it)"))
-		return 0, fmt.Errorf("%w: it would delete %d files", ErrEmptySource, preview.Deletes)
+		stopped.Err = ErrEmptySource
+		return 0, stopped
 	case preview.Deletes >= guardDeletes && preview.Deletes*2 > destination:
 		log(appLine("ERROR", "most of the destination would go: stopping for a person to confirm it (a forced run allows it)"))
-		return 0, fmt.Errorf("%w: %d of %d files", ErrLargeDelete, preview.Deletes, destination)
+		stopped.Err = ErrLargeDelete
+		return 0, stopped
 	}
 	return preview.Deletes, nil
 }
 
 // previewSync is the job's sync run without changing anything, counted apart
-// from the run's statistics. Its rclone lines are dropped, so that the run's
-// log tells what happened and not what could have happened.
-func previewSync(ctx context.Context, src, dst fs.Fs, group string) (Progress, error) {
+// from the run's statistics, with some of the files it would delete. Its
+// rclone lines are dropped, so that the run's log tells what happened and
+// not what could have happened.
+func previewSync(ctx context.Context, src, dst fs.Fs, group string) (Progress, []string, error) {
 	defer muteRclone()()
 	pctx, ci := fs.AddConfig(ctx)
 	ci.DryRun = true
@@ -477,10 +521,12 @@ func previewSync(ctx context.Context, src, dst fs.Fs, group string) (Progress, e
 	name := group + "/preview"
 	pctx = accounting.WithStatsGroup(pctx, name)
 	defer deleteStats(name)
+	var deletes deleteList
+	pctx = operations.WithLogger(pctx, deletes.logger)
 	if err := sync.Sync(pctx, dst, src, false); err != nil {
-		return Progress{}, err
+		return Progress{}, nil, err
 	}
-	return snapshot(accounting.StatsGroup(pctx, name)), nil
+	return snapshot(accounting.StatsGroup(pctx, name)), deletes.paths, nil
 }
 
 func describe(loc Location) string {

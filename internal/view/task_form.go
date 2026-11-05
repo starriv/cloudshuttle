@@ -19,6 +19,7 @@ type taskForm struct {
 	dest     locationField
 	mode     int // 0 copy, 1 sync, as the segmented control shows them
 	schedule scheduleField
+	trash    int // as domain.Task.TrashDays
 	problems domain.Problems
 	browser  *folderBrowser // open over the form while choosing a folder of a storage
 	// askBackground asks, once the task is saved, whether the system may
@@ -76,6 +77,7 @@ func (a *App) openTaskForm(task *domain.Task) {
 	} else {
 		f.id, f.name, f.schedule = task.ID, task.Name, newScheduleField(task.Schedule, a.now())
 		f.source, f.dest = a.locationField(task.Source), a.locationField(task.Destination)
+		f.trash = task.TrashDays
 		if task.Mode == domain.ModeSync {
 			f.mode = 1
 		}
@@ -91,6 +93,7 @@ func (a *App) saveTask() {
 		Destination: a.location(f.dest),
 		Mode:        modes[f.mode],
 		Schedule:    f.schedule.schedule(),
+		TrashDays:   f.trash,
 	}
 	ctx := context.Background()
 	var err error
@@ -177,6 +180,7 @@ func (a *App) taskDialog(c *ui.Context) {
 				ui.Field(c, locales.TaskFieldMode(), func() {
 					ui.Segmented(c, &f.mode, locales.ModeCopy(), locales.ModeSync())
 				}).Description(hint)
+				a.trashInput(c, f)
 				a.scheduleInput(c, f)
 			})
 
@@ -190,6 +194,44 @@ func (a *App) taskDialog(c *ui.Context) {
 			})
 		})
 	})
+}
+
+// taskTrashValues are what a task's trash select offers, as TrashDays.
+var taskTrashValues = []int{domain.TrashFollow, domain.TrashOff, 7, 30, 90}
+
+// taskTrashLabels name taskTrashValues: the first says what the settings
+// choose, for the task that follows them.
+func (a *App) taskTrashLabels() []string {
+	labels := make([]string, len(taskTrashValues))
+	for i, days := range taskTrashValues {
+		switch {
+		case days == domain.TrashFollow && a.settings.TrashDays > 0:
+			labels[i] = locales.TaskTrashFollow(a.settings.TrashDays)
+		case days == domain.TrashFollow:
+			labels[i] = locales.TaskTrashFollowOff()
+		case days == domain.TrashOff:
+			labels[i] = locales.SettingsTrashOff()
+		default:
+			labels[i] = locales.SettingsKeepDays(days)
+		}
+	}
+	return labels
+}
+
+// trashInput chooses how long the task's runs keep what they delete or
+// replace.
+func (a *App) trashInput(c *ui.Context, f *taskForm) {
+	labels := a.taskTrashLabels()
+	chosen := labelAt(taskTrashValues, labels, f.trash)
+	hint := locales.TaskTrashHint()
+	if (domain.Task{TrashDays: f.trash}).Trash(a.settings) == 0 {
+		hint = locales.TaskTrashOffHint()
+	}
+	ui.Field(c, locales.TaskFieldTrash(), func() {
+		if ui.Select(c, &chosen, labels).Label(locales.TaskFieldTrash()).Width(220).Changed() {
+			f.trash = valueAt(taskTrashValues, labels, chosen)
+		}
+	}).Description(hint).Error(problemText(f.problems.For(domain.FieldTrash)))
 }
 
 func (a *App) locationInput(c *ui.Context, label string, f *locationField, field domain.Field) {
