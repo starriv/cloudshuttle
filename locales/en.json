@@ -34,6 +34,45 @@
   "settingsTrash": "Keep deleted and replaced files for",
   "settingsTrashHint": "Copies and syncs move the files they delete or replace into the .cloudshuttle-trash folder of the destination, and empty what is older. A task can choose its own. When off, the files are deleted right away.",
   "settingsTrashOff": "Off",
+  "settingsExcludeTitle": "Global exclusions",
+  "settingsExcludeEnabled": "Apply these rules to every run",
+  "settingsExcludeEnabledHint": "Copies and syncs leave them out on both sides. Turn this off to stop applying these rules; every task's own rules still apply.",
+  "settingsExcludeRules": "Global rules",
+  "settingsExcludeRulesHint": "{count, plural, one {# rule, applied to every task} other {# rules, applied to every task}}",
+  "@settingsExcludeRulesHint": {
+    "description": "How many global exclusion rules every run uses.",
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "39"
+      }
+    }
+  },
+  "settingsExcludeRulesOff": "{count, plural, one {# rule, not applied while this is off} other {# rules, not applied while this is off}}",
+  "@settingsExcludeRulesOff": {
+    "description": "The global rules' count while the switch that applies them is off.",
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "39"
+      }
+    }
+  },
+  "settingsExcludeEdit": "Edit…",
+  "settingsExcludeDialogTitle": "Global exclusion rules",
+  "settingsExcludeDialogHint": "One rule per line. A rule ending with / matches a folder and everything in it. Only a rule starting with / is anchored to the top; every other rule matches at any depth. * matches any characters in a name, ** also across folders.",
+  "settingsExcludeRestoreDefaults": "Restore defaults",
+  "settingsExcludeDone": "Done",
+  "settingsExcludeInvalidLine": "Line {line} isn't a valid rule. Check that its brackets and braces are closed.",
+  "@settingsExcludeInvalidLine": {
+    "placeholders": {
+      "line": {
+        "type": "int",
+        "example": "3"
+      }
+    }
+  },
+  "settingsExcludeFailed": "A rule isn't valid. Click Edit… to fix it.",
   "settingsNotifyTitle": "Notifications",
   "settingsNotifyFailed": "Notify when a run fails",
   "settingsNotifySkipped": "Notify when a scheduled run cannot start",
@@ -126,8 +165,25 @@
       }
     }
   },
+  "overviewAllSucceeded": "All succeeded",
+  "overviewLast7Days": "Last 7 days",
+  "overviewToday": "Today",
+  "overviewDayRuns": "{date}: {runs, plural, =0 {no runs} one {# run} other {# runs}}",
+  "overviewDayRunsFailed": "{date}: {runs, plural, one {# run} other {# runs}}, {failed, plural, one {# failed} other {# failed}}",
+  "overviewRunCount": "{count, plural, one {# run} other {# runs}}",
+  "overviewTimeRange": "{from} – {to}",
   "overviewAllWell": "All tasks succeeded on their last run",
   "overviewFailingNote": "Tasks whose last run failed",
+  "overviewFailingTasks": "{count, plural, one {# task} other {# tasks}}",
+  "@overviewFailingTasks": {
+    "description": "How many tasks failed on their last run, when more than one.",
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "3"
+      }
+    }
+  },
   "overviewOpenRun": "View this run of {task}",
   "@overviewOpenRun": {
     "placeholders": {
@@ -235,6 +291,79 @@
   "taskTrashFollowOff": "As in settings (off)",
   "taskTrashHint": "Files this task deletes or replaces are moved into the .cloudshuttle-trash folder of the destination.",
   "taskTrashOffHint": "Files this task deletes or replaces are not kept.",
+  "taskFieldExclude": "Exclude",
+  "taskExcludeNone": "No rules of its own.",
+  "taskExcludeRules": "{count, plural, one {# rule} other {# rules}}",
+  "@taskExcludeRules": {
+    "description": "Summary of a task's exclusion rules.",
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "3"
+      }
+    }
+  },
+  "taskExcludeRulesAndLarger": "{count, plural, one {# rule} other {# rules}}, and files over {size}",
+  "@taskExcludeRulesAndLarger": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "3"
+      },
+      "size": {
+        "type": "String",
+        "example": "1 GB"
+      }
+    }
+  },
+  "taskExcludeLarger": "Files over {size}",
+  "@taskExcludeLarger": {
+    "placeholders": {
+      "size": {
+        "type": "String",
+        "example": "1 GB"
+      }
+    }
+  },
+  "taskExcludeEdit": "Edit…",
+  "taskExcludeFailed": "A rule isn't valid. Click Edit… to fix it.",
+  "taskExcludeTitle": "Excluded files",
+  "taskExcludeHint": "Runs don't copy these files, and a sync doesn't delete them from the destination.",
+  "taskExcludeCommon": "Common",
+  "taskExcludePatterns": "Other rules",
+  "taskExcludePatternsHint": "One per line. * matches any characters in a name, ** also across folders. End a rule with / for a folder. Only a rule starting with / is anchored to the top of the source or the destination; every other rule matches at any depth.",
+  "taskExcludeInvalidLine": "Line {line} isn't a valid rule. Check that its brackets and braces are closed.",
+  "@taskExcludeInvalidLine": {
+    "placeholders": {
+      "line": {
+        "type": "int",
+        "example": "3"
+      }
+    }
+  },
+  "taskExcludeLarge": "Large files",
+  "taskExcludeLargeOff": "Copy every size",
+  "taskExcludeLargeOver": "Skip files over {size}",
+  "@taskExcludeLargeOver": {
+    "placeholders": {
+      "size": {
+        "type": "String",
+        "example": "1 GB"
+      }
+    }
+  },
+  "taskExcludeGlobalHint": "{count, plural, one {Every run also applies # global rule.} other {Every run also applies # global rules.}}",
+  "@taskExcludeGlobalHint": {
+    "description": "Under a task's own exclusions: the rules the settings apply to every run as well.",
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "39"
+      }
+    }
+  },
+  "taskExcludeUnreadable": "The saved rules can't be read, so runs won't start. Save the task with the rules you want.",
+  "taskExcludeDone": "Done",
   "taskActions": "Actions for {name}",
   "@taskActions": {
     "description": "Accessible name of a task's actions menu.",

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"testing"
 	"time"
@@ -43,7 +44,8 @@ func TestStoragesAndTasks(t *testing.T) {
 	task := domain.Task{ID: "t1", Name: "Photos", Source: domain.Location{Path: "/p"},
 		Destination: domain.Location{StorageID: "s1", Path: "x"}, Mode: domain.ModeCopy,
 		Schedule:      domain.Schedule{Repeat: domain.RepeatWeekly, Days: domain.WorkDays, Hour: 21, Minute: 30},
-		ScheduleSince: now, TrashDays: 7, CreatedAt: now, UpdatedAt: now}
+		ScheduleSince: now, TrashDays: 7, CreatedAt: now, UpdatedAt: now,
+		Exclude: domain.Exclude{Patterns: []string{".DS_Store", "node_modules/"}, MaxSize: 1 << 30}}
 	if err := s.PutTask(ctx, task); err != nil {
 		t.Fatal(err)
 	}
@@ -51,7 +53,7 @@ func TestStoragesAndTasks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got != task {
+	if !reflect.DeepEqual(got, task) {
 		t.Errorf("task round trip:\n got %+v\nwant %+v", got, task)
 	}
 
@@ -450,15 +452,18 @@ func TestSettingsRoundTrip(t *testing.T) {
 	ctx := context.Background()
 	s := open(t)
 	got, err := s.Settings(ctx)
-	if err != nil || got != domain.DefaultSettings() {
+	if err != nil || !reflect.DeepEqual(got, domain.DefaultSettings()) {
 		t.Fatalf("settings = %+v, %v; want the defaults", got, err)
 	}
-	want := domain.Settings{Transfers: 2, Checkers: 4, Retries: 5, BandwidthMBps: 10,
-		NotifyFailed: false, NotifySkipped: false, RetentionDays: 30, TrashDays: 7}
+	want := domain.DefaultSettings()
+	want.Transfers, want.Checkers, want.Retries, want.BandwidthMBps = 2, 4, 5, 10
+	want.NotifyFailed, want.NotifySkipped, want.RetentionDays, want.TrashDays = false, false, 30, 7
+	want.ExcludeEnabled = false
+	want.GlobalExcludes = []string{"*.log", "/cache/"}
 	if err := s.PutSettings(ctx, want); err != nil {
 		t.Fatal(err)
 	}
-	if got, err := s.Settings(ctx); err != nil || got != want {
+	if got, err := s.Settings(ctx); err != nil || !reflect.DeepEqual(got, want) {
 		t.Fatalf("settings = %+v, %v; want %+v", got, err, want)
 	}
 }
@@ -482,7 +487,11 @@ func TestSchedulesThatRanInTheBackgroundStayAllowed(t *testing.T) {
 			`ALTER TABLE settings DROP COLUMN check_updates`,
 			`ALTER TABLE settings DROP COLUMN install_updates`,
 			`ALTER TABLE settings DROP COLUMN trash_days`,
+			`ALTER TABLE settings DROP COLUMN exclude_enabled`,
+			`ALTER TABLE settings DROP COLUMN global_excludes`,
 			`ALTER TABLE tasks DROP COLUMN trash_days`,
+			`ALTER TABLE tasks DROP COLUMN excludes`,
+			`ALTER TABLE tasks DROP COLUMN max_size`,
 			`ALTER TABLE runs DROP COLUMN trashed`,
 			`ALTER TABLE runs DROP COLUMN trash`,
 			`ALTER TABLE run_logs DROP COLUMN deletes`,
@@ -519,5 +528,175 @@ func TestSchedulesThatRanInTheBackgroundStayAllowed(t *testing.T) {
 		if got.TrashDays != 30 {
 			t.Errorf("scheduled %v: trash days = %d, want 30", scheduled, got.TrashDays)
 		}
+	}
+}
+
+// A database step 12 left gets the exclusions in step 13, whether or not a
+// development build added them in step 12 already.
+func TestMigrateExcludesAfterTrash(t *testing.T) {
+	ctx := context.Background()
+	for _, hasColumns := range []bool{false, true} {
+		path := filepath.Join(t.TempDir(), "old.db")
+		st, err := Open(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !hasColumns {
+			for _, q := range []string{`ALTER TABLE tasks DROP COLUMN excludes`, `ALTER TABLE tasks DROP COLUMN max_size`} {
+				if _, err := st.db.Exec(q); err != nil {
+					t.Fatal(err)
+				}
+			}
+		}
+		if _, err := st.db.Exec(`ALTER TABLE settings DROP COLUMN exclude_enabled;
+			ALTER TABLE settings DROP COLUMN global_excludes`); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := st.db.Exec(`PRAGMA user_version = 12`); err != nil {
+			t.Fatal(err)
+		}
+		st.Close()
+		if st, err = Open(path); err != nil {
+			t.Fatalf("columns %v: %v", hasColumns, err)
+		}
+		if _, err := st.Tasks(ctx); err != nil {
+			t.Errorf("columns %v: tasks: %v", hasColumns, err)
+		}
+		got, err := st.Settings(ctx)
+		if err != nil || !got.ExcludeEnabled {
+			t.Errorf("columns %v: settings = %+v, %v; want the global exclusion on", hasColumns, got, err)
+		}
+		if err != nil || !slices.Equal(got.GlobalExcludes, domain.DevDependencyExcludes) {
+			t.Errorf("columns %v: global excludes = %v, want the built-in list", hasColumns, got.GlobalExcludes)
+		}
+		st.Close()
+	}
+}
+
+// A database step 13 left gets the global exclusion in steps 14 and 15:
+// the switch on, and the built-in list to edit.
+func TestMigrateTheGlobalExclusionFromStep13(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "old.db")
+	st, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.db.Exec(`ALTER TABLE settings DROP COLUMN exclude_enabled;
+		ALTER TABLE settings DROP COLUMN global_excludes;
+		PRAGMA user_version = 13`); err != nil {
+		t.Fatal(err)
+	}
+	st.Close()
+	st, err = Open(path)
+	if err != nil {
+		t.Fatalf("open the database of step 13: %v", err)
+	}
+	defer st.Close()
+	got, err := st.Settings(ctx)
+	if err != nil || !got.ExcludeEnabled || !slices.Equal(got.GlobalExcludes, domain.DevDependencyExcludes) {
+		t.Fatalf("settings = %+v, %v; want the global exclusion on with the built-in list", got, err)
+	}
+}
+
+// A database step 14 has the old switch, and may have it off: step 15 keeps
+// the answer and adds the list.
+func TestMigrateTheGlobalExclusionFromStep14(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "old.db")
+	st, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.db.Exec(`ALTER TABLE settings DROP COLUMN exclude_enabled;
+		ALTER TABLE settings DROP COLUMN global_excludes;
+		ALTER TABLE settings ADD COLUMN exclude_dev_deps INTEGER NOT NULL DEFAULT 1;
+		UPDATE settings SET exclude_dev_deps = 0;
+		PRAGMA user_version = 14`); err != nil {
+		t.Fatal(err)
+	}
+	st.Close()
+	st, err = Open(path)
+	if err != nil {
+		t.Fatalf("open the database of step 14: %v", err)
+	}
+	defer st.Close()
+	got, err := st.Settings(ctx)
+	if err != nil || got.ExcludeEnabled || !slices.Equal(got.GlobalExcludes, domain.DevDependencyExcludes) {
+		t.Fatalf("settings = %+v, %v; want the switch off with the built-in list", got, err)
+	}
+}
+
+// A task whose exclusions cannot be read still shows, marked so its runs
+// refuse to start, and the others with it.
+func TestUnreadableExcludes(t *testing.T) {
+	ctx := context.Background()
+	st, err := Open(filepath.Join(t.TempDir(), "db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	if _, err := st.db.Exec(`INSERT INTO tasks (id, name, source_path, dest_path, mode, schedule, excludes, created_at, updated_at)
+		VALUES ('a', 'A', '/a', '/b', 'copy', '', '[oops', 0, 0), ('b', 'B', '/c', '/d', 'copy', '', '["*.log"]', 0, 0)`); err != nil {
+		t.Fatal(err)
+	}
+	tasks, err := st.Tasks(ctx)
+	if err != nil || len(tasks) != 2 {
+		t.Fatalf("tasks = %+v, %v", tasks, err)
+	}
+	if !tasks[0].Exclude.Unreadable || tasks[0].Exclude.Patterns != nil {
+		t.Errorf("A: exclude = %+v", tasks[0].Exclude)
+	}
+	if tasks[1].Exclude.Unreadable || len(tasks[1].Exclude.Patterns) != 1 {
+		t.Errorf("B: exclude = %+v", tasks[1].Exclude)
+	}
+}
+
+// A development build at step 13 may have added the old switch column
+// already: step 14 must not fail on it, and step 15 still turns it into the
+// global list.
+func TestMigrateFromStep13WithTheDependencySwitch(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "old.db")
+	st, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.db.Exec(`ALTER TABLE settings DROP COLUMN exclude_enabled;
+		ALTER TABLE settings DROP COLUMN global_excludes;
+		ALTER TABLE settings ADD COLUMN exclude_dev_deps INTEGER NOT NULL DEFAULT 0;
+		PRAGMA user_version = 13`); err != nil {
+		t.Fatal(err)
+	}
+	st.Close()
+	st, err = Open(path)
+	if err != nil {
+		t.Fatalf("a step 13 database with the switch column: %v", err)
+	}
+	defer st.Close()
+	got, err := st.Settings(ctx)
+	if err != nil || got.ExcludeEnabled || !slices.Equal(got.GlobalExcludes, domain.DevDependencyExcludes) {
+		t.Fatalf("settings = %+v, %v; want the old switch off and the built-in list", got, err)
+	}
+}
+
+// An unreadable global list is treated as no global rules: the rest of the
+// settings still load, rather than the app falling back to its defaults.
+func TestUnreadableGlobalExcludes(t *testing.T) {
+	ctx := context.Background()
+	st, err := Open(filepath.Join(t.TempDir(), "db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	if _, err := st.db.Exec(`UPDATE settings SET global_excludes = '[oops', transfers = 7`); err != nil {
+		t.Fatal(err)
+	}
+	got, err := st.Settings(ctx)
+	if err != nil {
+		t.Fatalf("settings: %v", err)
+	}
+	if got.GlobalExcludes != nil || got.Transfers != 7 {
+		t.Fatalf("settings = %+v, want no global rules and the other settings kept", got)
 	}
 }

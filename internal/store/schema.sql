@@ -35,6 +35,10 @@ CREATE TABLE IF NOT EXISTS tasks (
     -- How long its runs keep what they delete or replace: 0 as the
     -- settings say, -1 not at all, else days (domain.Task.TrashDays).
     trash_days          INTEGER NOT NULL DEFAULT 0,
+    -- What its runs leave out (domain.Exclude): a JSON array of globs, and
+    -- the largest file in bytes, 0 for any.
+    excludes            TEXT NOT NULL DEFAULT '[]',
+    max_size            INTEGER NOT NULL DEFAULT 0,
     created_at          INTEGER NOT NULL,
     updated_at          INTEGER NOT NULL
 );
@@ -89,7 +93,12 @@ CREATE TABLE IF NOT EXISTS settings (
     appearance     INTEGER NOT NULL DEFAULT 0, -- domain.Appearance
     check_updates  INTEGER NOT NULL DEFAULT 1,
     install_updates INTEGER NOT NULL DEFAULT 0,
-    trash_days     INTEGER NOT NULL DEFAULT 30
+    trash_days     INTEGER NOT NULL DEFAULT 30,
+    -- Apply the global exclusion list to every run
+    -- (domain.Settings.ExcludeEnabled), and the list itself as JSON
+    -- (domain.Settings.GlobalExcludes).
+    exclude_enabled  INTEGER NOT NULL DEFAULT 1,
+    global_excludes  TEXT NOT NULL DEFAULT '[]'
 );
 
 -- The log of each run, apart from runs so that listing them stays light;

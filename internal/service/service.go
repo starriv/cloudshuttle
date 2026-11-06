@@ -311,15 +311,23 @@ func (s *Service) Close() {
 func (s *Service) Settings() domain.Settings {
 	s.settingsMu.RLock()
 	defer s.settingsMu.RUnlock()
-	return s.settings
+	st := s.settings
+	st.GlobalExcludes = slices.Clone(st.GlobalExcludes)
+	return st
 }
 
 // SaveSettings keeps st and uses it for the runs that start after it. The
 // history is pruned again at once, as its retention may have changed, and
 // the configuration is copied to iCloud Drive when the person allows it.
 func (s *Service) SaveSettings(ctx context.Context, st domain.Settings) (domain.Settings, error) {
+	st = st.Normalize()
 	if err := st.Validate(); err != nil {
 		return st, err
+	}
+	for _, p := range st.GlobalExcludes {
+		if !engine.ValidExclude(p) {
+			return st, domain.Problems{{Field: domain.FieldGlobalExclude, Code: domain.CodeInvalid}}
+		}
 	}
 	if st.BackupICloud && !s.HasBackupPassword() {
 		// A backup is encrypted: there is nothing to write it with yet.
@@ -695,7 +703,7 @@ func (s *Service) Tasks(ctx context.Context) ([]domain.Task, error) {
 
 // CreateTask validates in and adds the task.
 func (s *Service) CreateTask(ctx context.Context, in domain.TaskInput) (domain.Task, error) {
-	in, err := s.validTask(ctx, "", in, false)
+	in, err := s.validTask(ctx, "", in, false, true)
 	if err != nil {
 		return domain.Task{}, err
 	}
@@ -712,7 +720,7 @@ func (s *Service) CreateTask(ctx context.Context, in domain.TaskInput) (domain.T
 
 // UpdateTask validates in and changes the task with id.
 func (s *Service) UpdateTask(ctx context.Context, id string, in domain.TaskInput) (domain.Task, error) {
-	in, err := s.validTask(ctx, id, in, false)
+	in, err := s.validTask(ctx, id, in, false, true)
 	if err != nil {
 		return domain.Task{}, err
 	}
@@ -730,13 +738,20 @@ func (s *Service) UpdateTask(ctx context.Context, id string, in domain.TaskInput
 	return t, nil
 }
 
-func (s *Service) validTask(ctx context.Context, id string, in domain.TaskInput, dryRun bool) (domain.TaskInput, error) {
+// validTask checks in before it is saved or run. Saving also checks the
+// patterns it leaves out are globs; a run takes them as saved, so a task
+// whose patterns a newer engine reads otherwise fails in the engine, not
+// as a field of the form.
+func (s *Service) validTask(ctx context.Context, id string, in domain.TaskInput, dryRun, saving bool) (domain.TaskInput, error) {
 	in = in.Normalize()
 	storages, err := s.store.Storages(ctx)
 	if err != nil {
 		return in, err
 	}
 	problems := domain.AsProblems(in.Validate(storages))
+	if p := in.Exclude.Patterns; saving && problems.For(domain.FieldExclude) == "" && slices.ContainsFunc(p, invalidExclude) {
+		problems = append(problems, domain.Problem{Field: domain.FieldExclude, Code: domain.CodeInvalid})
+	}
 	if len(problems) > 0 {
 		return in, problems
 	}
@@ -758,6 +773,12 @@ func (s *Service) validTask(ctx context.Context, id string, in domain.TaskInput,
 	return resolved, nil
 }
 
+// ValidExclude reports whether a task may leave out what pattern matches:
+// whether it is a glob, as domain.Exclude says them.
+func (s *Service) ValidExclude(pattern string) bool { return engine.ValidExclude(pattern) }
+
+func invalidExclude(pattern string) bool { return !engine.ValidExclude(pattern) }
+
 func taskFrom(t domain.Task, in domain.TaskInput, now time.Time) domain.Task {
 	if t.Schedule != in.Schedule || t.ScheduleSince.IsZero() {
 		// The times a new schedule passed before it was set are not runs
@@ -765,7 +786,7 @@ func taskFrom(t domain.Task, in domain.TaskInput, now time.Time) domain.Task {
 		t.ScheduleSince = now
 	}
 	t.Name, t.Source, t.Destination, t.Mode, t.Schedule = in.Name, in.Source, in.Destination, in.Mode, in.Schedule
-	t.TrashDays = in.TrashDays
+	t.TrashDays, t.Exclude = in.TrashDays, in.Exclude
 	t.UpdatedAt = now
 	return t
 }
@@ -983,6 +1004,11 @@ func (s *Service) start(ctx context.Context, id string, opts RunOptions, slot ti
 	t, err := s.store.Task(ctx, id)
 	if err != nil {
 		return nil, err
+	}
+	if t.Exclude.Unreadable {
+		// A run would copy or delete what the saved patterns left out;
+		// refuse it before a run row makes it look like a failure.
+		return nil, domain.Problems{{Field: domain.FieldExclude, Code: domain.CodeInvalid}}
 	}
 	storages, err := s.store.Storages(ctx)
 	if err != nil {
@@ -1274,7 +1300,10 @@ func trashFolder(t domain.Task, run domain.Run, settings domain.Settings) string
 }
 
 func (s *Service) transfer(ctx context.Context, t domain.Task, run domain.Run, force bool, settings domain.Settings, trash string, log *runLog, progress func(engine.Progress)) (engine.Progress, error) {
-	in, err := s.validTask(ctx, t.ID, taskInput(t), run.DryRun)
+	if t.Exclude.Unreadable {
+		return engine.Progress{}, domain.Problems{{Field: domain.FieldExclude, Code: domain.CodeInvalid}}
+	}
+	in, err := s.validTask(ctx, t.ID, taskInput(t), run.DryRun, false)
 	if err != nil {
 		return engine.Progress{}, err
 	}
@@ -1288,11 +1317,13 @@ func (s *Service) transfer(ctx context.Context, t domain.Task, run domain.Run, f
 		log.app(s.now(), "ERROR", "the destination: %v", err)
 		return engine.Progress{}, fmt.Errorf("destination: %w", err)
 	}
+	ex := settings.ExcludeFor(in.Exclude)
 	return engine.Run(ctx, engine.Job{
 		ID: run.ID, Source: src, Destination: dst, Sync: t.Mode == domain.ModeSync, DryRun: run.DryRun,
 		Force: force, Transfers: settings.Transfers, Checkers: settings.Checkers,
 		Retries: settings.Retries, BandwidthMBps: settings.BandwidthMBps, Log: log.add,
 		Trash: trash, TrashDays: t.Trash(settings),
+		Exclude: ex.Patterns, MaxSize: ex.MaxSize,
 	}, progress)
 }
 

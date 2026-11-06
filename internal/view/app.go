@@ -45,7 +45,7 @@ const (
 	pageSettings = "settings"
 )
 
-// recentRuns is how many runs the overview lists.
+// recentRuns is how many rows the overview lists of the latest runs.
 const recentRuns = 8
 
 // Snapshot is what the window last read of the configuration and of the
@@ -97,6 +97,7 @@ type App struct {
 	taskForm       taskForm
 	storageForm    storageForm
 	settingsForm   settingsForm
+	exclude        settingsExcludeForm
 	restoreForm    restoreForm
 	storageTests   int             // counts the forms' connection tests, to keep the latest
 	checking       map[string]bool // the storages being tested, by ID
@@ -145,13 +146,13 @@ func (a *App) Reload() {
 		a.loadErr = err
 	}
 	// Read enough for the status menu too, which dedupes by task and lists
-	// the newest 5; the overview shows the first recentRuns of them.
+	// the newest 5; the overview folds them into recentRuns rows.
 	runs, recentErr := a.svc.Runs(ctx, store.RunFilter{Limit: store.DefaultRunLimit})
 	if recentErr != nil {
 		a.loadErr = recentErr
 	}
-	a.recent = runs[:min(len(runs), recentRuns)]
-	if a.week, err = a.svc.Runs(ctx, store.RunFilter{Since: a.now().AddDate(0, 0, -7), Limit: 10000}); err != nil {
+	a.recent = runs
+	if a.week, err = a.svc.Runs(ctx, store.RunFilter{Since: weekStart(a.now()), Limit: 10000}); err != nil {
 		a.loadErr = err
 	}
 	a.snapshot = Snapshot{
@@ -274,7 +275,7 @@ func (a *App) View(c *ui.Context) {
 		ui.Column(c).Grow(1).MinWidth(0).Background(t.Background).Children(func() {
 			// Each page comes in from a little below as it fades in, and
 			// the page it replaces fades out: one motion, on navigation.
-			ui.Column(c.Key(a.page)).Grow(1).MinHeight(0).Padding(0, t.Space(6), t.Space(5), t.Space(6)).
+			ui.Column(c.Key(a.page)).Grow(1).MinHeight(0).Padding(0, t.Space(pagePadding), t.Space(5), t.Space(pagePadding)).
 				Gap(t.Space(4)).Transition(pageTransition).Children(func() {
 				switch a.page {
 				case pageTasks:
@@ -301,6 +302,7 @@ func (a *App) View(c *ui.Context) {
 	a.taskDialog(c)
 	a.storageDialog(c)
 	a.restoreDialog(c)
+	a.globalExcludeDialog(c)
 	ok := a.confirm.ok
 	if ok == "" {
 		ok = locales.ButtonDelete()
@@ -313,6 +315,10 @@ func (a *App) View(c *ui.Context) {
 
 const sidebarWidth = 210
 
+// pagePadding is the room each page leaves between the content area's sides
+// and its content.
+const pagePadding = 6
+
 // headerHeight is the height of a page's title bar, which is the window's.
 const headerHeight = 56
 
@@ -321,6 +327,15 @@ var pageTransition = ui.ElementTransition{
 	Position: true,
 	Enter:    &ui.Motion{Y: 8},
 	Exit:     &ui.Motion{},
+}
+
+// pageScroll scrolls a page's content. A scroll bar floats over the content
+// it scrolls and takes no room, so the container carries the page's side
+// padding, bleeding into that of the page: the bar shows beside the content,
+// in the margin, rather than over it.
+func pageScroll(c *ui.Context) ui.Element {
+	pad := c.Theme().Space(pagePadding)
+	return ui.Scroll(c).Grow(1).MinHeight(0).MarginX(-pad).PaddingX(pad)
 }
 
 // header builds a page's title and its main action, in the window's title

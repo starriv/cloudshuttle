@@ -2,9 +2,11 @@ package view
 
 import (
 	"context"
+	"fmt"
 	"net/netip"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -697,6 +699,156 @@ func TestSettingsPageSaves(t *testing.T) {
 	h.expect(locales.SettingsSaved())
 }
 
+func TestTheSettingsKeepTheGlobalExclude(t *testing.T) {
+	h := newHarness(t)
+	if !domain.DefaultSettings().ExcludeEnabled {
+		t.Fatal("the defaults leave the global exclusion off")
+	}
+	h.click(locales.NavSettings())
+	// A new install leaves out the folders that development tools fill, so
+	// the box shows checked and the rules are the built-in ones.
+	h.expect(locales.SettingsExcludeEnabled())
+	h.expect(locales.SettingsExcludeRulesHint(len(domain.DevDependencyExcludes)))
+	if !h.app.settingsForm.excludeEnabled {
+		t.Fatal("the checkbox is off at start, want it on")
+	}
+	// Turn the box off, as a click does, and save the page.
+	h.app.settingsForm.excludeEnabled = false
+	h.app.saveSettings()
+	h.waitFor("the save", func() bool { return !h.svc.Settings().ExcludeEnabled })
+	// A reload reads the settings again, and opening the page fills the
+	// form in with them: the choice was kept, not just held by the page.
+	h.app.settingsForm.loaded = false
+	h.app.Reload()
+	h.click(locales.NavSettings())
+	if h.app.settingsForm.excludeEnabled {
+		t.Fatal("the checkbox is on again after a reload")
+	}
+	// The rules open in the editor as the built-in list.
+	h.expect(locales.SettingsExcludeRules())
+	h.app.openGlobalExcludeEditor()
+	h.settle()
+	h.expect(locales.SettingsExcludeDialogTitle())
+	if !h.app.exclude.open {
+		t.Fatal("the editor is not open")
+	}
+	if !strings.Contains(h.app.exclude.text, "node_modules/") {
+		t.Fatalf("the editor shows %q, want the built-in rules", h.app.exclude.text)
+	}
+	// Replace them with rules of the person's own, then keep them.
+	h.app.exclude.text = "*.log\ncustom/" // as typing does
+	h.click(locales.SettingsExcludeDone())
+	h.settle()
+	if h.app.exclude.open {
+		t.Fatal("the editor stayed open after Done")
+	}
+	h.app.saveSettings()
+	h.waitFor("the rules to save", func() bool {
+		return reflect.DeepEqual(h.svc.Settings().GlobalExcludes, []string{"*.log", "custom/"})
+	})
+	// A reload and a reopened editor show the rules as they were kept.
+	h.app.settingsForm.loaded = false
+	h.app.Reload()
+	h.click(locales.NavSettings())
+	h.app.openGlobalExcludeEditor()
+	h.settle()
+	if got := h.app.exclude.text; got != "*.log\ncustom/" {
+		t.Fatalf("the editor shows %q after a reload, want the saved rules", got)
+	}
+	// A line that is not a rule keeps the editor open, marked, rather than
+	// closing on text the page would then fail to save.
+	h.app.exclude.text = "*.log\n[bad"
+	h.click(locales.SettingsExcludeDone())
+	h.settle()
+	if !h.app.exclude.open {
+		t.Fatal("the editor closed with an invalid rule")
+	}
+	if h.tt.HasText(locales.SettingsExcludeInvalidLine(2)) == false {
+		t.Fatal("the invalid line is not marked")
+	}
+	h.click(locales.ButtonCancel())
+	h.settle()
+	// Restore Defaults brings the built-in list back, and Save keeps it.
+	h.app.openGlobalExcludeEditor()
+	h.settle()
+	h.click(locales.SettingsExcludeRestoreDefaults())
+	h.click(locales.SettingsExcludeDone())
+	h.settle()
+	h.app.saveSettings()
+	h.waitFor("the defaults to save", func() bool {
+		return reflect.DeepEqual(h.svc.Settings().GlobalExcludes, domain.DevDependencyExcludes)
+	})
+}
+
+// The window's minimum is chosen so the task dialog's save row and the
+// global exclusion editor's buttons are laid out and reachable.
+func TestTheDialogsFitTheSmallestWindow(t *testing.T) {
+	h := newHarness(t)
+	h.tt.SetSize(900, 640)
+	h.tt.Advance(500 * time.Millisecond)
+	h.click(locales.NavSettings())
+	h.app.openGlobalExcludeEditor()
+	h.settle()
+	h.click(locales.SettingsExcludeDone())
+	if h.app.exclude.open {
+		t.Fatal("the global exclusion editor did not close at the smallest window")
+	}
+	h.app.openTaskForm(nil)
+	h.settle()
+	h.fill(locales.TaskFieldName(), "Smallest")
+	h.app.taskForm.source.path, h.app.taskForm.dest.path = t.TempDir(), t.TempDir()
+	h.click(locales.TaskSave())
+	h.settle()
+	if h.app.taskForm.open {
+		t.Fatalf("the task dialog did not save at the smallest window: %v", h.app.taskForm.problems)
+	}
+}
+
+func TestATaskWithUnreadableExclusionsSaysSo(t *testing.T) {
+	h := newHarness(t)
+	h.app.openTaskForm(&domain.Task{ID: "t", Name: "T", Mode: domain.ModeCopy,
+		Source: domain.Location{Path: t.TempDir()}, Destination: domain.Location{Path: t.TempDir()},
+		Exclude: domain.Exclude{Unreadable: true}})
+	h.settle()
+	h.expect(locales.TaskExcludeUnreadable())
+	h.app.taskForm.exclude.open = true // the editor says it too
+	h.settle()
+	h.expect(locales.TaskExcludeUnreadable())
+}
+
+// The editors refuse a list that breaks the exclusion limits, not only a
+// pattern that is not a glob.
+func TestTheExcludeEditorsRefuseTooManyRules(t *testing.T) {
+	var many strings.Builder
+	for i := range 201 {
+		fmt.Fprintf(&many, "x%d/\n", i)
+	}
+	h := newHarness(t)
+	h.click(locales.NavTasks())
+	h.click(locales.TasksAdd())
+	h.click(locales.TaskExcludeEdit())
+	h.fill(locales.TaskExcludePatterns(), many.String())
+	h.settle()
+	h.click(locales.TaskExcludeDone())
+	if !h.app.taskForm.exclude.open {
+		t.Fatal("the task editor closed with too many rules")
+	}
+	h.expect(locales.ErrorOutOfRange())
+	h.click(locales.ButtonCancel())
+
+	h.click(locales.NavSettings())
+	h.app.openGlobalExcludeEditor()
+	h.settle()
+	h.fill(locales.SettingsExcludeRules(), many.String())
+	h.settle()
+	h.click(locales.SettingsExcludeDone())
+	if !h.app.exclude.open {
+		t.Fatal("the global editor closed with too many rules")
+	}
+	h.expect(locales.ErrorOutOfRange())
+	h.click(locales.ButtonCancel())
+}
+
 func TestDefaultStorageName(t *testing.T) {
 	a := &App{storages: []domain.Storage{
 		{ID: "1", Name: "MinIO"},
@@ -787,4 +939,44 @@ func TestATaskChoosesItsTrash(t *testing.T) {
 	h.app.openTaskForm(&tasks[0])
 	h.settle()
 	h.expect(locales.SettingsTrashOff())
+}
+
+func TestATaskExcludesFiles(t *testing.T) {
+	h := newHarness(t)
+	src, dst := t.TempDir(), t.TempDir()
+	h.click(locales.NavTasks())
+	h.click(locales.TasksAdd())
+	// A new task leaves out what the systems make, on top of the global rules.
+	h.expect(locales.TaskExcludeRules(2))
+	h.expect(locales.TaskExcludeGlobalHint(len(domain.DevDependencyExcludes)))
+	h.fill(locales.TaskFieldName(), "Projects")
+	h.app.taskForm.source.path, h.app.taskForm.dest.path = src, dst
+	h.click(locales.TaskExcludeEdit())
+	h.expect(locales.TaskExcludeTitle())
+	h.click("node_modules/")
+	h.fill(locales.TaskExcludePatterns(), "*.log\n[build")
+	h.settle()
+	h.expect(locales.TaskExcludeInvalidLine(2))
+	h.fill(locales.TaskExcludePatterns(), "*.log\nbuild/")
+	h.app.taskForm.exclude.maxSize = maxSizeValues[2] // as the select chooses
+	h.settle()
+	if h.tt.HasText(locales.TaskExcludeInvalidLine(2)) {
+		t.Fatal("the fixed rule is still invalid")
+	}
+	h.click(locales.TaskExcludeDone())
+	h.settle()
+	h.expect(locales.TaskExcludeRulesAndLarger(5, "1 GB"))
+	h.click(locales.TaskSave())
+	h.settle()
+	tasks, err := h.svc.Tasks(context.Background())
+	if err != nil || len(tasks) != 1 {
+		t.Fatalf("tasks = %+v, %v", tasks, err)
+	}
+	want := domain.Exclude{Patterns: []string{".DS_Store", "Thumbs.db", "node_modules/", "*.log", "build/"}, MaxSize: 1_000_000_000}
+	if !reflect.DeepEqual(tasks[0].Exclude, want) {
+		t.Fatalf("exclude = %+v, want %+v", tasks[0].Exclude, want)
+	}
+	h.app.openTaskForm(&tasks[0])
+	h.settle()
+	h.expect(locales.TaskExcludeRulesAndLarger(5, "1 GB"))
 }

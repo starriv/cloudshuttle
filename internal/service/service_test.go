@@ -6,6 +6,8 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -742,15 +744,18 @@ func TestAPanicEndsTheRun(t *testing.T) {
 func TestSettingsAreKept(t *testing.T) {
 	ctx := context.Background()
 	s, _, _ := newService(t)
-	if got := s.Settings(); got != domain.DefaultSettings() {
+	if got := s.Settings(); !reflect.DeepEqual(got, domain.DefaultSettings()) {
 		t.Fatalf("settings = %+v, want the defaults", got)
 	}
-	want := domain.Settings{Transfers: 2, Checkers: 4, Retries: 5, BandwidthMBps: 10,
-		NotifyFailed: false, NotifySkipped: false, RetentionDays: 30}
+	want := domain.DefaultSettings()
+	want.Transfers, want.Checkers, want.Retries, want.BandwidthMBps = 2, 4, 5, 10
+	want.NotifyFailed, want.NotifySkipped, want.RetentionDays = false, false, 30
+	want.ExcludeEnabled = false
+	want.GlobalExcludes = []string{"*.log", "node_modules/"}
 	if _, err := s.SaveSettings(ctx, want); err != nil {
 		t.Fatal(err)
 	}
-	if got := s.Settings(); got != want {
+	if got := s.Settings(); !reflect.DeepEqual(got, want) {
 		t.Fatalf("settings = %+v, want %+v", got, want)
 	}
 
@@ -760,7 +765,7 @@ func TestSettingsAreKept(t *testing.T) {
 	if _, err := s.SaveSettings(ctx, bad); domain.AsProblems(err).For(domain.FieldSettings) != domain.CodeOutOfRange {
 		t.Fatalf("saving %+v = %v, want a problem with the value", bad, err)
 	}
-	if got := s.Settings(); got != want {
+	if got := s.Settings(); !reflect.DeepEqual(got, want) {
 		t.Fatalf("settings = %+v after a refused save, want %+v", got, want)
 	}
 }
@@ -817,5 +822,241 @@ func TestATaskChoosesItsTrash(t *testing.T) {
 		Source: domain.Location{Path: t.TempDir()}, Destination: domain.Location{Path: t.TempDir()}}
 	if _, err := s.CreateTask(ctx, in); domain.AsProblems(err).For(domain.FieldTrash) != domain.CodeOutOfRange {
 		t.Fatalf("bad trash days: %v", err)
+	}
+}
+
+func TestATaskLeavesOutWhatItExcludes(t *testing.T) {
+	ctx := context.Background()
+	s, _, done := newService(t)
+	src, dst := t.TempDir(), t.TempDir()
+	for name, body := range map[string]string{"a.txt": "a", ".DS_Store": "x", "big.bin": "0123456789"} {
+		if err := os.WriteFile(filepath.Join(src, name), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	in := domain.TaskInput{Name: "T", Mode: domain.ModeCopy,
+		Source: domain.Location{Path: src}, Destination: domain.Location{Path: dst},
+		Exclude: domain.Exclude{Patterns: []string{" .DS_Store ", "", ".DS_Store"}, MaxSize: 5}}
+	task, err := s.CreateTask(ctx, in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := s.store.Task(ctx, task.ID); !slices.Equal(got.Exclude.Patterns, []string{".DS_Store"}) || got.Exclude.MaxSize != 5 {
+		t.Fatalf("kept %+v", got.Exclude)
+	}
+	if _, err := s.Run(ctx, task.ID, RunOptions{Trigger: domain.TriggerManual}); err != nil {
+		t.Fatal(err)
+	}
+	if run := wait(t, done); run.Status != domain.StatusSuccess || run.Stats.Transfers != 1 {
+		t.Fatalf("run = %+v", run)
+	}
+	for name, want := range map[string]bool{"a.txt": true, ".DS_Store": false, "big.bin": false} {
+		if _, err := os.Stat(filepath.Join(dst, name)); (err == nil) != want {
+			t.Errorf("%s copied = %v, want %v", name, err == nil, want)
+		}
+	}
+
+	in.Name, in.Exclude = "Bad", domain.Exclude{Patterns: []string{"*.log", "[abc"}}
+	if _, err := s.CreateTask(ctx, in); domain.AsProblems(err).For(domain.FieldExclude) != domain.CodeInvalid {
+		t.Fatalf("a pattern that is no glob: %v", err)
+	}
+	if s.ValidExclude("[abc") || !s.ValidExclude("*.log") {
+		t.Error("ValidExclude")
+	}
+}
+
+// Every run leaves out the folders development tools fill with dependencies
+// while the setting is on, which it is by default; turning it off copies
+// them on the next run.
+func TestTheSettingsLeaveOutDevelopmentDependencies(t *testing.T) {
+	ctx := context.Background()
+	s, _, done := newService(t)
+	src, dst := t.TempDir(), t.TempDir()
+	for name, body := range map[string]string{
+		"notes.txt":                     "keep",
+		"app/node_modules/lib/index.js": "download",
+		"app/target/debug/app":          "build",
+		"app/.venv/bin/python":          "environment",
+	} {
+		path := filepath.Join(src, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	task, err := s.CreateTask(ctx, domain.TaskInput{Name: "Projects", Mode: domain.ModeCopy,
+		Source: domain.Location{Path: src}, Destination: domain.Location{Path: dst}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !s.Settings().ExcludeEnabled {
+		t.Fatal("the global exclusion is off in a new database")
+	}
+	if _, err := s.Run(ctx, task.ID, RunOptions{Trigger: domain.TriggerManual}); err != nil {
+		t.Fatal(err)
+	}
+	if run := wait(t, done); run.Status != domain.StatusSuccess || run.Stats.Transfers != 1 {
+		t.Fatalf("run = %+v, want only the note copied", run)
+	}
+	for name, want := range map[string]bool{
+		"notes.txt": true, "app/node_modules/lib/index.js": false,
+		"app/target/debug/app": false, "app/.venv/bin/python": false,
+	} {
+		if _, err := os.Stat(filepath.Join(dst, filepath.FromSlash(name))); (err == nil) != want {
+			t.Errorf("%s copied = %v, want %v", name, err == nil, want)
+		}
+	}
+
+	settings := s.Settings()
+	settings.ExcludeEnabled = false
+	if _, err := s.SaveSettings(ctx, settings); err != nil {
+		t.Fatalf("save the setting: %v", err)
+	}
+	if _, err := s.Run(ctx, task.ID, RunOptions{Trigger: domain.TriggerManual}); err != nil {
+		t.Fatal(err)
+	}
+	if run := wait(t, done); run.Status != domain.StatusSuccess || run.Stats.Transfers != 3 {
+		t.Fatalf("run = %+v, want the dependency files copied", run)
+	}
+	for _, name := range []string{"app/node_modules/lib/index.js", "app/target/debug/app", "app/.venv/bin/python"} {
+		if _, err := os.Stat(filepath.Join(dst, filepath.FromSlash(name))); err != nil {
+			t.Errorf("%s was not copied with the setting off: %v", name, err)
+		}
+	}
+}
+
+// The global patterns are the person's: an edited list changes what a run
+// copies, and a pattern that is not a glob is refused.
+func TestTheSettingsGlobalExcludesAreEditable(t *testing.T) {
+	ctx := context.Background()
+	s, _, done := newService(t)
+	src, dst := t.TempDir(), t.TempDir()
+	for name, body := range map[string]string{
+		"notes.txt":                     "keep",
+		"app/node_modules/lib/index.js": "download",
+		"debug.log":                     "log",
+	} {
+		path := filepath.Join(src, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	settings := s.Settings()
+	settings.GlobalExcludes = []string{"*.log"}
+	if _, err := s.SaveSettings(ctx, settings); err != nil {
+		t.Fatal(err)
+	}
+	task, err := s.CreateTask(ctx, domain.TaskInput{Name: "Projects", Mode: domain.ModeCopy,
+		Source: domain.Location{Path: src}, Destination: domain.Location{Path: dst}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Run(ctx, task.ID, RunOptions{Trigger: domain.TriggerManual}); err != nil {
+		t.Fatal(err)
+	}
+	if run := wait(t, done); run.Status != domain.StatusSuccess || run.Stats.Transfers != 2 {
+		t.Fatalf("run = %+v, want the note and node_modules copied", run)
+	}
+	if _, err := os.Stat(filepath.Join(dst, "app", "node_modules", "lib", "index.js")); err != nil {
+		t.Errorf("node_modules was not copied after the list lost it: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dst, "debug.log")); err == nil {
+		t.Error("debug.log was copied, but the edited list leaves it out")
+	}
+
+	// Spaces and repeats are cleaned, and the result is what runs use.
+	settings.GlobalExcludes = []string{" *.log ", "", "*.log", "node_modules/"}
+	saved, err := s.SaveSettings(ctx, settings)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"*.log", "node_modules/"}; !slices.Equal(saved.GlobalExcludes, want) {
+		t.Fatalf("saved global excludes = %v, want %v", saved.GlobalExcludes, want)
+	}
+
+	// A pattern rclone cannot take is refused.
+	settings.GlobalExcludes = []string{"*.log", "[bad"}
+	if _, err := s.SaveSettings(ctx, settings); domain.AsProblems(err).For(domain.FieldGlobalExclude) != domain.CodeInvalid {
+		t.Fatalf("a pattern that is no glob: %v", err)
+	}
+	if got := s.Settings().GlobalExcludes; !slices.Equal(got, []string{"*.log", "node_modules/"}) {
+		t.Fatalf("the refused save changed the list: %v", got)
+	}
+}
+
+// The engine builds a filter from the built-in patterns: one that is not a
+// glob would make every run fail.
+func TestDevDependencyExcludesAreGlobs(t *testing.T) {
+	for _, p := range domain.DevDependencyExcludes {
+		if !engine.ValidExclude(p) {
+			t.Errorf("DevDependencyExcludes has %q, which rclone does not take as a glob", p)
+		}
+	}
+}
+
+// The global rules apply to a sync's delete pass too: the folders left out
+// of the destination are not deleted, and turning the setting off lets the
+// next sync delete them as the source lacks them.
+func TestTheGlobalExclusionsApplyToSync(t *testing.T) {
+	ctx := context.Background()
+	s, _, done := newService(t)
+	src, dst := t.TempDir(), t.TempDir()
+	for name, body := range map[string]string{
+		"keep.txt":                  "keep",
+		"node_modules/lib/index.js": "download",
+		"target/debug/app":          "build",
+		"old.txt":                   "old",
+	} {
+		path := filepath.Join(dst, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(src, "keep.txt"), []byte("keep"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	task, err := s.CreateTask(ctx, domain.TaskInput{Name: "Projects", Mode: domain.ModeSync,
+		Source: domain.Location{Path: src}, Destination: domain.Location{Path: dst}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Run(ctx, task.ID, RunOptions{Trigger: domain.TriggerManual}); err != nil {
+		t.Fatal(err)
+	}
+	if run := wait(t, done); run.Status != domain.StatusSuccess {
+		t.Fatalf("run = %+v", run)
+	}
+	for _, kept := range []string{"node_modules/lib/index.js", "target/debug/app"} {
+		if _, err := os.Stat(filepath.Join(dst, filepath.FromSlash(kept))); err != nil {
+			t.Errorf("%s was deleted by the sync: %v", kept, err)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(dst, "old.txt")); err == nil {
+		t.Error("old.txt was not deleted: it is not excluded")
+	}
+
+	settings := s.Settings()
+	settings.ExcludeEnabled = false
+	if _, err := s.SaveSettings(ctx, settings); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Run(ctx, task.ID, RunOptions{Trigger: domain.TriggerManual}); err != nil {
+		t.Fatal(err)
+	}
+	if run := wait(t, done); run.Status != domain.StatusSuccess {
+		t.Fatalf("run with the setting off = %+v", run)
+	}
+	for _, gone := range []string{"node_modules", "target"} {
+		if _, err := os.Stat(filepath.Join(dst, gone)); err == nil {
+			t.Errorf("%s stayed after the setting was turned off", gone)
+		}
 	}
 }

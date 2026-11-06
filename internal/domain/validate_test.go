@@ -1,6 +1,9 @@
 package domain
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestStorageInputValidate(t *testing.T) {
 	valid := StorageInput{
@@ -305,6 +308,26 @@ func TestTaskTrash(t *testing.T) {
 		in.TrashDays = days
 		if got := AsProblems(in.Validate(nil)).For(FieldTrash); (got == "") != ok {
 			t.Errorf("trash days %d: problem %q", days, got)
+		}
+	}
+}
+
+func TestExclude(t *testing.T) {
+	e := Exclude{Patterns: []string{" *.tmp", "", "*.tmp", "node_modules/ "}}.Normalize()
+	if len(e.Patterns) != 2 || e.Patterns[0] != "*.tmp" || e.Patterns[1] != "node_modules/" {
+		t.Fatalf("normalized = %q", e.Patterns)
+	}
+	for _, c := range []struct {
+		e    Exclude
+		want Code
+	}{
+		{NewExclude(), ""},
+		{Exclude{MaxSize: -1}, CodeOutOfRange},
+		{Exclude{Patterns: []string{strings.Repeat("a", maxExcludeLength+1)}}, CodeTooLong},
+		{Exclude{Patterns: make([]string, maxExcludePatterns+1)}, CodeOutOfRange},
+	} {
+		if got := c.e.Validate(); got != c.want {
+			t.Errorf("Validate(%+v) = %q, want %q", c.e, got, c.want)
 		}
 	}
 }

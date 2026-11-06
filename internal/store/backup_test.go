@@ -4,6 +4,9 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"reflect"
+	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -32,7 +35,7 @@ func TestSettingsKeepTheICloudChoice(t *testing.T) {
 		t.Fatal(err)
 	}
 	got, err := s.Settings(ctx)
-	if err != nil || got != want {
+	if err != nil || !reflect.DeepEqual(got, want) {
 		t.Fatalf("settings = %+v, %v; want %+v", got, err, want)
 	}
 }
@@ -54,6 +57,7 @@ func TestBackupConfig(t *testing.T) {
 	}
 	task := domain.Task{ID: "t1", Name: "Photos", Source: domain.Location{Path: "/p"},
 		Destination: domain.Location{StorageID: "s1", Path: "x"}, Mode: domain.ModeCopy,
+		Exclude:   domain.Exclude{Patterns: []string{".DS_Store", "node_modules/"}, MaxSize: 1 << 30},
 		CreatedAt: now, UpdatedAt: now}
 	if err := s.PutTask(ctx, task); err != nil {
 		t.Fatal(err)
@@ -106,7 +110,7 @@ func TestBackupConfig(t *testing.T) {
 	}
 	defer copied.Close()
 
-	if got, err := copied.Settings(ctx); err != nil || got != settings {
+	if got, err := copied.Settings(ctx); err != nil || !reflect.DeepEqual(got, settings) {
 		t.Fatalf("settings in the copy = %+v, %v; want %+v", got, err, settings)
 	}
 	if got, err := copied.Storages(ctx); err != nil || len(got) != 1 || got[0].Name != "R2" {
@@ -129,7 +133,8 @@ func TestRestoreConfig(t *testing.T) {
 	from := openForBackup(t)
 	st := domain.Storage{ID: "s1", Name: "NAS", Kind: domain.KindSMB, Host: "nas.local", Port: 445, Username: "me", CreatedAt: now, UpdatedAt: now}
 	task := domain.Task{ID: "t1", Name: "Photos", Source: domain.Location{Path: "/p"}, Destination: domain.Location{StorageID: "s1", Path: "Photos"},
-		Mode: domain.ModeCopy, Schedule: domain.Schedule{Repeat: domain.RepeatDaily, Hour: 3}, ScheduleSince: now, CreatedAt: now, UpdatedAt: now}
+		Mode: domain.ModeCopy, Schedule: domain.Schedule{Repeat: domain.RepeatDaily, Hour: 3}, ScheduleSince: now,
+		Exclude: domain.Exclude{Patterns: []string{"*.tmp"}, MaxSize: 5_000_000}, CreatedAt: now, UpdatedAt: now}
 	settings := domain.DefaultSettings()
 	settings.RetentionDays = 30
 	settings.Background = domain.ConsentGiven   // the other computer's answer
@@ -172,12 +177,12 @@ func TestRestoreConfig(t *testing.T) {
 	if len(storages) != 1 || storages[0] != st {
 		t.Errorf("storages = %+v", storages)
 	}
-	if len(tasks) != 1 || tasks[0] != task {
+	if len(tasks) != 1 || !reflect.DeepEqual(tasks[0], task) {
 		t.Errorf("tasks = %+v", tasks)
 	}
 	want := settings
 	want.Background = domain.ConsentRefused // this computer's answer stays
-	if got != want {
+	if !reflect.DeepEqual(got, want) {
 		t.Errorf("settings = %+v, want %+v", got, want)
 	}
 	if len(runs) != 1 {
@@ -185,5 +190,44 @@ func TestRestoreConfig(t *testing.T) {
 	}
 	if err := to.RestoreConfig(ctx, filepath.Join(t.TempDir(), "missing", "x.db")); err == nil {
 		t.Error("restored from nothing")
+	}
+}
+
+// A backup of a version before the global exclusion list restores: the
+// list is seeded with the built-in folders, and the switch is on.
+func TestRestoreFromBeforeTheGlobalExclusionList(t *testing.T) {
+	ctx := context.Background()
+	for _, c := range []struct {
+		name    string
+		version int
+		prepare string // the settings table as that version left it
+	}{
+		{"step 13", 13, `ALTER TABLE settings DROP COLUMN exclude_enabled;
+			ALTER TABLE settings DROP COLUMN global_excludes`},
+		{"step 14, off", 14, `ALTER TABLE settings DROP COLUMN exclude_enabled;
+			ALTER TABLE settings DROP COLUMN global_excludes;
+			ALTER TABLE settings ADD COLUMN exclude_dev_deps INTEGER NOT NULL DEFAULT 0`},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "old-backup.db")
+			from, err := Open(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := from.db.Exec(c.prepare + `; PRAGMA user_version = ` + strconv.Itoa(c.version)); err != nil {
+				t.Fatal(err)
+			}
+			from.Close()
+
+			to := openForBackup(t)
+			if err := to.RestoreConfig(ctx, path); err != nil {
+				t.Fatalf("restore the backup: %v", err)
+			}
+			got, err := to.Settings(ctx)
+			if err != nil || got.ExcludeEnabled != (c.version == 13) ||
+				!slices.Equal(got.GlobalExcludes, domain.DevDependencyExcludes) {
+				t.Fatalf("settings = %+v, %v; want the built-in list and the switch as saved", got, err)
+			}
+		})
 	}
 }

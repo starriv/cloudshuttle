@@ -184,7 +184,11 @@ func TestMigrateCronSchedules(t *testing.T) {
 		ALTER TABLE settings DROP COLUMN check_updates;
 		ALTER TABLE settings DROP COLUMN install_updates;
 		ALTER TABLE settings DROP COLUMN trash_days;
+		ALTER TABLE settings DROP COLUMN exclude_enabled;
+		ALTER TABLE settings DROP COLUMN global_excludes;
 		ALTER TABLE tasks DROP COLUMN trash_days;
+		ALTER TABLE tasks DROP COLUMN excludes;
+		ALTER TABLE tasks DROP COLUMN max_size;
 		ALTER TABLE runs DROP COLUMN trashed;
 		ALTER TABLE runs DROP COLUMN trash;
 		ALTER TABLE run_logs DROP COLUMN deletes;

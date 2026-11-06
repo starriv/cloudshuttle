@@ -33,7 +33,7 @@ func inspectBackup(ctx context.Context, path string) error {
 		"runs":     "id,task_id,task_name,mode,trigger_kind,dry_run,status,message,started_at,finished_at",
 	}
 	if version >= 5 {
-		tables["settings"] = settingsColumns
+		tables["settings"] = settingsBaseColumns
 	}
 	if version >= 8 {
 		tables["schedule_starts"] = "task_id,started_at"
@@ -91,7 +91,11 @@ func validateConfig(ctx context.Context, backup *Store) error {
 		return domain.ErrNotBackup
 	}
 	for _, t := range tasks {
-		in := domain.TaskInput{Name: t.Name, Source: t.Source, Destination: t.Destination, Mode: t.Mode, Schedule: t.Schedule}
+		if t.Exclude.Unreadable {
+			return domain.ErrNotBackup
+		}
+		in := domain.TaskInput{Name: t.Name, Source: t.Source, Destination: t.Destination, Mode: t.Mode,
+			Schedule: t.Schedule, Exclude: t.Exclude}
 		if t.ID == "" || in.Validate(storages) != nil {
 			return domain.ErrNotBackup
 		}

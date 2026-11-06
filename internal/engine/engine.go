@@ -81,6 +81,11 @@ type Job struct {
 	// the job deletes the older ones once it is done. A dry run has none.
 	Trash     string
 	TrashDays int
+	// Exclude are globs of the files the job leaves out on both sides (see
+	// ExcludeRule), and MaxSize leaves out the files larger than it, in
+	// bytes, when above zero. A sync deletes none of them.
+	Exclude []string
+	MaxSize int64
 	// Transfers, Checkers and Retries say how hard the job works; zero
 	// leaves rclone's defaults. BandwidthMBps caps the run's speed, zero
 	// for none.
@@ -339,7 +344,7 @@ func Run(ctx context.Context, job Job, progress func(Progress)) (Progress, error
 			return Progress{}, fmt.Errorf("bandwidth limit: %w", err)
 		}
 	}
-	ctx, err := excludeTrash(ctx)
+	ctx, err := withFilter(ctx, job)
 	if err != nil {
 		return Progress{}, fmt.Errorf("filter: %w", err)
 	}
@@ -351,6 +356,14 @@ func Run(ctx context.Context, job Job, progress func(Progress)) (Progress, error
 		if job.Log != nil {
 			job.Log(l)
 		}
+	}
+	// The log says what the run leaves out, so a backup that skips folders
+	// by a rule, or the setting the app applies by default, leaves a trace.
+	if len(job.Exclude) > 0 {
+		log(appLine("INFO", "leaving out %d patterns: %s", len(job.Exclude), strings.Join(job.Exclude, ", ")))
+	}
+	if job.MaxSize > 0 {
+		log(appLine("INFO", "leaving out files larger than %d bytes", job.MaxSize))
 	}
 
 	group := "cloudshuttle-" + job.ID

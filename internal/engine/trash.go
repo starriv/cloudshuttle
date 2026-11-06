@@ -34,18 +34,6 @@ func TrashFolder(t time.Time) string {
 	return TrashRoot + "/" + t.Local().Format(trashStamp)
 }
 
-// excludeTrash leaves the trash out of what a run lists, on both sides.
-func excludeTrash(ctx context.Context) (context.Context, error) {
-	fi, err := filter.NewFilter(nil)
-	if err != nil {
-		return ctx, err
-	}
-	if err := fi.AddRule("- /" + TrashRoot + "/**"); err != nil {
-		return ctx, err
-	}
-	return filter.ReplaceConfig(ctx, fi), nil
-}
-
 // trashFs is a run's folder in the trash, as rclone's backup dir. It moves
 // a file in on the server, by copying it and deleting the original where the
 // backend has no move of its own (S3): rclone would otherwise count the copy

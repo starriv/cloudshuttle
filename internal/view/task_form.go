@@ -20,6 +20,7 @@ type taskForm struct {
 	mode     int // 0 copy, 1 sync, as the segmented control shows them
 	schedule scheduleField
 	trash    int // as domain.Task.TrashDays
+	exclude  excludeField
 	problems domain.Problems
 	browser  *folderBrowser // open over the form while choosing a folder of a storage
 	// askBackground asks, once the task is saved, whether the system may
@@ -66,7 +67,7 @@ func (a *App) location(f locationField) domain.Location {
 }
 
 func (a *App) openTaskForm(task *domain.Task) {
-	f := taskForm{open: true, schedule: newScheduleField(domain.Schedule{}, a.now())}
+	f := taskForm{open: true, schedule: newScheduleField(domain.Schedule{}, a.now()), exclude: newExcludeField(domain.NewExclude())}
 	if task == nil {
 		f.source = a.locationField(domain.Location{})
 		f.dest = a.locationField(domain.Location{})
@@ -77,7 +78,7 @@ func (a *App) openTaskForm(task *domain.Task) {
 	} else {
 		f.id, f.name, f.schedule = task.ID, task.Name, newScheduleField(task.Schedule, a.now())
 		f.source, f.dest = a.locationField(task.Source), a.locationField(task.Destination)
-		f.trash = task.TrashDays
+		f.trash, f.exclude = task.TrashDays, newExcludeField(task.Exclude)
 		if task.Mode == domain.ModeSync {
 			f.mode = 1
 		}
@@ -94,6 +95,7 @@ func (a *App) saveTask() {
 		Mode:        modes[f.mode],
 		Schedule:    f.schedule.schedule(),
 		TrashDays:   f.trash,
+		Exclude:     f.exclude.exclude(),
 	}
 	ctx := context.Background()
 	var err error
@@ -161,6 +163,10 @@ func (a *App) taskDialog(c *ui.Context) {
 				a.backgroundQuestion(c)
 				return
 			}
+			if f.exclude.open {
+				a.excludeEditor(c, f)
+				return
+			}
 			title := locales.TaskDialogNew()
 			if f.id != "" {
 				title = locales.TaskDialogEdit()
@@ -181,6 +187,7 @@ func (a *App) taskDialog(c *ui.Context) {
 					ui.Segmented(c, &f.mode, locales.ModeCopy(), locales.ModeSync())
 				}).Description(hint)
 				a.trashInput(c, f)
+				a.excludeInput(c, f)
 				a.scheduleInput(c, f)
 			})
 

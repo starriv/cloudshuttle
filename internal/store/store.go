@@ -117,6 +117,104 @@ INSERT INTO schedule_starts(task_id, started_at)
 	// the settings or for a task; a sync the delete check stopped keeps
 	// what it would have deleted.
 	addTrash,
+	// 13: a task leaves out what its patterns match and the files over a
+	// size.
+	addExcludes,
+	// 14: every run leaves out the folders development tools fill with
+	// dependencies and builds, unless the person turns that off.
+	addDependencySwitch,
+	// 15: that list is the person's to see and edit: the switch moves to
+	// exclude_enabled, and the built-in folders seed global_excludes.
+	addGlobalExcludes,
+}
+
+// addDependencySwitch is step 14. It also copes with a development build
+// that added the column already.
+func addDependencySwitch(tx *sql.Tx) error {
+	has, err := hasColumn(tx, "settings", "exclude_dev_deps")
+	if err != nil {
+		return err
+	}
+	if has {
+		return nil
+	}
+	_, err = tx.Exec(`ALTER TABLE settings ADD COLUMN exclude_dev_deps INTEGER NOT NULL DEFAULT 1`)
+	return err
+}
+
+// addGlobalExcludes is step 15. It also copes with a development build
+// that made the change already.
+func addGlobalExcludes(tx *sql.Tx) error {
+	hadEnabled, err := hasColumn(tx, "settings", "exclude_enabled")
+	if err != nil {
+		return err
+	}
+	if !hadEnabled {
+		if _, err := tx.Exec(`ALTER TABLE settings ADD COLUMN exclude_enabled INTEGER NOT NULL DEFAULT 1`); err != nil {
+			return err
+		}
+	}
+	hasOld, err := hasColumn(tx, "settings", "exclude_dev_deps")
+	if err != nil {
+		return err
+	}
+	if hasOld {
+		// The old column is the switch only. Do not overwrite a newer
+		// choice a development build already stored.
+		if !hadEnabled {
+			if _, err := tx.Exec(`UPDATE settings SET exclude_enabled = exclude_dev_deps`); err != nil {
+				return err
+			}
+		}
+		if _, err := tx.Exec(`ALTER TABLE settings DROP COLUMN exclude_dev_deps`); err != nil {
+			return err
+		}
+	}
+	hasGlobals, err := hasColumn(tx, "settings", "global_excludes")
+	if err != nil {
+		return err
+	}
+	if !hasGlobals {
+		if _, err := tx.Exec(`ALTER TABLE settings ADD COLUMN global_excludes TEXT NOT NULL DEFAULT '[]'`); err != nil {
+			return err
+		}
+	}
+	// A list left empty by a development build gets the built-in folders
+	// the setting promises; a person's edited list is left alone.
+	if _, err := tx.Exec(`UPDATE settings SET global_excludes = ? WHERE global_excludes = '[]'`,
+		encodeExcludes(domain.DevDependencyExcludes)); err != nil {
+		return err
+	}
+	return nil
+}
+
+// hasColumn reports whether a table has a column.
+func hasColumn(tx *sql.Tx, table, column string) (bool, error) {
+	var n int
+	if err := tx.QueryRow(`SELECT count(*) FROM pragma_table_info('`+table+`') WHERE name = ?`, column).Scan(&n); err != nil {
+		return false, err
+	}
+	return n > 0, nil
+}
+
+// addExcludes is step 13. Development builds added these columns in step
+// 12, so it adds only those a database lacks.
+func addExcludes(tx *sql.Tx) error {
+	for _, col := range []struct{ name, def string }{
+		{"excludes", `TEXT NOT NULL DEFAULT '[]'`},
+		{"max_size", `INTEGER NOT NULL DEFAULT 0`},
+	} {
+		var n int
+		if err := tx.QueryRow(`SELECT count(*) FROM pragma_table_info('tasks') WHERE name = ?`, col.name).Scan(&n); err != nil {
+			return err
+		}
+		if n == 0 {
+			if _, err := tx.Exec(`ALTER TABLE tasks ADD COLUMN ` + col.name + ` ` + col.def); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 // addTrash is step 12. A database older than the logs of runs has no
@@ -188,11 +286,12 @@ func seedSettings(db *sql.DB) error {
 	_, err := db.Exec(`
 		INSERT INTO settings (id, transfers, checkers, retries, bandwidth_mbps,
 			notify_failed, notify_skipped, retention_days, backup_icloud, check_updates, install_updates,
-			trash_days)
-		VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			trash_days, exclude_enabled, global_excludes)
+		VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (id) DO NOTHING`,
 		d.Transfers, d.Checkers, d.Retries, d.BandwidthMBps, d.NotifyFailed, d.NotifySkipped,
-		d.RetentionDays, d.BackupICloud, d.CheckUpdates, d.InstallUpdates, d.TrashDays)
+		d.RetentionDays, d.BackupICloud, d.CheckUpdates, d.InstallUpdates, d.TrashDays,
+		d.ExcludeEnabled, encodeExcludes(d.GlobalExcludes))
 	return err
 }
 
@@ -202,17 +301,18 @@ func (s *Store) Settings(ctx context.Context) (domain.Settings, error) {
 	var (
 		st                                        domain.Settings
 		notifyFailed, notifySkipped, backupICloud int
-		background, appearance                    int
+		background, appearance, excludeEnabled    int
 		checkUpdates, installUpdates              int
+		globalExcludes                            string
 	)
 	err := s.db.QueryRowContext(ctx, `
 		SELECT transfers, checkers, retries, bandwidth_mbps, notify_failed, notify_skipped,
 			retention_days, backup_icloud, background, appearance, check_updates, install_updates,
-			trash_days
+			trash_days, exclude_enabled, global_excludes
 		FROM settings WHERE id = 1`).
 		Scan(&st.Transfers, &st.Checkers, &st.Retries, &st.BandwidthMBps,
 			&notifyFailed, &notifySkipped, &st.RetentionDays, &backupICloud, &background, &appearance,
-			&checkUpdates, &installUpdates, &st.TrashDays)
+			&checkUpdates, &installUpdates, &st.TrashDays, &excludeEnabled, &globalExcludes)
 	if errors.Is(err, sql.ErrNoRows) {
 		return domain.DefaultSettings(), nil
 	}
@@ -224,6 +324,16 @@ func (s *Store) Settings(ctx context.Context) (domain.Settings, error) {
 	st.Background = domain.Consent(background)
 	st.Appearance = domain.Appearance(appearance)
 	st.CheckUpdates, st.InstallUpdates = checkUpdates != 0, installUpdates != 0
+	st.ExcludeEnabled = excludeEnabled != 0
+	if err := json.Unmarshal([]byte(globalExcludes), &st.GlobalExcludes); err != nil {
+		// As a task's unreadable patterns: keep the other settings, but
+		// apply no global rules rather than silently the built-in ones.
+		slog.Warn("read the global exclusions", "err", err)
+		st.GlobalExcludes = nil
+	}
+	if len(st.GlobalExcludes) == 0 {
+		st.GlobalExcludes = nil
+	}
 	return st, nil
 }
 
@@ -232,18 +342,21 @@ func (s *Store) PutSettings(ctx context.Context, st domain.Settings) error {
 	_, err := s.db.ExecContext(ctx, `
 		INSERT INTO settings (id, transfers, checkers, retries, bandwidth_mbps,
 			notify_failed, notify_skipped, retention_days, backup_icloud, background, appearance,
-			check_updates, install_updates, trash_days)
-		VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			check_updates, install_updates, trash_days, exclude_enabled, global_excludes)
+		VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (id) DO UPDATE SET
 			transfers = excluded.transfers, checkers = excluded.checkers, retries = excluded.retries,
 			bandwidth_mbps = excluded.bandwidth_mbps, notify_failed = excluded.notify_failed,
 			notify_skipped = excluded.notify_skipped, retention_days = excluded.retention_days,
 			backup_icloud = excluded.backup_icloud, background = excluded.background,
 			appearance = excluded.appearance, check_updates = excluded.check_updates,
-			install_updates = excluded.install_updates, trash_days = excluded.trash_days`,
+			install_updates = excluded.install_updates, trash_days = excluded.trash_days,
+			exclude_enabled = excluded.exclude_enabled,
+			global_excludes = excluded.global_excludes`,
 		st.Transfers, st.Checkers, st.Retries, st.BandwidthMBps,
 		st.NotifyFailed, st.NotifySkipped, st.RetentionDays, st.BackupICloud, int(st.Background),
-		int(st.Appearance), st.CheckUpdates, st.InstallUpdates, st.TrashDays)
+		int(st.Appearance), st.CheckUpdates, st.InstallUpdates, st.TrashDays, st.ExcludeEnabled,
+		encodeExcludes(st.GlobalExcludes))
 	return err
 }
 
@@ -435,7 +548,7 @@ func (s *Store) DeleteStorage(ctx context.Context, id string) error {
 }
 
 const taskColumns = `id, name, source_storage_id, source_path, dest_storage_id, dest_path, mode, schedule,
-	schedule_since, trash_days, created_at, updated_at`
+	schedule_since, trash_days, excludes, max_size, created_at, updated_at`
 
 // Tasks returns every task, by name.
 func (s *Store) Tasks(ctx context.Context) ([]domain.Task, error) {
@@ -468,16 +581,18 @@ func (s *Store) Task(ctx context.Context, id string) (domain.Task, error) {
 func (s *Store) PutTask(ctx context.Context, t domain.Task) error {
 	_, err := s.db.ExecContext(ctx, `
 		INSERT INTO tasks (`+taskColumns+`)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (id) DO UPDATE SET
 			name = excluded.name, source_storage_id = excluded.source_storage_id,
 			source_path = excluded.source_path, dest_storage_id = excluded.dest_storage_id,
 			dest_path = excluded.dest_path, mode = excluded.mode, schedule = excluded.schedule,
 			schedule_since = excluded.schedule_since, trash_days = excluded.trash_days,
+			excludes = excluded.excludes, max_size = excluded.max_size,
 			updated_at = excluded.updated_at`,
 		t.ID, t.Name, nullable(t.Source.StorageID), t.Source.Path,
 		nullable(t.Destination.StorageID), t.Destination.Path, t.Mode, encodeSchedule(t.Schedule),
-		millis(t.ScheduleSince), t.TrashDays, millis(t.CreatedAt), millis(t.UpdatedAt))
+		millis(t.ScheduleSince), t.TrashDays, encodeExcludes(t.Exclude.Patterns), t.Exclude.MaxSize,
+		millis(t.CreatedAt), millis(t.UpdatedAt))
 	return mapConstraint(err)
 }
 
@@ -733,10 +848,10 @@ type scanner interface{ Scan(dest ...any) error }
 func scanTask(row scanner) (domain.Task, error) {
 	var t domain.Task
 	var src, dst sql.NullString
-	var schedule string
+	var schedule, excludes string
 	var since, created, updated int64
 	if err := row.Scan(&t.ID, &t.Name, &src, &t.Source.Path, &dst, &t.Destination.Path, &t.Mode,
-		&schedule, &since, &t.TrashDays, &created, &updated); err != nil {
+		&schedule, &since, &t.TrashDays, &excludes, &t.Exclude.MaxSize, &created, &updated); err != nil {
 		return domain.Task{}, err
 	}
 	t.Source.StorageID, t.Destination.StorageID = src.String, dst.String
@@ -747,7 +862,24 @@ func scanTask(row scanner) (domain.Task, error) {
 		// than hiding the task.
 		slog.Warn("read a task's schedule", "task", t.Name, "err", err)
 	}
+	if err := json.Unmarshal([]byte(excludes), &t.Exclude.Patterns); err != nil {
+		// As a schedule: the task still shows, and its runs refuse to start
+		// rather than copy or delete what it left out.
+		slog.Warn("read a task's exclusions", "task", t.Name, "err", err)
+		t.Exclude.Patterns, t.Exclude.Unreadable = nil, true
+	}
+	if len(t.Exclude.Patterns) == 0 {
+		t.Exclude.Patterns = nil
+	}
 	return t, nil
+}
+
+func encodeExcludes(patterns []string) string {
+	if len(patterns) == 0 {
+		return "[]"
+	}
+	b, _ := json.Marshal(patterns) // strings always encode
+	return string(b)
 }
 
 func nullable(s string) sql.NullString { return sql.NullString{String: s, Valid: s != ""} }
@@ -800,7 +932,14 @@ func mapConstraint(err error) error {
 // settingsColumns are those a backup restores: whether the app may run in
 // the background is this computer's, and stays.
 const settingsColumns = `id, transfers, checkers, retries, bandwidth_mbps, notify_failed, notify_skipped,
-	retention_days, backup_icloud, appearance, check_updates, install_updates, trash_days`
+	retention_days, backup_icloud, appearance, check_updates, install_updates, trash_days,
+	exclude_enabled, global_excludes`
+
+// settingsBaseColumns are those a settings table had when backups began.
+// inspectBackup checks only these: a backup of an earlier version lacks the
+// columns added since, and Open migrates it before the restore reads them.
+const settingsBaseColumns = `id, transfers, checkers, retries, bandwidth_mbps, notify_failed,
+	notify_skipped, retention_days, backup_icloud`
 
 // RestoreConfig replaces the storages, tasks and settings with those of the
 // database at path, a backup BackupConfig wrote, in one transaction; the

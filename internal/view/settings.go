@@ -4,6 +4,7 @@ import (
 	"context"
 	"runtime"
 	"strconv"
+	"strings"
 
 	"github.com/egoist/mygo/ui"
 	"github.com/starriv/cloudshuttle/internal/domain"
@@ -36,9 +37,13 @@ type settingsForm struct {
 	trash         string
 	notifyFailed  bool
 	notifySkipped bool
-	backupICloud  bool
-	background    bool // the system may run the schedules while the app is closed
-	problems      domain.Problems
+	// excludeEnabled leaves out the global rules in every run, and
+	// globalExclude holds them as the page edits them: one a line.
+	excludeEnabled bool
+	globalExclude  string
+	backupICloud   bool
+	background     bool // the system may run the schedules while the app is closed
+	problems       domain.Problems
 
 	// The backups' password: whether one is set, and a new one as typed.
 	hasPassword      bool
@@ -123,6 +128,8 @@ func (a *App) loadSettingsForm() {
 	f.retention = labelAt(retentionValues, retentionLabels(), s.RetentionDays)
 	f.trash = labelAt(trashValues, trashLabels(), s.TrashDays)
 	f.notifyFailed, f.notifySkipped = s.NotifyFailed, s.NotifySkipped
+	f.excludeEnabled = s.ExcludeEnabled
+	f.globalExclude = strings.Join(s.GlobalExcludes, "\n")
 	f.backupICloud = s.BackupICloud
 	f.background = s.Background == domain.ConsentGiven
 	f.problems = nil
@@ -157,8 +164,11 @@ func (a *App) saveSettings() {
 		RetentionDays: valueAt(retentionValues, retentionLabels(), f.retention),
 		TrashDays:     valueAt(trashValues, trashLabels(), f.trash),
 		BackupICloud:  f.backupICloud,
-		Background:    a.settings.Background,
-		Appearance:    a.settings.Appearance,
+		// The rules every run leaves out, and whether it does.
+		ExcludeEnabled: f.excludeEnabled,
+		GlobalExcludes: strings.Split(f.globalExclude, "\n"),
+		Background:     a.settings.Background,
+		Appearance:     a.settings.Appearance,
 		// Kept at once by their card, as the appearance is.
 		CheckUpdates:   a.settings.CheckUpdates,
 		InstallUpdates: a.settings.InstallUpdates,
@@ -196,6 +206,9 @@ func (a *App) saveSettings() {
 				return
 			}
 			a.settings, f.problems = saved, nil
+			// The saved rules, trimmed and without the repeats, are what
+			// the page shows from now on.
+			f.globalExclude = strings.Join(saved.GlobalExcludes, "\n")
 			if newPassword {
 				f.hasPassword, f.changingPassword, f.password, f.confirm = true, false, "", ""
 			}
@@ -212,7 +225,7 @@ func (a *App) settingsPage(c *ui.Context) {
 		a.loadSettingsForm()
 		f.loaded = true
 	}
-	ui.Scroll(c).Grow(1).MinHeight(0).Children(func() {
+	pageScroll(c).Children(func() {
 		ui.Column(c).Gap(t.Space(5)).Padding(0, 0, t.Space(2), 0).Children(func() {
 			if text := problemText(f.problems.For(domain.FieldSettings)); text != "" {
 				result(c, text, true)
@@ -237,6 +250,32 @@ func (a *App) settingsPage(c *ui.Context) {
 				{label: locales.SettingsTrash(), hint: locales.SettingsTrashHint(), control: func(label string) {
 					ui.Select(c, &f.trash, trashLabels()).Label(label).Width(selectWidth)
 				}},
+			})
+			count := excludeRuleCount(f.globalExclude)
+			hint := locales.SettingsExcludeRulesHint(count)
+			if !f.excludeEnabled {
+				hint = locales.SettingsExcludeRulesOff(count)
+			}
+			rules := settingsRow{
+				label: locales.SettingsExcludeRules(),
+				hint:  hint,
+				control: func(string) {
+					if ui.Button(c, locales.SettingsExcludeEdit()).Clicked() {
+						a.openGlobalExcludeEditor()
+					}
+				},
+			}
+			if code := f.problems.For(domain.FieldGlobalExclude); code != "" {
+				rules.problem = problemText(code)
+				if code == domain.CodeInvalid {
+					rules.problem = locales.SettingsExcludeFailed()
+				}
+			}
+			settingsCard(c, locales.SettingsExcludeTitle(), []settingsRow{
+				{label: locales.SettingsExcludeEnabled(), hint: locales.SettingsExcludeEnabledHint(), control: func(label string) {
+					ui.Checkbox(c, &f.excludeEnabled, "").Label(label)
+				}},
+				rules,
 			})
 			settingsCard(c, locales.SettingsNotifyTitle(), []settingsRow{
 				{label: locales.SettingsNotifyFailed(), hint: "", control: func(label string) {

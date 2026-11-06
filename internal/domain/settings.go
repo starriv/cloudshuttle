@@ -1,8 +1,11 @@
 package domain
 
+import "slices"
+
 // Settings are the app's own, not a task's: how hard a run works, what the
-// app tells the person, and how long it keeps its history. They are kept in
-// the app's database, so a task carries none of them.
+// app tells the person, how long it keeps its history, and what every run
+// leaves out. They are kept in the app's database, so a task carries none
+// of them.
 type Settings struct {
 	Transfers     int // files copied at once, 1 to 16
 	Checkers      int // files compared at once, 1 to 32
@@ -28,6 +31,14 @@ type Settings struct {
 	// no task runs and its window is closed.
 	CheckUpdates   bool
 	InstallUpdates bool
+	// ExcludeEnabled applies GlobalExcludes to every run. When off, a
+	// run leaves out only what the task itself does.
+	ExcludeEnabled bool
+	// GlobalExcludes are globs every run leaves out, on both sides, on top
+	// of the task's own patterns. A new database starts with
+	// DevDependencyExcludes, which the person can then edit. The same
+	// syntax as a task's patterns applies (see Exclude).
+	GlobalExcludes []string
 }
 
 // Appearance is the look the window takes: the system's, light or dark.
@@ -52,21 +63,47 @@ const (
 )
 
 // DefaultSettings is how the app starts: rclone's own defaults for the
-// transfer, notifications on, three months of history, and a month of what
-// syncs delete or replace.
+// transfer, notifications on, three months of history, a month of what
+// syncs delete or replace, and the folders of development dependencies left
+// out of every run.
 func DefaultSettings() Settings {
 	return Settings{
-		Transfers:     4,
-		Checkers:      8,
-		Retries:       3,
-		BandwidthMBps: 0,
-		NotifyFailed:  true,
-		NotifySkipped: true,
-		RetentionDays: 90,
-		TrashDays:     30,
-		BackupICloud:  false,
-		CheckUpdates:  true,
+		Transfers:      4,
+		Checkers:       8,
+		Retries:        3,
+		BandwidthMBps:  0,
+		NotifyFailed:   true,
+		NotifySkipped:  true,
+		RetentionDays:  90,
+		TrashDays:      30,
+		BackupICloud:   false,
+		CheckUpdates:   true,
+		ExcludeEnabled: true,
+		GlobalExcludes: slices.Clone(DevDependencyExcludes),
 	}
+}
+
+// Normalize trims the global patterns and drops the empty ones and the
+// repeated, as a task's exclusion does.
+func (s Settings) Normalize() Settings {
+	s.GlobalExcludes = Exclude{Patterns: s.GlobalExcludes}.Normalize().Patterns
+	return s
+}
+
+// ExcludeFor is the exclusion a run uses: the task's own, plus the global
+// ones while ExcludeEnabled is on. A pattern both have is not repeated.
+func (s Settings) ExcludeFor(e Exclude) Exclude {
+	if !s.ExcludeEnabled {
+		return e
+	}
+	patterns := slices.Clone(e.Patterns)
+	for _, p := range s.GlobalExcludes {
+		if !slices.Contains(patterns, p) {
+			patterns = append(patterns, p)
+		}
+	}
+	e.Patterns = patterns
+	return e
 }
 
 // Validate checks that every setting is one the app offers.
@@ -84,6 +121,9 @@ func (s Settings) Validate() error {
 	add(s.RetentionDays < 0 || s.RetentionDays > 3650)
 	add(s.TrashDays < 0 || s.TrashDays > 3650)
 	add(s.Appearance < AppearanceSystem || s.Appearance > AppearanceDark)
+	if code := (Exclude{Patterns: s.GlobalExcludes}).Validate(); code != "" {
+		p = append(p, Problem{FieldGlobalExclude, code})
+	}
 	if len(p) > 0 {
 		return p
 	}

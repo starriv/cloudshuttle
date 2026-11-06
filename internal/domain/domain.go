@@ -173,9 +173,110 @@ type Task struct {
 	// replace, in the trash of the destination: TrashFollow takes the
 	// settings', TrashOff keeps none, and more is that many days.
 	TrashDays int
+	// Exclude is what the task's runs leave out, on both sides.
+	Exclude   Exclude
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
+
+// Exclude is what a task leaves out: a file it matches is neither copied
+// from the source nor, by a sync, deleted from the destination.
+type Exclude struct {
+	// Patterns are globs matched against paths relative to the source and
+	// the destination. Only one starting with a slash is anchored to the
+	// top; every other one, even one with slashes inside, matches at any
+	// depth. One ending with a slash names a folder and all it holds. *
+	// stands for any characters but a slash, ** for any, ? for one; [...]
+	// and {a,b} as in a shell.
+	Patterns []string
+	// MaxSize leaves out the files larger than it, in bytes; 0 for none.
+	MaxSize int64
+	// Unreadable says the stored patterns could not be read: a run would
+	// copy or delete what they left out, so the task's runs refuse to
+	// start until it is saved again.
+	Unreadable bool
+}
+
+// ExcludePresets are the patterns the task form offers to tick: files the
+// systems make that nobody backs up, and folders a build fills again.
+var ExcludePresets = []string{".DS_Store", "Thumbs.db", "node_modules/", "*.tmp"}
+
+// DevDependencyExcludes are the folders that development tools fill with
+// downloaded dependencies and regenerable builds. They are what a new
+// database puts in Settings.GlobalExcludes, which every run leaves out
+// while ExcludeEnabled is on, as it is by default: a backup does not need
+// them, and copying or keeping them only makes a run slower. The person can
+// then edit that list. Each names a folder, and a name without a leading
+// slash matches it in any folder (see Exclude).
+var DevDependencyExcludes = []string{
+	// JavaScript and TypeScript: npm, Yarn and Bun install into
+	// node_modules; pnpm links it from its store. The rest are the build
+	// caches of the frameworks and monorepo tools.
+	"node_modules/",
+	".pnpm-store/",
+	".next/",
+	".nuxt/",
+	".svelte-kit/",
+	".astro/",
+	".turbo/",
+	".nx/",
+	".angular/",
+	".parcel-cache/",
+	".expo/",
+	// Cargo, Maven and sbt build in target.
+	"target/",
+	// Gradle and Kotlin keep their caches beside the project.
+	".gradle/",
+	".kotlin/",
+	// Python virtual environments, bytecode, and the caches of its tools
+	// and of Jupyter.
+	".venv/",
+	"venv/",
+	"__pycache__/",
+	".pytest_cache/",
+	".mypy_cache/",
+	".ruff_cache/",
+	".tox/",
+	".nox/",
+	".hypothesis/",
+	"*.egg-info/",
+	".ipynb_checkpoints/",
+	// CocoaPods and SwiftPM downloads, Carthage builds, Xcode's cache.
+	"Pods/",
+	".build/",
+	"Carthage/Build/",
+	"Carthage/Checkouts/",
+	"DerivedData/",
+	// Dart and Flutter.
+	".dart_tool/",
+	// Elixir and Erlang downloaded dependencies and builds.
+	"deps/",
+	"_build/",
+	// Haskell.
+	"dist-newstyle/",
+	".stack-work/",
+	// C and C++ package managers and CMake.
+	"vcpkg_installed/",
+	"CMakeFiles/",
+	// Terraform's downloaded providers and modules.
+	".terraform/",
+	// Godot's import cache.
+	".godot/",
+}
+
+// build, dist, out, bin, obj, packages and Library are not in the list
+// above on purpose: their names are too common, or the folder can hold the
+// output a person means to keep, so a task leaves them out itself. Neither
+// is vendor/: a project may commit it on purpose. The list holds no lock
+// files either, which a rebuild needs.
+
+// NewExclude is what a new task leaves out.
+func NewExclude() Exclude {
+	return Exclude{Patterns: []string{".DS_Store", "Thumbs.db"}}
+}
+
+// Any reports whether the exclusion leaves anything out.
+func (e Exclude) Any() bool { return len(e.Patterns) > 0 || e.MaxSize > 0 }
 
 // What a task's TrashDays may say besides a number of days.
 const (

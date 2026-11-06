@@ -5,6 +5,7 @@ import (
 	"net"
 	"net/url"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -13,22 +14,24 @@ import (
 type Field string
 
 const (
-	FieldName        Field = "name"
-	FieldKind        Field = "kind"
-	FieldProvider    Field = "provider"
-	FieldEndpoint    Field = "endpoint"
-	FieldBucket      Field = "bucket"
-	FieldAccessKeyID Field = "accessKeyId"
-	FieldSecret      Field = "secretAccessKey" // also the SMB password
-	FieldHost        Field = "host"
-	FieldPort        Field = "port"
-	FieldUsername    Field = "username"
-	FieldSource      Field = "source"
-	FieldDestination Field = "destination"
-	FieldMode        Field = "mode"
-	FieldSchedule    Field = "schedule"
-	FieldTrash       Field = "trash"
-	FieldSettings    Field = "settings"
+	FieldName          Field = "name"
+	FieldKind          Field = "kind"
+	FieldProvider      Field = "provider"
+	FieldEndpoint      Field = "endpoint"
+	FieldBucket        Field = "bucket"
+	FieldAccessKeyID   Field = "accessKeyId"
+	FieldSecret        Field = "secretAccessKey" // also the SMB password
+	FieldHost          Field = "host"
+	FieldPort          Field = "port"
+	FieldUsername      Field = "username"
+	FieldSource        Field = "source"
+	FieldDestination   Field = "destination"
+	FieldMode          Field = "mode"
+	FieldSchedule      Field = "schedule"
+	FieldTrash         Field = "trash"
+	FieldExclude       Field = "exclude"
+	FieldGlobalExclude Field = "globalExclude"
+	FieldSettings      Field = "settings"
 	// The password that encrypts the backups, and the same typed again.
 	FieldBackupPassword Field = "backupPassword"
 	FieldBackupConfirm  Field = "backupConfirm"
@@ -288,6 +291,7 @@ type TaskInput struct {
 	Mode        Mode
 	Schedule    Schedule
 	TrashDays   int // as Task.TrashDays
+	Exclude     Exclude
 }
 
 // Normalize trims the input's text and cleans its paths.
@@ -296,7 +300,49 @@ func (in TaskInput) Normalize() TaskInput {
 	in.Source = normalizeLocation(in.Source)
 	in.Destination = normalizeLocation(in.Destination)
 	in.Schedule = in.Schedule.Normalize()
+	in.Exclude = in.Exclude.Normalize()
 	return in
+}
+
+// Normalize trims the patterns and drops the empty ones and the repeated.
+func (e Exclude) Normalize() Exclude {
+	var patterns []string
+	for _, p := range e.Patterns {
+		p = strings.TrimSpace(p)
+		if p != "" && !slices.Contains(patterns, p) {
+			patterns = append(patterns, p)
+		}
+	}
+	e.Patterns = patterns
+	return e
+}
+
+// Limits of an exclusion: the patterns a task may have, the length of one,
+// and the largest MaxSize, 1 PiB.
+const (
+	maxExcludePatterns = 200
+	maxExcludeLength   = 512
+	maxExcludeSize     = 1 << 50
+)
+
+// Validate checks a normalized exclusion's limits. Whether a pattern is a
+// glob is the engine's to say, which matches them.
+func (e Exclude) Validate() Code {
+	if len(e.Patterns) > maxExcludePatterns {
+		return CodeOutOfRange
+	}
+	for _, p := range e.Patterns {
+		if len(p) > maxExcludeLength {
+			return CodeTooLong
+		}
+		if strings.ContainsAny(p, "\x00\r\n") {
+			return CodeInvalid
+		}
+	}
+	if e.MaxSize < 0 || e.MaxSize > maxExcludeSize {
+		return CodeOutOfRange
+	}
+	return ""
 }
 
 func normalizeLocation(l Location) Location {
@@ -350,6 +396,9 @@ func (in TaskInput) Validate(storages []Storage) error {
 	}
 	if in.TrashDays < TrashOff || in.TrashDays > 3650 {
 		p = append(p, Problem{FieldTrash, CodeOutOfRange})
+	}
+	if code := in.Exclude.Validate(); code != "" {
+		p = append(p, Problem{FieldExclude, code})
 	}
 	if len(p) > 0 {
 		return p

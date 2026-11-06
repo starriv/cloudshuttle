@@ -91,5 +91,5 @@ func resolveTask(in domain.TaskInput) (domain.TaskInput, error) {
 
 func taskInput(t domain.Task) domain.TaskInput {
 	return domain.TaskInput{Name: t.Name, Source: t.Source, Destination: t.Destination, Mode: t.Mode,
-		Schedule: t.Schedule, TrashDays: t.TrashDays}
+		Schedule: t.Schedule, TrashDays: t.TrashDays, Exclude: t.Exclude}
 }

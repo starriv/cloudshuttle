@@ -262,6 +262,152 @@ func (msgs Messages) SettingsTrashOff() string {
 	return Catalog.Format(msgs.locale, "settingsTrashOff", nil)
 }
 
+// SettingsExcludeTitle says "Global exclusions"
+// in the language the app shows.
+func SettingsExcludeTitle() string { return In(i18n.Locale()).SettingsExcludeTitle() }
+
+// SettingsExcludeTitle says "Global exclusions"
+// in the language of msgs.
+func (msgs Messages) SettingsExcludeTitle() string {
+	return Catalog.Format(msgs.locale, "settingsExcludeTitle", nil)
+}
+
+// SettingsExcludeEnabled says "Apply these rules to every run"
+// in the language the app shows.
+func SettingsExcludeEnabled() string { return In(i18n.Locale()).SettingsExcludeEnabled() }
+
+// SettingsExcludeEnabled says "Apply these rules to every run"
+// in the language of msgs.
+func (msgs Messages) SettingsExcludeEnabled() string {
+	return Catalog.Format(msgs.locale, "settingsExcludeEnabled", nil)
+}
+
+// SettingsExcludeEnabledHint says "Copies and syncs leave them out on both sides. Turn this off to stop applying these rules; every task's own rules sti…"
+// in the language the app shows.
+func SettingsExcludeEnabledHint() string { return In(i18n.Locale()).SettingsExcludeEnabledHint() }
+
+// SettingsExcludeEnabledHint says "Copies and syncs leave them out on both sides. Turn this off to stop applying these rules; every task's own rules sti…"
+// in the language of msgs.
+func (msgs Messages) SettingsExcludeEnabledHint() string {
+	return Catalog.Format(msgs.locale, "settingsExcludeEnabledHint", nil)
+}
+
+// SettingsExcludeRules says "Global rules"
+// in the language the app shows.
+func SettingsExcludeRules() string { return In(i18n.Locale()).SettingsExcludeRules() }
+
+// SettingsExcludeRules says "Global rules"
+// in the language of msgs.
+func (msgs Messages) SettingsExcludeRules() string {
+	return Catalog.Format(msgs.locale, "settingsExcludeRules", nil)
+}
+
+// SettingsExcludeRulesHint says "{count, plural, one {# rule, applied to every task} other {# rules, applied to every task}}"
+// in the language the app shows.
+//
+// How many global exclusion rules every run uses.
+func SettingsExcludeRulesHint(count int) string {
+	return In(i18n.Locale()).SettingsExcludeRulesHint(count)
+}
+
+// SettingsExcludeRulesHint says "{count, plural, one {# rule, applied to every task} other {# rules, applied to every task}}"
+// in the language of msgs.
+//
+// How many global exclusion rules every run uses.
+func (msgs Messages) SettingsExcludeRulesHint(count int) string {
+	return Catalog.Format(msgs.locale, "settingsExcludeRulesHint", map[string]any{"count": count})
+}
+
+// SettingsExcludeRulesOff says "{count, plural, one {# rule, not applied while this is off} other {# rules, not applied while this is off}}"
+// in the language the app shows.
+//
+// The global rules' count while the switch that applies them is off.
+func SettingsExcludeRulesOff(count int) string {
+	return In(i18n.Locale()).SettingsExcludeRulesOff(count)
+}
+
+// SettingsExcludeRulesOff says "{count, plural, one {# rule, not applied while this is off} other {# rules, not applied while this is off}}"
+// in the language of msgs.
+//
+// The global rules' count while the switch that applies them is off.
+func (msgs Messages) SettingsExcludeRulesOff(count int) string {
+	return Catalog.Format(msgs.locale, "settingsExcludeRulesOff", map[string]any{"count": count})
+}
+
+// SettingsExcludeEdit says "Edit…"
+// in the language the app shows.
+func SettingsExcludeEdit() string { return In(i18n.Locale()).SettingsExcludeEdit() }
+
+// SettingsExcludeEdit says "Edit…"
+// in the language of msgs.
+func (msgs Messages) SettingsExcludeEdit() string {
+	return Catalog.Format(msgs.locale, "settingsExcludeEdit", nil)
+}
+
+// SettingsExcludeDialogTitle says "Global exclusion rules"
+// in the language the app shows.
+func SettingsExcludeDialogTitle() string { return In(i18n.Locale()).SettingsExcludeDialogTitle() }
+
+// SettingsExcludeDialogTitle says "Global exclusion rules"
+// in the language of msgs.
+func (msgs Messages) SettingsExcludeDialogTitle() string {
+	return Catalog.Format(msgs.locale, "settingsExcludeDialogTitle", nil)
+}
+
+// SettingsExcludeDialogHint says "One rule per line. A rule ending with / matches a folder and everything in it. Only a rule starting with / is anchore…"
+// in the language the app shows.
+func SettingsExcludeDialogHint() string { return In(i18n.Locale()).SettingsExcludeDialogHint() }
+
+// SettingsExcludeDialogHint says "One rule per line. A rule ending with / matches a folder and everything in it. Only a rule starting with / is anchore…"
+// in the language of msgs.
+func (msgs Messages) SettingsExcludeDialogHint() string {
+	return Catalog.Format(msgs.locale, "settingsExcludeDialogHint", nil)
+}
+
+// SettingsExcludeRestoreDefaults says "Restore defaults"
+// in the language the app shows.
+func SettingsExcludeRestoreDefaults() string {
+	return In(i18n.Locale()).SettingsExcludeRestoreDefaults()
+}
+
+// SettingsExcludeRestoreDefaults says "Restore defaults"
+// in the language of msgs.
+func (msgs Messages) SettingsExcludeRestoreDefaults() string {
+	return Catalog.Format(msgs.locale, "settingsExcludeRestoreDefaults", nil)
+}
+
+// SettingsExcludeDone says "Done"
+// in the language the app shows.
+func SettingsExcludeDone() string { return In(i18n.Locale()).SettingsExcludeDone() }
+
+// SettingsExcludeDone says "Done"
+// in the language of msgs.
+func (msgs Messages) SettingsExcludeDone() string {
+	return Catalog.Format(msgs.locale, "settingsExcludeDone", nil)
+}
+
+// SettingsExcludeInvalidLine says "Line {line} isn't a valid rule. Check that its brackets and braces are closed."
+// in the language the app shows.
+func SettingsExcludeInvalidLine(line int) string {
+	return In(i18n.Locale()).SettingsExcludeInvalidLine(line)
+}
+
+// SettingsExcludeInvalidLine says "Line {line} isn't a valid rule. Check that its brackets and braces are closed."
+// in the language of msgs.
+func (msgs Messages) SettingsExcludeInvalidLine(line int) string {
+	return Catalog.Format(msgs.locale, "settingsExcludeInvalidLine", map[string]any{"line": line})
+}
+
+// SettingsExcludeFailed says "A rule isn't valid. Click Edit… to fix it."
+// in the language the app shows.
+func SettingsExcludeFailed() string { return In(i18n.Locale()).SettingsExcludeFailed() }
+
+// SettingsExcludeFailed says "A rule isn't valid. Click Edit… to fix it."
+// in the language of msgs.
+func (msgs Messages) SettingsExcludeFailed() string {
+	return Catalog.Format(msgs.locale, "settingsExcludeFailed", nil)
+}
+
 // SettingsNotifyTitle says "Notifications"
 // in the language the app shows.
 func SettingsNotifyTitle() string { return In(i18n.Locale()).SettingsNotifyTitle() }
@@ -776,6 +922,82 @@ func (msgs Messages) OverviewSomeFailed(count int) string {
 	return Catalog.Format(msgs.locale, "overviewSomeFailed", map[string]any{"count": count})
 }
 
+// OverviewAllSucceeded says "All succeeded"
+// in the language the app shows.
+func OverviewAllSucceeded() string { return In(i18n.Locale()).OverviewAllSucceeded() }
+
+// OverviewAllSucceeded says "All succeeded"
+// in the language of msgs.
+func (msgs Messages) OverviewAllSucceeded() string {
+	return Catalog.Format(msgs.locale, "overviewAllSucceeded", nil)
+}
+
+// OverviewLast7Days says "Last 7 days"
+// in the language the app shows.
+func OverviewLast7Days() string { return In(i18n.Locale()).OverviewLast7Days() }
+
+// OverviewLast7Days says "Last 7 days"
+// in the language of msgs.
+func (msgs Messages) OverviewLast7Days() string {
+	return Catalog.Format(msgs.locale, "overviewLast7Days", nil)
+}
+
+// OverviewToday says "Today"
+// in the language the app shows.
+func OverviewToday() string { return In(i18n.Locale()).OverviewToday() }
+
+// OverviewToday says "Today"
+// in the language of msgs.
+func (msgs Messages) OverviewToday() string {
+	return Catalog.Format(msgs.locale, "overviewToday", nil)
+}
+
+// OverviewDayRuns says "{date}: {runs, plural, =0 {no runs} one {# run} other {# runs}}"
+// in the language the app shows.
+func OverviewDayRuns(date string, runs int) string {
+	return In(i18n.Locale()).OverviewDayRuns(date, runs)
+}
+
+// OverviewDayRuns says "{date}: {runs, plural, =0 {no runs} one {# run} other {# runs}}"
+// in the language of msgs.
+func (msgs Messages) OverviewDayRuns(date string, runs int) string {
+	return Catalog.Format(msgs.locale, "overviewDayRuns", map[string]any{"date": date, "runs": runs})
+}
+
+// OverviewDayRunsFailed says "{date}: {runs, plural, one {# run} other {# runs}}, {failed, plural, one {# failed} other {# failed}}"
+// in the language the app shows.
+func OverviewDayRunsFailed(date string, runs int, failed int) string {
+	return In(i18n.Locale()).OverviewDayRunsFailed(date, runs, failed)
+}
+
+// OverviewDayRunsFailed says "{date}: {runs, plural, one {# run} other {# runs}}, {failed, plural, one {# failed} other {# failed}}"
+// in the language of msgs.
+func (msgs Messages) OverviewDayRunsFailed(date string, runs int, failed int) string {
+	return Catalog.Format(msgs.locale, "overviewDayRunsFailed", map[string]any{"date": date, "runs": runs, "failed": failed})
+}
+
+// OverviewRunCount says "{count, plural, one {# run} other {# runs}}"
+// in the language the app shows.
+func OverviewRunCount(count int) string { return In(i18n.Locale()).OverviewRunCount(count) }
+
+// OverviewRunCount says "{count, plural, one {# run} other {# runs}}"
+// in the language of msgs.
+func (msgs Messages) OverviewRunCount(count int) string {
+	return Catalog.Format(msgs.locale, "overviewRunCount", map[string]any{"count": count})
+}
+
+// OverviewTimeRange says "{from} – {to}"
+// in the language the app shows.
+func OverviewTimeRange(from string, to string) string {
+	return In(i18n.Locale()).OverviewTimeRange(from, to)
+}
+
+// OverviewTimeRange says "{from} – {to}"
+// in the language of msgs.
+func (msgs Messages) OverviewTimeRange(from string, to string) string {
+	return Catalog.Format(msgs.locale, "overviewTimeRange", map[string]any{"from": from, "to": to})
+}
+
 // OverviewAllWell says "All tasks succeeded on their last run"
 // in the language the app shows.
 func OverviewAllWell() string { return In(i18n.Locale()).OverviewAllWell() }
@@ -794,6 +1016,20 @@ func OverviewFailingNote() string { return In(i18n.Locale()).OverviewFailingNote
 // in the language of msgs.
 func (msgs Messages) OverviewFailingNote() string {
 	return Catalog.Format(msgs.locale, "overviewFailingNote", nil)
+}
+
+// OverviewFailingTasks says "{count, plural, one {# task} other {# tasks}}"
+// in the language the app shows.
+//
+// How many tasks failed on their last run, when more than one.
+func OverviewFailingTasks(count int) string { return In(i18n.Locale()).OverviewFailingTasks(count) }
+
+// OverviewFailingTasks says "{count, plural, one {# task} other {# tasks}}"
+// in the language of msgs.
+//
+// How many tasks failed on their last run, when more than one.
+func (msgs Messages) OverviewFailingTasks(count int) string {
+	return Catalog.Format(msgs.locale, "overviewFailingTasks", map[string]any{"count": count})
 }
 
 // OverviewOpenRun says "View this run of {task}"
@@ -1122,6 +1358,208 @@ func TaskTrashOffHint() string { return In(i18n.Locale()).TaskTrashOffHint() }
 // in the language of msgs.
 func (msgs Messages) TaskTrashOffHint() string {
 	return Catalog.Format(msgs.locale, "taskTrashOffHint", nil)
+}
+
+// TaskFieldExclude says "Exclude"
+// in the language the app shows.
+func TaskFieldExclude() string { return In(i18n.Locale()).TaskFieldExclude() }
+
+// TaskFieldExclude says "Exclude"
+// in the language of msgs.
+func (msgs Messages) TaskFieldExclude() string {
+	return Catalog.Format(msgs.locale, "taskFieldExclude", nil)
+}
+
+// TaskExcludeNone says "No rules of its own."
+// in the language the app shows.
+func TaskExcludeNone() string { return In(i18n.Locale()).TaskExcludeNone() }
+
+// TaskExcludeNone says "No rules of its own."
+// in the language of msgs.
+func (msgs Messages) TaskExcludeNone() string {
+	return Catalog.Format(msgs.locale, "taskExcludeNone", nil)
+}
+
+// TaskExcludeRules says "{count, plural, one {# rule} other {# rules}}"
+// in the language the app shows.
+//
+// Summary of a task's exclusion rules.
+func TaskExcludeRules(count int) string { return In(i18n.Locale()).TaskExcludeRules(count) }
+
+// TaskExcludeRules says "{count, plural, one {# rule} other {# rules}}"
+// in the language of msgs.
+//
+// Summary of a task's exclusion rules.
+func (msgs Messages) TaskExcludeRules(count int) string {
+	return Catalog.Format(msgs.locale, "taskExcludeRules", map[string]any{"count": count})
+}
+
+// TaskExcludeRulesAndLarger says "{count, plural, one {# rule} other {# rules}}, and files over {size}"
+// in the language the app shows.
+func TaskExcludeRulesAndLarger(count int, size string) string {
+	return In(i18n.Locale()).TaskExcludeRulesAndLarger(count, size)
+}
+
+// TaskExcludeRulesAndLarger says "{count, plural, one {# rule} other {# rules}}, and files over {size}"
+// in the language of msgs.
+func (msgs Messages) TaskExcludeRulesAndLarger(count int, size string) string {
+	return Catalog.Format(msgs.locale, "taskExcludeRulesAndLarger", map[string]any{"count": count, "size": size})
+}
+
+// TaskExcludeLarger says "Files over {size}"
+// in the language the app shows.
+func TaskExcludeLarger(size string) string { return In(i18n.Locale()).TaskExcludeLarger(size) }
+
+// TaskExcludeLarger says "Files over {size}"
+// in the language of msgs.
+func (msgs Messages) TaskExcludeLarger(size string) string {
+	return Catalog.Format(msgs.locale, "taskExcludeLarger", map[string]any{"size": size})
+}
+
+// TaskExcludeEdit says "Edit…"
+// in the language the app shows.
+func TaskExcludeEdit() string { return In(i18n.Locale()).TaskExcludeEdit() }
+
+// TaskExcludeEdit says "Edit…"
+// in the language of msgs.
+func (msgs Messages) TaskExcludeEdit() string {
+	return Catalog.Format(msgs.locale, "taskExcludeEdit", nil)
+}
+
+// TaskExcludeFailed says "A rule isn't valid. Click Edit… to fix it."
+// in the language the app shows.
+func TaskExcludeFailed() string { return In(i18n.Locale()).TaskExcludeFailed() }
+
+// TaskExcludeFailed says "A rule isn't valid. Click Edit… to fix it."
+// in the language of msgs.
+func (msgs Messages) TaskExcludeFailed() string {
+	return Catalog.Format(msgs.locale, "taskExcludeFailed", nil)
+}
+
+// TaskExcludeTitle says "Excluded files"
+// in the language the app shows.
+func TaskExcludeTitle() string { return In(i18n.Locale()).TaskExcludeTitle() }
+
+// TaskExcludeTitle says "Excluded files"
+// in the language of msgs.
+func (msgs Messages) TaskExcludeTitle() string {
+	return Catalog.Format(msgs.locale, "taskExcludeTitle", nil)
+}
+
+// TaskExcludeHint says "Runs don't copy these files, and a sync doesn't delete them from the destination."
+// in the language the app shows.
+func TaskExcludeHint() string { return In(i18n.Locale()).TaskExcludeHint() }
+
+// TaskExcludeHint says "Runs don't copy these files, and a sync doesn't delete them from the destination."
+// in the language of msgs.
+func (msgs Messages) TaskExcludeHint() string {
+	return Catalog.Format(msgs.locale, "taskExcludeHint", nil)
+}
+
+// TaskExcludeCommon says "Common"
+// in the language the app shows.
+func TaskExcludeCommon() string { return In(i18n.Locale()).TaskExcludeCommon() }
+
+// TaskExcludeCommon says "Common"
+// in the language of msgs.
+func (msgs Messages) TaskExcludeCommon() string {
+	return Catalog.Format(msgs.locale, "taskExcludeCommon", nil)
+}
+
+// TaskExcludePatterns says "Other rules"
+// in the language the app shows.
+func TaskExcludePatterns() string { return In(i18n.Locale()).TaskExcludePatterns() }
+
+// TaskExcludePatterns says "Other rules"
+// in the language of msgs.
+func (msgs Messages) TaskExcludePatterns() string {
+	return Catalog.Format(msgs.locale, "taskExcludePatterns", nil)
+}
+
+// TaskExcludePatternsHint says "One per line. * matches any characters in a name, ** also across folders. End a rule with / for a folder. Only a rule…"
+// in the language the app shows.
+func TaskExcludePatternsHint() string { return In(i18n.Locale()).TaskExcludePatternsHint() }
+
+// TaskExcludePatternsHint says "One per line. * matches any characters in a name, ** also across folders. End a rule with / for a folder. Only a rule…"
+// in the language of msgs.
+func (msgs Messages) TaskExcludePatternsHint() string {
+	return Catalog.Format(msgs.locale, "taskExcludePatternsHint", nil)
+}
+
+// TaskExcludeInvalidLine says "Line {line} isn't a valid rule. Check that its brackets and braces are closed."
+// in the language the app shows.
+func TaskExcludeInvalidLine(line int) string { return In(i18n.Locale()).TaskExcludeInvalidLine(line) }
+
+// TaskExcludeInvalidLine says "Line {line} isn't a valid rule. Check that its brackets and braces are closed."
+// in the language of msgs.
+func (msgs Messages) TaskExcludeInvalidLine(line int) string {
+	return Catalog.Format(msgs.locale, "taskExcludeInvalidLine", map[string]any{"line": line})
+}
+
+// TaskExcludeLarge says "Large files"
+// in the language the app shows.
+func TaskExcludeLarge() string { return In(i18n.Locale()).TaskExcludeLarge() }
+
+// TaskExcludeLarge says "Large files"
+// in the language of msgs.
+func (msgs Messages) TaskExcludeLarge() string {
+	return Catalog.Format(msgs.locale, "taskExcludeLarge", nil)
+}
+
+// TaskExcludeLargeOff says "Copy every size"
+// in the language the app shows.
+func TaskExcludeLargeOff() string { return In(i18n.Locale()).TaskExcludeLargeOff() }
+
+// TaskExcludeLargeOff says "Copy every size"
+// in the language of msgs.
+func (msgs Messages) TaskExcludeLargeOff() string {
+	return Catalog.Format(msgs.locale, "taskExcludeLargeOff", nil)
+}
+
+// TaskExcludeLargeOver says "Skip files over {size}"
+// in the language the app shows.
+func TaskExcludeLargeOver(size string) string { return In(i18n.Locale()).TaskExcludeLargeOver(size) }
+
+// TaskExcludeLargeOver says "Skip files over {size}"
+// in the language of msgs.
+func (msgs Messages) TaskExcludeLargeOver(size string) string {
+	return Catalog.Format(msgs.locale, "taskExcludeLargeOver", map[string]any{"size": size})
+}
+
+// TaskExcludeGlobalHint says "{count, plural, one {Every run also applies # global rule.} other {Every run also applies # global rules.}}"
+// in the language the app shows.
+//
+// Under a task's own exclusions: the rules the settings apply to every run
+// as well.
+func TaskExcludeGlobalHint(count int) string { return In(i18n.Locale()).TaskExcludeGlobalHint(count) }
+
+// TaskExcludeGlobalHint says "{count, plural, one {Every run also applies # global rule.} other {Every run also applies # global rules.}}"
+// in the language of msgs.
+//
+// Under a task's own exclusions: the rules the settings apply to every run
+// as well.
+func (msgs Messages) TaskExcludeGlobalHint(count int) string {
+	return Catalog.Format(msgs.locale, "taskExcludeGlobalHint", map[string]any{"count": count})
+}
+
+// TaskExcludeUnreadable says "The saved rules can't be read, so runs won't start. Save the task with the rules you want."
+// in the language the app shows.
+func TaskExcludeUnreadable() string { return In(i18n.Locale()).TaskExcludeUnreadable() }
+
+// TaskExcludeUnreadable says "The saved rules can't be read, so runs won't start. Save the task with the rules you want."
+// in the language of msgs.
+func (msgs Messages) TaskExcludeUnreadable() string {
+	return Catalog.Format(msgs.locale, "taskExcludeUnreadable", nil)
+}
+
+// TaskExcludeDone says "Done"
+// in the language the app shows.
+func TaskExcludeDone() string { return In(i18n.Locale()).TaskExcludeDone() }
+
+// TaskExcludeDone says "Done"
+// in the language of msgs.
+func (msgs Messages) TaskExcludeDone() string {
+	return Catalog.Format(msgs.locale, "taskExcludeDone", nil)
 }
 
 // TaskActions says "Actions for {name}"

@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/starriv/cloudshuttle/internal/domain"
+	"github.com/starriv/cloudshuttle/internal/engine"
 	"github.com/starriv/cloudshuttle/internal/seal"
 	"github.com/starriv/cloudshuttle/internal/store"
 )
@@ -209,6 +210,14 @@ func (s *Service) RestoreBackup(ctx context.Context, path, password string) erro
 		}
 		resolved := make([]domain.TaskInput, 0, len(tasks))
 		for _, t := range tasks {
+			if t.Exclude.Unreadable {
+				return domain.ErrNotBackup
+			}
+			for _, p := range t.Exclude.Patterns {
+				if !engine.ValidExclude(p) {
+					return domain.ErrNotBackup
+				}
+			}
 			in, err := resolveTask(taskInput(t))
 			if err != nil {
 				return domain.ErrNotBackup
@@ -223,6 +232,15 @@ func (s *Service) RestoreBackup(ctx context.Context, path, password string) erro
 				}
 			}
 			resolved = append(resolved, in)
+		}
+		st, err := backup.Settings(ctx)
+		if err != nil {
+			return domain.ErrNotBackup
+		}
+		for _, p := range st.GlobalExcludes {
+			if !engine.ValidExclude(p) {
+				return domain.ErrNotBackup
+			}
 		}
 		return nil
 	}); err != nil {
