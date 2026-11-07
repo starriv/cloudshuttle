@@ -1,0 +1,66 @@
+{
+  "groups": [
+    {
+      "layers": [
+        {
+          "image-name": "02-transfer-out.png",
+          "name": "02 Outbound",
+          "glass": false
+        },
+        {
+          "image-name": "03-transfer-in.png",
+          "name": "03 Inbound",
+          "glass": false
+        }
+      ],
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.0
+      },
+      "translucency": {
+        "enabled": false,
+        "value": 0.5
+      }
+    },
+    {
+      "layers": [
+        {
+          "image-name": "01-cloud.png",
+          "name": "01 Cloud",
+          "glass": false
+        }
+      ],
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.14
+      },
+      "translucency": {
+        "enabled": false,
+        "value": 0.5
+      }
+    }
+  ],
+  "supported-platforms": {
+    "squares": "shared"
+  },
+  "fill-specializations": [
+    {
+      "value": {
+        "linear-gradient": [
+          "srgb:0.14510,0.72549,0.94902,1",
+          "srgb:0.09804,0.28235,0.74510,1"
+        ],
+        "orientation": {
+          "start": {
+            "x": 0,
+            "y": 0
+          },
+          "stop": {
+            "x": 0.7,
+            "y": 1
+          }
+        }
+      }
+    }
+  ]
+}

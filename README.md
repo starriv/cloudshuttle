@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="resources/icon.png" width="128" alt="云梭：白色云朵与蓝色双向传输箭头">
+</p>
+
 # 云梭 CloudShuttle
 
 在本机文件夹、NAS 与云存储之间，轻松复制与同步文件。
@@ -5,11 +9,6 @@
 云梭常驻状态栏，按计划在后台运行。随时查看同步进度与最近结果，需要管理任务时再打开主窗口。
 
 ![云梭总览：任务、存储与最近运行](docs/screenshots/dashboard.png)
-
-<p align="center">
-  <img src="docs/screenshots/tray.png" width="300" alt="云梭状态栏菜单：任务与存储数量、同步状态和最近任务结果">
-</p>
-<p align="center">不打开主窗口，也能掌握同步状态。</p>
 
 <table>
   <tr>

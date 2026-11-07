@@ -36,6 +36,9 @@ import (
 //go:embed tray.png
 var trayIcon []byte
 
+//go:embed tray-color.png
+var trayColorIcon []byte
+
 // The app's argument, which only the system passes: schedulerArg starts the
 // scheduler instead of the app.
 const schedulerArg = "--scheduler"
@@ -204,7 +207,7 @@ func main() {
 		mygo.App.OnActivate(func(bool) { show() })
 
 		statusIcon, err := mygo.NewTray(mygo.TrayOptions{
-			ID: "main", Icon: trayIcon, IconIsTemplate: true, ToolTip: locales.AppName(),
+			ID: "main", Icon: brandTrayIcon(), IconIsTemplate: runtime.GOOS == "darwin", ToolTip: locales.AppName(),
 		})
 		if err != nil {
 			slog.Warn("tray", "err", err)

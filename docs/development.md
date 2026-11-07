@@ -23,7 +23,7 @@ go tool mygo generate       # 修改 locales/*.json 之后执行
 发布在 GitHub Actions 上打包（`.github/workflows/release.yml`），不依赖本机。改好 `mygo.json` 的 `version`，提交后推送同名标签：
 
 ```sh
-git tag v1.3.0 && git push origin main v1.3.0
+git tag v1.3.1 && git push origin main v1.3.1
 ```
 
 workflow 先检查标签和 `version` 一致，建立草稿 Release `v<版本>`，再依次打三个包，连同各自的更新文件上传到草稿（不能同时：每个包都要合并草稿里的 `SHA256SUMS` 再传回，两个 macOS 包还都上传 `install.sh`，同时上传会互相覆盖）：
@@ -84,3 +84,11 @@ CI 必须用和 `signingIdentity` 同一张证书签名：钥匙串按证书认�
 | Secret Access Key、SMB 密码 | 系统凭据存储，服务名为应用标识 `com.starriv.cloudshuttle` |
 
 运行历史和运行日志默认保留 90 天，更早的会在应用启动时清理（正在运行的记录不动）；被同步的文件不受影响。
+
+## 品牌素材
+
+正式图标采用白色云朵与蓝色对向传输箭头。`design/brand/app-icon.svg` 是跨平台静态图标的矢量源稿，`design/brand/AppIcon.icon` 分别保留云朵和传输箭头；`macos.icon` 指向这个文档，由 Xcode 的 `actool` 编译。macOS 包含原生分层资产目录和给旧系统使用的 ICNS，Windows 安装程序及可执行文件从 `resources/icon.png` 生成图标。
+
+需要重新导出素材时，使用安装了 CairoSVG 和 resvg-py 的 Python 3 执行 `python3 design/brand/generate.py`，生成 `resources/icon.png`、透明镂空箭头的 `resources/mark.svg`、macOS 的 `cmd/cloudshuttle/tray.png` 模板图和其他系统使用的 `tray-color.png`。Python、CairoSVG 和 resvg-py 仅用于维护素材，正常构建不需要它们。状态栏的单色图沿用相同云朵和对向箭头结构，由 macOS 自动适配浅色和深色菜单栏。
+
+设计源稿放在 `design/brand/`，不会作为运行时资源整份装入应用。README 展示与应用打包使用同一份 `resources/icon.png`。

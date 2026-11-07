@@ -5,6 +5,7 @@ import (
 	"image"
 	"image/png"
 	"log/slog"
+	"runtime"
 	"sync"
 
 	"github.com/egoist/mygo"
@@ -39,4 +40,12 @@ func menuIconImage(svg *ui.SVG) *image.RGBA {
 		c.Root().Background(ui.Transparent)
 		ui.Icon(c, svg).Size(16, 16).TextColor(c.Theme().Text)
 	}, 16, 16, 2)
+}
+
+// macOS tints the monochrome template; other systems use the color brand icon.
+func brandTrayIcon() []byte {
+	if runtime.GOOS == "darwin" {
+		return trayIcon
+	}
+	return trayColorIcon
 }

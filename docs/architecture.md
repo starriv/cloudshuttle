@@ -18,7 +18,8 @@ internal/icloud    iCloud Drive 中应用自己的文件夹（macOS）
 internal/seal      用密码加密、解密备份文件（Argon2id + XChaCha20-Poly1305）
 internal/domain    模型、校验、错误；不依赖上面任何包
 locales            文案目录（en、zh-Hans）和生成的访问函数
-resources          应用图标及其来源 SVG
+resources          应用图标与单色品牌标志
+design/brand       品牌矢量源稿、分层 Icon Composer 文档及素材导出脚本
 ```
 
 依赖只能自上而下：`view` 和 `island` 调用 `service`，共用 `icons` 和 `format`；`service` 调用 `store`、`engine`、`discovery`、`icloud`、`seal` 和 `domain`；`launchagent` 只依赖 `domain`，由 `cmd` 创建后作为 `service.Registrar` 交给 `service`；`updates` 不依赖应用的其他包，由 `cmd` 创建并交给 `view`（`App.SetUpdater`）；没有包引用 `view` 或 `cmd`。
