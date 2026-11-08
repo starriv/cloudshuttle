@@ -4250,13 +4250,13 @@ func (msgs Messages) SettingsAppIconMenuBar() string {
 	return Catalog.Format(msgs.locale, "settingsAppIconMenuBar", nil)
 }
 
-// SettingsAppIconDockAndMenuBarHint says "Shows the app in both places. After the window closes, either icon opens it again."
+// SettingsAppIconDockAndMenuBarHint says "Shows the app in both places. Closing the window hides the Dock icon; reopening from the menu bar restores it."
 // in the language the app shows.
 func SettingsAppIconDockAndMenuBarHint() string {
 	return In(i18n.Locale()).SettingsAppIconDockAndMenuBarHint()
 }
 
-// SettingsAppIconDockAndMenuBarHint says "Shows the app in both places. After the window closes, either icon opens it again."
+// SettingsAppIconDockAndMenuBarHint says "Shows the app in both places. Closing the window hides the Dock icon; reopening from the menu bar restores it."
 // in the language of msgs.
 func (msgs Messages) SettingsAppIconDockAndMenuBarHint() string {
 	return Catalog.Format(msgs.locale, "settingsAppIconDockAndMenuBarHint", nil)

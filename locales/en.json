@@ -1143,7 +1143,7 @@
   "settingsAppIconDockAndMenuBar": "Dock and menu bar",
   "settingsAppIconDock": "Dock only",
   "settingsAppIconMenuBar": "Menu bar only",
-  "settingsAppIconDockAndMenuBarHint": "Shows the app in both places. After the window closes, either icon opens it again.",
+  "settingsAppIconDockAndMenuBarHint": "Shows the app in both places. Closing the window hides the Dock icon; reopening from the menu bar restores it.",
   "settingsAppIconDockHint": "Shows the app only in the Dock. After its window closes, the Dock icon opens it again.",
   "settingsAppIconMenuBarHint": "Shows the app only in the menu bar. After its window closes, the menu bar icon opens it again.",
   "settingsUpdatesTitle": "Updates",

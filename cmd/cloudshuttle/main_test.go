@@ -54,6 +54,37 @@ func TestTheAppIconDecidesWhereTheAppShows(t *testing.T) {
 	}
 }
 
+// A background update restart must not bring back the Dock icon the user
+// dismissed by closing the window. Showing the window restores it; Dock-only
+// mode (also the tray failure fallback) always keeps a way back to the window.
+func TestTheDockStaysHiddenAcrossABackgroundUpdateRestart(t *testing.T) {
+	for _, c := range []struct {
+		name       string
+		icon       domain.AppIcon
+		shown      bool
+		background bool
+		want       mygo.ActivationPolicy
+	}{
+		{"closed window after update", domain.AppIconDockAndMenuBar, false, true, mygo.ActivationPolicyAccessory},
+		{"visible window after update", domain.AppIconDockAndMenuBar, true, true, mygo.ActivationPolicyRegular},
+		{"ordinary launch", domain.AppIconDockAndMenuBar, false, false, mygo.ActivationPolicyRegular},
+		{"Dock only after update", domain.AppIconDock, false, true, mygo.ActivationPolicyRegular},
+		{"menu bar only after update", domain.AppIconMenuBar, false, true, mygo.ActivationPolicyAccessory},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			// Startup first applies the background policy, then show restores
+			// the Dock when the restart's marker says the window was visible.
+			policy := activationPolicyForWindow(c.icon, !c.background)
+			if showOnLaunch(false, c.shown, appShowsDock(c.icon), c.background) {
+				policy = activationPolicyForWindow(c.icon, true)
+			}
+			if policy != c.want {
+				t.Fatalf("policy = %q, want %q", policy, c.want)
+			}
+		})
+	}
+}
+
 // TestOnlyMacOSLeavesTheDockOut guards that the other systems keep the
 // notification-area icon whatever a restored backup says.
 func TestOnlyMacOSLeavesTheDockOut(t *testing.T) {

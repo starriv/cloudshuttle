@@ -480,7 +480,7 @@
   "settingsAppIconDockAndMenuBar": "程序坞与菜单栏",
   "settingsAppIconDock": "仅程序坞",
   "settingsAppIconMenuBar": "仅菜单栏",
-  "settingsAppIconDockAndMenuBarHint": "在程序坞和菜单栏都显示。关闭窗口后，可从任一图标重新打开。",
+  "settingsAppIconDockAndMenuBarHint": "在程序坞和菜单栏都显示。关闭窗口后仅保留菜单栏图标，重新打开窗口时恢复程序坞图标。",
   "settingsAppIconDockHint": "只在程序坞显示。关闭窗口后，可从程序坞图标重新打开。",
   "settingsAppIconMenuBarHint": "只在菜单栏显示。关闭窗口后，可从菜单栏图标打开。",
   "settingsUpdatesTitle": "更新",

@@ -190,7 +190,8 @@ func main() {
 		host.win = win
 
 		// Closing the window hides it while one of the app's icons can open
-		// it again: the one in the Dock, the menu bar, or both. The island
+		// it again. With both icons, closing also leaves the Dock until the
+		// window is reopened; the menu bar stays available. The island
 		// goes on showing the runs, and the schedules do not need the
 		// window: the system runs them. With no icon at all the app would
 		// keep running with no way to its window, so closing quits instead.
@@ -201,6 +202,9 @@ func main() {
 			e.PreventDefault()
 			if tray != nil || (runtime.GOOS == "darwin" && appShowsDock(iconMode)) {
 				win.Hide()
+				if runtime.GOOS == "darwin" && iconMode == domain.AppIconDockAndMenuBar && tray != nil {
+					mygo.App.SetActivationPolicy(mygo.ActivationPolicyAccessory)
+				}
 				return
 			}
 			mygo.App.Quit()
@@ -211,6 +215,12 @@ func main() {
 			go upd.RunsChanged() // an update installed by itself waits for this
 		})
 		show = func() {
+			// Closing in the combined mode temporarily removes the Dock
+			// icon. Restore it before showing the window, without changing
+			// the saved mode or activating a still-hidden window.
+			if appShowsDock(iconMode) {
+				showDockIconWithoutActivation()
+			}
 			// Restore, so a window the user minimized comes back too: the
 			// status menu or the Dock icon is the way to it.
 			win.Restore()
@@ -247,7 +257,8 @@ func main() {
 		// window is taken. A menu bar whose icon could not be made falls
 		// back to the Dock, and the next launch tries the saved mode again.
 		// activate is false for a launch the system made in the background:
-		// the Dock icon then appears without taking the foreground.
+		// combined mode stays in the menu bar until show opens the window;
+		// Dock-only mode keeps its icon without taking the foreground.
 		applyIcon := func(mode domain.AppIcon, activate bool) {
 			mode = iconOnThisSystem(mode)
 			if appShowsMenuBar(mode) {
@@ -261,11 +272,12 @@ func main() {
 				tray = nil
 			}
 			iconMode = mode
-			if appShowsDock(mode) && !activate {
+			policy := activationPolicyForWindow(mode, activate)
+			if policy == mygo.ActivationPolicyRegular && !activate {
 				showDockIconWithoutActivation()
 				return
 			}
-			mygo.App.SetActivationPolicy(activationPolicyFor(mode))
+			mygo.App.SetActivationPolicy(policy)
 		}
 		host.icon = func(mode domain.AppIcon) { applyIcon(mode, true) }
 		// A restart into an update and a wake in the background are not the
@@ -344,6 +356,17 @@ func activationPolicyFor(icon domain.AppIcon) mygo.ActivationPolicy {
 		return mygo.ActivationPolicyRegular
 	}
 	return mygo.ActivationPolicyAccessory
+}
+
+// activationPolicyForWindow keeps combined mode in the menu bar while its
+// window is hidden, including a background restart into an update. Dock-only
+// mode must keep its icon so the window can still be opened. The caller
+// resolves a failed tray creation to Dock-only mode before choosing a policy.
+func activationPolicyForWindow(icon domain.AppIcon, windowShown bool) mygo.ActivationPolicy {
+	if icon == domain.AppIconDockAndMenuBar && !windowShown {
+		return mygo.ActivationPolicyAccessory
+	}
+	return activationPolicyFor(icon)
 }
 
 // showOnLaunch reports whether the app opens its window as it starts: on a
