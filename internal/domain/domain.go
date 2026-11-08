@@ -165,7 +165,13 @@ type Task struct {
 	Source      Location
 	Destination Location
 	Mode        Mode
-	Schedule    Schedule
+	// Destination is the final transfer path; DestinationFolder records the
+	// child chosen below the user-selected parent. Empty means direct transfer.
+	AllowRoot         bool
+	DestinationFolder string
+	// DestinationPending requires a fresh, unoccupied folder on the first real run.
+	DestinationPending bool
+	Schedule           Schedule
 	// ScheduleSince is when the schedule was set as it is: the times it
 	// passed before then are not runs the task missed.
 	ScheduleSince time.Time
@@ -321,8 +327,9 @@ const (
 // Problems that stop a run before it deletes anything. Run.Problem holds
 // one of them, and the view says what it means.
 const (
-	RunProblemEmptySource = "emptySource"
-	RunProblemLargeDelete = "largeDelete"
+	RunProblemEmptySource        = "emptySource"
+	RunProblemLargeDelete        = "largeDelete"
+	RunProblemDestinationChanged = "destinationChanged"
 )
 
 // Stats counts what a run transferred.
@@ -387,8 +394,9 @@ var (
 	ErrNotActive     = errors.New("task not running")
 	// ErrDestinationBusy is a task that cannot start because another run
 	// is writing to its destination.
-	ErrDestinationBusy = errors.New("another task is running into this destination")
-	ErrMissingSecret   = errors.New("secret access key missing")
+	ErrDestinationBusy    = errors.New("another task is running into this destination")
+	ErrDestinationChanged = errors.New("destination changed before initialization")
+	ErrMissingSecret      = errors.New("secret access key missing")
 
 	// Connecting to a storage failed: the server could not be reached, it
 	// refused the credentials, or it has no share of that name.

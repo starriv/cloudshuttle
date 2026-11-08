@@ -134,6 +134,7 @@ func TestRestoreConfig(t *testing.T) {
 	st := domain.Storage{ID: "s1", Name: "NAS", Kind: domain.KindSMB, Host: "nas.local", Port: 445, Username: "me", CreatedAt: now, UpdatedAt: now}
 	task := domain.Task{ID: "t1", Name: "Photos", Source: domain.Location{Path: "/p"}, Destination: domain.Location{StorageID: "s1", Path: "Photos"},
 		Mode: domain.ModeCopy, Schedule: domain.Schedule{Repeat: domain.RepeatDaily, Hour: 3}, ScheduleSince: now,
+		DestinationFolder: "Photos", DestinationPending: true,
 		Exclude:       domain.Exclude{Patterns: []string{"*.tmp"}, MaxSize: 5_000_000},
 		LastSuccessAt: now.Add(-2 * time.Hour), CreatedAt: now, UpdatedAt: now}
 	settings := domain.DefaultSettings()

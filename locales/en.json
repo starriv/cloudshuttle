@@ -1241,5 +1241,13 @@
       }
     }
   },
-  "notifyUpdateBody": "Click to see what's new and install it."
+  "notifyUpdateBody": "Click to see what's new and install it.",
+  "taskAllowRoot": "Allow transfer into the selected folder directly",
+  "taskAllowRootHint": "Off by default. Creates a source-named subfolder; if it already exists, choose whether to reuse it or create a numbered folder.",
+  "taskDestinationExists": "Destination name already exists",
+  "taskDestinationExistsHint": "Use this folder to update matching files (sync may also delete files), or create a separate numbered folder. Later runs will keep using the chosen folder.",
+  "taskDestinationFileHint": "A file already uses this name. Create a separate numbered folder.",
+  "taskDestinationReuse": "Use existing folder",
+  "taskDestinationUnique": "Create numbered folder",
+  "runProblemDestinationChanged": "The destination name became occupied before the first transfer. No files were changed. Edit and save the task to choose an existing or numbered folder."
 }

@@ -136,6 +136,44 @@ INSERT INTO schedule_starts(task_id, started_at)
 	// bar, or both. A database made before the setting keeps the menu bar
 	// alone, as the app always showed.
 	addAppIcon,
+	// 19: existing tasks keep their exact destination; new tasks use a child.
+	addDestinationFolder,
+	addDestinationPending,
+}
+
+// 20: a newly chosen directory must still be unused when first initialized.
+func addDestinationPending(tx *sql.Tx) error {
+	has, err := hasColumn(tx, "tasks", "destination_pending")
+	if err != nil || has {
+		return err
+	}
+	if _, err = tx.Exec("ALTER TABLE tasks ADD COLUMN destination_pending INTEGER NOT NULL DEFAULT 0"); err != nil {
+		return err
+	}
+	// A task from the previous build with no successful real run has never
+	// established ownership of its child. Recheck it rather than trust the path.
+	_, err = tx.Exec(`UPDATE tasks SET destination_pending = 1
+ WHERE allow_root = 0 AND destination_folder != '' AND last_success_at = 0`)
+	return err
+}
+
+func addDestinationFolder(tx *sql.Tx) error {
+	for _, col := range []struct{ name, def string }{
+		{"allow_root", "INTEGER NOT NULL DEFAULT 1"},
+		{"destination_folder", "TEXT NOT NULL DEFAULT ''"},
+	} {
+		has, err := hasColumn(tx, "tasks", col.name)
+		if err != nil {
+			return err
+		}
+		if has {
+			continue
+		}
+		if _, err := tx.Exec("ALTER TABLE tasks ADD COLUMN " + col.name + " " + col.def); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // addAppIcon is step 18. It also copes with a development build that added
@@ -621,7 +659,7 @@ func (s *Store) DeleteStorage(ctx context.Context, id string) error {
 }
 
 const taskColumns = `id, name, source_storage_id, source_path, dest_storage_id, dest_path, mode, schedule,
-	schedule_since, trash_days, excludes, max_size, last_success_at, created_at, updated_at`
+	schedule_since, trash_days, excludes, max_size, last_success_at, created_at, updated_at, allow_root, destination_folder, destination_pending`
 
 // Tasks returns every task, by name.
 func (s *Store) Tasks(ctx context.Context) ([]domain.Task, error) {
@@ -654,18 +692,20 @@ func (s *Store) Task(ctx context.Context, id string) (domain.Task, error) {
 func (s *Store) PutTask(ctx context.Context, t domain.Task) error {
 	_, err := s.db.ExecContext(ctx, `
 		INSERT INTO tasks (`+taskColumns+`)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (id) DO UPDATE SET
 			name = excluded.name, source_storage_id = excluded.source_storage_id,
 			source_path = excluded.source_path, dest_storage_id = excluded.dest_storage_id,
 			dest_path = excluded.dest_path, mode = excluded.mode, schedule = excluded.schedule,
 			schedule_since = excluded.schedule_since, trash_days = excluded.trash_days,
 			excludes = excluded.excludes, max_size = excluded.max_size,
-			last_success_at = excluded.last_success_at, updated_at = excluded.updated_at`,
+			last_success_at = excluded.last_success_at, updated_at = excluded.updated_at,
+            allow_root = excluded.allow_root, destination_folder = excluded.destination_folder,
+            destination_pending = excluded.destination_pending`,
 		t.ID, t.Name, nullable(t.Source.StorageID), t.Source.Path,
 		nullable(t.Destination.StorageID), t.Destination.Path, t.Mode, encodeSchedule(t.Schedule),
 		millis(t.ScheduleSince), t.TrashDays, encodeExcludes(t.Exclude.Patterns), t.Exclude.MaxSize,
-		millis(t.LastSuccessAt), millis(t.CreatedAt), millis(t.UpdatedAt))
+		millis(t.LastSuccessAt), millis(t.CreatedAt), millis(t.UpdatedAt), t.AllowRoot, t.DestinationFolder, t.DestinationPending)
 	return mapConstraint(err)
 }
 
@@ -1023,7 +1063,7 @@ func scanTask(row scanner) (domain.Task, error) {
 	var schedule, excludes string
 	var since, created, updated, lastSuccess int64
 	if err := row.Scan(&t.ID, &t.Name, &src, &t.Source.Path, &dst, &t.Destination.Path, &t.Mode,
-		&schedule, &since, &t.TrashDays, &excludes, &t.Exclude.MaxSize, &lastSuccess, &created, &updated); err != nil {
+		&schedule, &since, &t.TrashDays, &excludes, &t.Exclude.MaxSize, &lastSuccess, &created, &updated, &t.AllowRoot, &t.DestinationFolder, &t.DestinationPending); err != nil {
 		return domain.Task{}, err
 	}
 	t.Source.StorageID, t.Destination.StorageID = src.String, dst.String
@@ -1182,4 +1222,15 @@ func (s *Store) RestoreConfig(ctx context.Context, path string, validate ...func
 		}
 	}
 	return tx.Commit()
+}
+
+// MarkDestinationReady clears first-run protection only for the same saved
+// target. An edit while a run waits must not initialize a different target.
+func (s *Store) MarkDestinationReady(ctx context.Context, t domain.Task) error {
+	res, err := s.db.ExecContext(ctx, `UPDATE tasks SET destination_pending = 0
+ WHERE id = ? AND dest_path = ? AND COALESCE(dest_storage_id, '') = ?`, t.ID, t.Destination.Path, t.Destination.StorageID)
+	if err != nil {
+		return err
+	}
+	return requireOne(res)
 }

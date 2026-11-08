@@ -28,6 +28,9 @@ CREATE TABLE IF NOT EXISTS tasks (
     dest_storage_id     TEXT REFERENCES storages (id) ON DELETE RESTRICT,
     dest_path           TEXT NOT NULL,
     mode                TEXT NOT NULL,
+    allow_root          INTEGER NOT NULL DEFAULT 0,
+    destination_folder  TEXT NOT NULL DEFAULT '',
+    destination_pending INTEGER NOT NULL DEFAULT 0,
     -- When the task runs on its own, as JSON (store/schedule.go); '' for by
     -- hand only. schedule_since is when it was set so.
     schedule            TEXT NOT NULL,

@@ -509,6 +509,8 @@ func (keychain) Delete(key string) error { return mygo.Secrets.Delete(key) }
 // person's language.
 func problemText(problem string) string {
 	switch problem {
+	case domain.RunProblemDestinationChanged:
+		return locales.RunProblemDestinationChanged()
 	case domain.RunProblemEmptySource:
 		return locales.RunProblemEmptySource()
 	case domain.RunProblemLargeDelete:

@@ -4567,3 +4567,83 @@ func NotifyUpdateBody() string { return In(i18n.Locale()).NotifyUpdateBody() }
 func (msgs Messages) NotifyUpdateBody() string {
 	return Catalog.Format(msgs.locale, "notifyUpdateBody", nil)
 }
+
+// TaskAllowRoot says "Allow transfer into the selected folder directly"
+// in the language the app shows.
+func TaskAllowRoot() string { return In(i18n.Locale()).TaskAllowRoot() }
+
+// TaskAllowRoot says "Allow transfer into the selected folder directly"
+// in the language of msgs.
+func (msgs Messages) TaskAllowRoot() string {
+	return Catalog.Format(msgs.locale, "taskAllowRoot", nil)
+}
+
+// TaskAllowRootHint says "Off by default. Creates a source-named subfolder; if it already exists, choose whether to reuse it or create a number…"
+// in the language the app shows.
+func TaskAllowRootHint() string { return In(i18n.Locale()).TaskAllowRootHint() }
+
+// TaskAllowRootHint says "Off by default. Creates a source-named subfolder; if it already exists, choose whether to reuse it or create a number…"
+// in the language of msgs.
+func (msgs Messages) TaskAllowRootHint() string {
+	return Catalog.Format(msgs.locale, "taskAllowRootHint", nil)
+}
+
+// TaskDestinationExists says "Destination name already exists"
+// in the language the app shows.
+func TaskDestinationExists() string { return In(i18n.Locale()).TaskDestinationExists() }
+
+// TaskDestinationExists says "Destination name already exists"
+// in the language of msgs.
+func (msgs Messages) TaskDestinationExists() string {
+	return Catalog.Format(msgs.locale, "taskDestinationExists", nil)
+}
+
+// TaskDestinationExistsHint says "Use this folder to update matching files (sync may also delete files), or create a separate numbered folder. Later ru…"
+// in the language the app shows.
+func TaskDestinationExistsHint() string { return In(i18n.Locale()).TaskDestinationExistsHint() }
+
+// TaskDestinationExistsHint says "Use this folder to update matching files (sync may also delete files), or create a separate numbered folder. Later ru…"
+// in the language of msgs.
+func (msgs Messages) TaskDestinationExistsHint() string {
+	return Catalog.Format(msgs.locale, "taskDestinationExistsHint", nil)
+}
+
+// TaskDestinationFileHint says "A file already uses this name. Create a separate numbered folder."
+// in the language the app shows.
+func TaskDestinationFileHint() string { return In(i18n.Locale()).TaskDestinationFileHint() }
+
+// TaskDestinationFileHint says "A file already uses this name. Create a separate numbered folder."
+// in the language of msgs.
+func (msgs Messages) TaskDestinationFileHint() string {
+	return Catalog.Format(msgs.locale, "taskDestinationFileHint", nil)
+}
+
+// TaskDestinationReuse says "Use existing folder"
+// in the language the app shows.
+func TaskDestinationReuse() string { return In(i18n.Locale()).TaskDestinationReuse() }
+
+// TaskDestinationReuse says "Use existing folder"
+// in the language of msgs.
+func (msgs Messages) TaskDestinationReuse() string {
+	return Catalog.Format(msgs.locale, "taskDestinationReuse", nil)
+}
+
+// TaskDestinationUnique says "Create numbered folder"
+// in the language the app shows.
+func TaskDestinationUnique() string { return In(i18n.Locale()).TaskDestinationUnique() }
+
+// TaskDestinationUnique says "Create numbered folder"
+// in the language of msgs.
+func (msgs Messages) TaskDestinationUnique() string {
+	return Catalog.Format(msgs.locale, "taskDestinationUnique", nil)
+}
+
+// RunProblemDestinationChanged says "The destination name became occupied before the first transfer. No files were changed. Edit and save the task to choo…"
+// in the language the app shows.
+func RunProblemDestinationChanged() string { return In(i18n.Locale()).RunProblemDestinationChanged() }
+
+// RunProblemDestinationChanged says "The destination name became occupied before the first transfer. No files were changed. Edit and save the task to choo…"
+// in the language of msgs.
+func (msgs Messages) RunProblemDestinationChanged() string {
+	return Catalog.Format(msgs.locale, "runProblemDestinationChanged", nil)
+}

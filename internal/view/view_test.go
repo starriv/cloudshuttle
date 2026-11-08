@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -144,8 +145,15 @@ func (h *harness) waitFor(what string, cond func() bool) {
 
 func (h *harness) click(label string) {
 	h.t.Helper()
+	if h.app.taskForm.open && slices.Contains([]string{locales.RepeatDaily(), locales.RepeatWeekly(), locales.RepeatMonthly(), locales.RepeatHourly()}, label) {
+		h.tt.Scroll(650, 400, 0, 1000)
+		h.tt.Frame()
+	}
 	if err := h.tt.Click(label); err != nil {
 		h.t.Fatalf("click %q: %v; texts %q", label, err, h.tt.Texts())
+	}
+	if label == locales.TaskSave() {
+		h.waitFor("task save", func() bool { return !h.app.taskForm.saving })
 	}
 }
 
@@ -219,7 +227,7 @@ func TestAddAndRunLocalTask(t *testing.T) {
 	h.waitFor("the run to finish", func() bool {
 		return len(h.app.active) == 0 && len(h.app.lastRuns) == 1 && h.app.recent[0].Status != domain.StatusRunning
 	})
-	if _, err := os.Stat(filepath.Join(dst, "a.txt")); err != nil {
+	if _, err := os.Stat(filepath.Join(h.app.tasks[0].Destination.Path, "a.txt")); err != nil {
 		t.Fatal("the run did not copy the file")
 	}
 	h.expect(locales.StatusSuccess())
@@ -234,6 +242,7 @@ func TestTaskFormRejectsNestedFolders(t *testing.T) {
 	h.click(locales.NavTasks())
 	h.click(locales.TasksAdd())
 	h.fill(locales.TaskFieldName(), "Loop")
+	h.app.taskForm.allowRoot = true
 	h.app.taskForm.source.path = "/Users/me/Pictures"
 	h.app.taskForm.dest.path = "/Users/me/Pictures/backup"
 	h.click(locales.TaskSave())
@@ -353,6 +362,7 @@ func TestTaskAtTheTopOfASMBServer(t *testing.T) {
 	h.click(locales.NavTasks())
 	h.click(locales.TasksAdd()) // its destination is the server
 	h.fill(locales.TaskFieldName(), "Photos")
+	h.app.taskForm.allowRoot = true
 	h.app.taskForm.source.path = "/Users/me/Pictures"
 	h.click(locales.TaskSave())
 	h.expect(locales.ErrorShareRequired())
@@ -372,7 +382,7 @@ func TestRunLogInHistory(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(src, "a.txt"), []byte("alpha"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	task, err := h.svc.CreateTask(context.Background(), domain.TaskInput{Name: "Mirror",
+	task, err := h.svc.CreateTask(context.Background(), domain.TaskInput{AllowRoot: true, Name: "Mirror",
 		Source: domain.Location{Path: src}, Destination: domain.Location{Path: dst}, Mode: domain.ModeCopy})
 	if err != nil {
 		t.Fatal(err)
@@ -432,7 +442,7 @@ func TestDeleteRunsFromHistory(t *testing.T) {
 	h := newHarness(t)
 	ctx := context.Background()
 	for _, name := range []string{"Alpha", "Bravo", "Charlie"} {
-		task, err := h.svc.CreateTask(ctx, domain.TaskInput{Name: name,
+		task, err := h.svc.CreateTask(ctx, domain.TaskInput{AllowRoot: true, Name: name,
 			Source: domain.Location{Path: t.TempDir()}, Destination: domain.Location{Path: t.TempDir()}, Mode: domain.ModeCopy})
 		if err != nil {
 			t.Fatal(err)
@@ -480,7 +490,7 @@ func TestDeleteRunsFromHistory(t *testing.T) {
 func TestDeleteRunFromItsMenu(t *testing.T) {
 	h := newHarness(t)
 	ctx := context.Background()
-	task, err := h.svc.CreateTask(ctx, domain.TaskInput{Name: "Alpha",
+	task, err := h.svc.CreateTask(ctx, domain.TaskInput{AllowRoot: true, Name: "Alpha",
 		Source: domain.Location{Path: t.TempDir()}, Destination: domain.Location{Path: t.TempDir()}, Mode: domain.ModeCopy})
 	if err != nil {
 		t.Fatal(err)
@@ -505,7 +515,7 @@ func TestChooseRunsWithCheckBoxes(t *testing.T) {
 	h := newHarness(t)
 	ctx := context.Background()
 	for _, name := range []string{"Alpha", "Bravo", "Charlie"} {
-		task, err := h.svc.CreateTask(ctx, domain.TaskInput{Name: name,
+		task, err := h.svc.CreateTask(ctx, domain.TaskInput{AllowRoot: true, Name: name,
 			Source: domain.Location{Path: t.TempDir()}, Destination: domain.Location{Path: t.TempDir()}, Mode: domain.ModeCopy})
 		if err != nil {
 			t.Fatal(err)
@@ -562,7 +572,7 @@ func TestOverviewLeadsToPages(t *testing.T) {
 	}
 	var tasks []domain.Task
 	for _, name := range []string{"Alpha", "Bravo"} {
-		task, err := h.svc.CreateTask(ctx, domain.TaskInput{Name: name,
+		task, err := h.svc.CreateTask(ctx, domain.TaskInput{AllowRoot: true, Name: name,
 			Source: domain.Location{Path: t.TempDir()}, Destination: domain.Location{Path: t.TempDir()}, Mode: domain.ModeCopy})
 		if err != nil {
 			t.Fatal(err)
@@ -617,7 +627,7 @@ func TestRunAnywaySkipsTheDeleteCheck(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dst, "precious.txt"), []byte("x"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := h.svc.CreateTask(ctx, domain.TaskInput{Name: "Alpha", Mode: domain.ModeSync,
+	if _, err := h.svc.CreateTask(ctx, domain.TaskInput{AllowRoot: true, Name: "Alpha", Mode: domain.ModeSync,
 		Source: domain.Location{Path: src}, Destination: domain.Location{Path: dst}}); err != nil {
 		t.Fatal(err)
 	}
@@ -646,7 +656,7 @@ func TestAStoppedSyncListsItsFilesThenRunsAnyway(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dst, "precious.txt"), []byte("x"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	task, err := h.svc.CreateTask(ctx, domain.TaskInput{Name: "Alpha", Mode: domain.ModeSync,
+	task, err := h.svc.CreateTask(ctx, domain.TaskInput{AllowRoot: true, Name: "Alpha", Mode: domain.ModeSync,
 		Source: domain.Location{Path: src}, Destination: domain.Location{Path: dst}})
 	if err != nil {
 		t.Fatal(err)

@@ -728,7 +728,16 @@ func (s *Service) Tasks(ctx context.Context) ([]domain.Task, error) {
 
 // CreateTask validates in and adds the task.
 func (s *Service) CreateTask(ctx context.Context, in domain.TaskInput) (domain.Task, error) {
-	in, err := s.validTask(ctx, "", in, false, true)
+	unlock, lockErr := s.lockMaintenance(ctx)
+	if lockErr != nil {
+		return domain.Task{}, lockErr
+	}
+	defer unlock()
+	in, err := s.prepareDestination(ctx, "", in)
+	if err != nil {
+		return domain.Task{}, err
+	}
+	in, err = s.validTask(ctx, "", in, false, true)
 	if err != nil {
 		return domain.Task{}, err
 	}
@@ -745,7 +754,16 @@ func (s *Service) CreateTask(ctx context.Context, in domain.TaskInput) (domain.T
 
 // UpdateTask validates in and changes the task with id.
 func (s *Service) UpdateTask(ctx context.Context, id string, in domain.TaskInput) (domain.Task, error) {
-	in, err := s.validTask(ctx, id, in, false, true)
+	unlock, lockErr := s.lockMaintenance(ctx)
+	if lockErr != nil {
+		return domain.Task{}, lockErr
+	}
+	defer unlock()
+	in, err := s.prepareDestination(ctx, id, in)
+	if err != nil {
+		return domain.Task{}, err
+	}
+	in, err = s.validTask(ctx, id, in, false, true)
 	if err != nil {
 		return domain.Task{}, err
 	}
@@ -812,6 +830,7 @@ func taskFrom(t domain.Task, in domain.TaskInput, now time.Time) domain.Task {
 	}
 	t.Name, t.Source, t.Destination, t.Mode, t.Schedule = in.Name, in.Source, in.Destination, in.Mode, in.Schedule
 	t.TrashDays, t.Exclude = in.TrashDays, in.Exclude
+	t.AllowRoot, t.DestinationFolder, t.DestinationPending = in.AllowRoot, in.DestinationFolder, in.DestinationPending
 	t.UpdatedAt = now
 	return t
 }
@@ -1184,6 +1203,8 @@ func (s *Service) execute(ctx context.Context, cancel context.CancelFunc, t doma
 	switch {
 	case errors.Is(err, context.Canceled):
 		run.Status = domain.StatusCanceled
+	case errors.Is(err, domain.ErrDestinationChanged):
+		run.Status, run.Problem = domain.StatusFailed, domain.RunProblemDestinationChanged
 	case errors.Is(err, engine.ErrEmptySource):
 		run.Status, run.Problem = domain.StatusFailed, domain.RunProblemEmptySource
 	case errors.Is(err, engine.ErrLargeDelete):
@@ -1349,6 +1370,20 @@ func (s *Service) transfer(ctx context.Context, t domain.Task, run domain.Run, f
 	if err != nil {
 		log.app(s.now(), "ERROR", "the destination: %v", err)
 		return engine.Progress{}, fmt.Errorf("destination: %w", err)
+	}
+	if t.DestinationPending {
+		if err := engine.InitializeDestination(ctx, dst, run.DryRun); err != nil {
+			if errors.Is(err, engine.ErrDestinationExists) {
+				return engine.Progress{}, domain.ErrDestinationChanged
+			}
+			return engine.Progress{}, err
+		}
+		if !run.DryRun {
+			if err := s.store.MarkDestinationReady(ctx, t); err != nil {
+				return engine.Progress{}, err
+			}
+			s.backupIfEnabled()
+		}
 	}
 	ex := settings.ExcludeFor(in.Exclude)
 	return engine.Run(ctx, engine.Job{

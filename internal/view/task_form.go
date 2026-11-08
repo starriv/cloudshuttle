@@ -2,27 +2,34 @@ package view
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 
 	"github.com/egoist/mygo/ui"
 	"github.com/starriv/cloudshuttle/internal/domain"
 	"github.com/starriv/cloudshuttle/internal/icons"
+	"github.com/starriv/cloudshuttle/internal/service"
 	"github.com/starriv/cloudshuttle/locales"
 )
 
 // taskForm is the dialog that adds or edits a task.
 type taskForm struct {
-	open     bool
-	id       string // the task edited, "" for a new one
-	name     string
-	source   locationField
-	dest     locationField
-	mode     int // 0 copy, 1 sync, as the segmented control shows them
-	schedule scheduleField
-	trash    int // as domain.Task.TrashDays
-	exclude  excludeField
-	problems domain.Problems
-	browser  *folderBrowser // open over the form while choosing a folder of a storage
+	generation uint64
+	open       bool
+	allowRoot  bool
+	saving     bool
+	collision  *service.DestinationExists
+	pending    domain.TaskInput
+	id         string // the task edited, "" for a new one
+	name       string
+	source     locationField
+	dest       locationField
+	mode       int // 0 copy, 1 sync, as the segmented control shows them
+	schedule   scheduleField
+	trash      int // as domain.Task.TrashDays
+	exclude    excludeField
+	problems   domain.Problems
+	browser    *folderBrowser // open over the form while choosing a folder of a storage
 	// askBackground asks, once the task is saved, whether the system may
 	// run the schedules while the app is closed: the first schedule needs
 	// the answer.
@@ -67,7 +74,7 @@ func (a *App) location(f locationField) domain.Location {
 }
 
 func (a *App) openTaskForm(task *domain.Task) {
-	f := taskForm{open: true, schedule: newScheduleField(domain.Schedule{}, a.now()), exclude: newExcludeField(domain.NewExclude())}
+	f := taskForm{generation: a.taskForm.generation + 1, open: true, schedule: newScheduleField(domain.Schedule{}, a.now()), exclude: newExcludeField(domain.NewExclude())}
 	if task == nil {
 		f.source = a.locationField(domain.Location{})
 		f.dest = a.locationField(domain.Location{})
@@ -77,8 +84,9 @@ func (a *App) openTaskForm(task *domain.Task) {
 		}
 	} else {
 		f.id, f.name, f.schedule = task.ID, task.Name, newScheduleField(task.Schedule, a.now())
-		f.source, f.dest = a.locationField(task.Source), a.locationField(task.Destination)
+		f.source, f.dest = a.locationField(task.Source), a.locationField(service.DestinationParent(*task))
 		f.trash, f.exclude = task.TrashDays, newExcludeField(task.Exclude)
+		f.allowRoot = task.AllowRoot
 		if task.Mode == domain.ModeSync {
 			f.mode = 1
 		}
@@ -90,6 +98,7 @@ func (a *App) saveTask() {
 	f := &a.taskForm
 	in := domain.TaskInput{
 		Name:        f.name,
+		AllowRoot:   f.allowRoot,
 		Source:      a.location(f.source),
 		Destination: a.location(f.dest),
 		Mode:        modes[f.mode],
@@ -97,27 +106,82 @@ func (a *App) saveTask() {
 		TrashDays:   f.trash,
 		Exclude:     f.exclude.exclude(),
 	}
-	ctx := context.Background()
-	var err error
-	if f.id == "" {
-		_, err = a.svc.CreateTask(ctx, in)
-	} else {
-		_, err = a.svc.UpdateTask(ctx, f.id, in)
-	}
-	if problems := domain.AsProblems(err); problems != nil {
-		f.problems = problems
+	a.submitTask(in)
+}
+
+// submitTask checks remote names and saves credentials off the UI thread.
+func (a *App) submitTask(in domain.TaskInput) {
+	f := &a.taskForm
+	if f.saving {
 		return
 	}
-	if err != nil {
-		a.toastError(err)
-		return
+	f.saving = true
+	f.collision = nil
+	f.pending = in
+	id := f.id
+	generation := f.generation
+	go func() {
+		ctx := context.Background()
+		var err error
+		if id == "" {
+			_, err = a.svc.CreateTask(ctx, in)
+		} else {
+			_, err = a.svc.UpdateTask(ctx, id, in)
+		}
+		a.host.Update(func() {
+			if f.generation != generation || !f.open {
+				return
+			}
+			f.saving = false
+			var collision *service.DestinationExists
+			if errors.As(err, &collision) {
+				f.collision = collision
+				return
+			}
+			if problems := domain.AsProblems(err); problems != nil {
+				f.problems = problems
+				return
+			}
+			if err != nil {
+				a.toastError(err)
+				return
+			}
+			a.toast(locales.TaskSaved())
+			if in.Schedule.On() && a.svc.SystemScheduler() && a.svc.Settings().Background == domain.ConsentUnasked {
+				f.askBackground = true
+				return
+			}
+			f.open = false
+		})
+	}()
+}
+
+func (a *App) destinationQuestion(c *ui.Context) {
+	f := &a.taskForm
+	ui.Text(c, locales.TaskDestinationExists()).FontSize(18).FontWeight(500)
+	ui.Text(c, f.collision.Path)
+	message := locales.TaskDestinationExistsHint()
+	if !f.collision.Directory {
+		message = locales.TaskDestinationFileHint()
 	}
-	a.toast(locales.TaskSaved())
-	if in.Schedule.On() && a.svc.SystemScheduler() && a.svc.Settings().Background == domain.ConsentUnasked {
-		f.askBackground = true
-		return
-	}
-	f.open = false
+	ui.Text(c, message)
+	ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
+		if ui.Button(c, locales.ButtonCancel()).Clicked() {
+			f.collision = nil
+		}
+		if f.collision != nil && f.collision.Directory {
+			if ui.Button(c, locales.TaskDestinationReuse()).Clicked() {
+				in := f.pending
+				in.DestinationChoice = "reuse"
+				a.submitTask(in)
+			}
+		}
+		if ui.PrimaryButton(c, locales.TaskDestinationUnique()).Clicked() {
+			in := f.pending
+			in.DestinationChoice = "unique"
+			a.submitTask(in)
+		}
+	})
 }
 
 // answerBackground keeps whether the system may run the schedules while
@@ -155,6 +219,10 @@ func (a *App) taskDialog(c *ui.Context) {
 	ui.Modal(c, &f.open, func() {
 		t := c.Theme()
 		ui.Column(c).Width(540).Gap(t.Space(4)).Children(func() {
+			if f.collision != nil {
+				a.destinationQuestion(c)
+				return
+			}
 			if f.browser != nil {
 				a.folderBrowserView(c)
 				return
@@ -173,29 +241,35 @@ func (a *App) taskDialog(c *ui.Context) {
 			}
 			ui.Text(c, title).FontSize(18).FontWeight(500)
 
-			ui.Form(c, func() {
-				ui.Field(c, locales.TaskFieldName(), func() {
-					ui.TextInput(c, &f.name).AutoFocus()
-				}).Error(problemText(f.problems.For(domain.FieldName)))
-				a.locationInput(c, locales.TaskFieldSource(), &f.source, domain.FieldSource)
-				a.locationInput(c, locales.TaskFieldDestination(), &f.dest, domain.FieldDestination)
-				hint := locales.ModeCopyHint()
-				if modes[f.mode] == domain.ModeSync {
-					hint = locales.ModeSyncHint()
-				}
-				ui.Field(c, locales.TaskFieldMode(), func() {
-					ui.Segmented(c, &f.mode, locales.ModeCopy(), locales.ModeSync())
-				}).Description(hint)
-				a.trashInput(c, f)
-				a.excludeInput(c, f)
-				a.scheduleInput(c, f)
+			_, height := c.Size()
+			ui.Scroll(c).MaxHeight(height - 210).Children(func() {
+				ui.Form(c, func() {
+					ui.Field(c, locales.TaskFieldName(), func() {
+						ui.TextInput(c, &f.name).AutoFocus()
+					}).Error(problemText(f.problems.For(domain.FieldName)))
+					a.locationInput(c, locales.TaskFieldSource(), &f.source, domain.FieldSource)
+					a.locationInput(c, locales.TaskFieldDestination(), &f.dest, domain.FieldDestination)
+					ui.Field(c, locales.TaskAllowRoot(), func() {
+						ui.Checkbox(c, &f.allowRoot, "").Label(locales.TaskAllowRoot())
+					}).Description(locales.TaskAllowRootHint())
+					hint := locales.ModeCopyHint()
+					if modes[f.mode] == domain.ModeSync {
+						hint = locales.ModeSyncHint()
+					}
+					ui.Field(c, locales.TaskFieldMode(), func() {
+						ui.Segmented(c, &f.mode, locales.ModeCopy(), locales.ModeSync())
+					}).Description(hint)
+					a.trashInput(c, f)
+					a.excludeInput(c, f)
+					a.scheduleInput(c, f)
+				})
 			})
 
 			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-				if ui.Button(c, locales.ButtonCancel()).Clicked() {
+				if ui.Button(c, locales.ButtonCancel()).Disabled(f.saving).Clicked() {
 					f.open = false
 				}
-				if ui.PrimaryButton(c, locales.TaskSave()).Clicked() {
+				if ui.PrimaryButton(c, locales.TaskSave()).Disabled(f.saving).Clicked() {
 					a.saveTask()
 				}
 			})

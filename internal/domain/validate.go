@@ -285,13 +285,20 @@ func validHost(h string) bool {
 
 // TaskInput is what the user enters for a task.
 type TaskInput struct {
-	Name        string
-	Source      Location
-	Destination Location
-	Mode        Mode
-	Schedule    Schedule
-	TrashDays   int // as Task.TrashDays
-	Exclude     Exclude
+	Name              string
+	Source            Location
+	Destination       Location
+	Mode              Mode
+	AllowRoot         bool
+	DestinationFolder string
+	// DestinationPending requires a fresh, unoccupied folder on the first real run.
+	DestinationPending bool
+	// DestinationChoice answers a same-name collision: empty asks, reuse
+	// uses the existing directory, unique chooses the next available name.
+	DestinationChoice string
+	Schedule          Schedule
+	TrashDays         int // as Task.TrashDays
+	Exclude           Exclude
 }
 
 // Normalize trims the input's text and cleans its paths.

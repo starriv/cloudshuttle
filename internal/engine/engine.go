@@ -10,7 +10,9 @@ import (
 	"log/slog"
 	"net"
 	"net/url"
+	"os"
 	"path"
+	"path/filepath"
 	"runtime/debug"
 	"strconv"
 	"strings"
@@ -724,4 +726,101 @@ func safeEndpoint(raw string) string {
 	}
 	u.User, u.RawQuery, u.Fragment, u.ForceQuery = nil, "", "", false
 	return u.String()
+}
+
+// DestinationEntries lists both folders and files so a proposed task folder
+// cannot collide with a file. Names are folded conservatively for NAS servers.
+// A missing parent is valid: the transfer will create it along with its child.
+func DestinationEntries(ctx context.Context, loc Location) (map[string]bool, error) {
+	// rclone intentionally omits symlinks. Collision checks must see every
+	// occupied local name, including dangling links, without following them.
+	if loc.SMB == nil && loc.S3 == nil {
+		entries, err := os.ReadDir(loc.Path)
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			return nil, err
+		}
+		names := make(map[string]bool)
+		for _, e := range entries {
+			names[strings.ToLower(e.Name())] = e.IsDir()
+		}
+		return names, nil
+	}
+	ctx = probing(ctx)
+	f, err := newDirFs(ctx, loc)
+	if err != nil {
+		return nil, classify(err)
+	}
+	defer shutdown(f)
+	entries, err := f.List(ctx, "")
+	if err != nil && !errors.Is(err, fs.ErrorDirNotFound) {
+		return nil, classify(err)
+	}
+	names := make(map[string]bool)
+	for _, e := range entries {
+		_, directory := e.(fs.Directory)
+		key := strings.ToLower(path.Base(e.Remote()))
+		if previous, exists := names[key]; !exists || previous {
+			names[key] = directory
+		}
+	}
+	return names, nil
+}
+
+// ErrDestinationExists refuses to initialize a target that became occupied.
+var ErrDestinationExists = errors.New("destination already exists")
+
+// InitializeDestination is called with the cross-process transfer slot held.
+// A preview checks occupancy but creates nothing. Local mkdir exclusively claims
+// the final component, so an existing directory or symlink can never be reused.
+func InitializeDestination(ctx context.Context, loc Location, dryRun bool) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if loc.SMB == nil && loc.S3 == nil {
+		if _, err := os.Lstat(loc.Path); err == nil {
+			return ErrDestinationExists
+		} else if !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+		if dryRun {
+			return nil
+		}
+		if err := os.MkdirAll(filepath.Dir(loc.Path), 0700); err != nil {
+			return err
+		}
+		if err := os.Mkdir(loc.Path, 0700); err != nil {
+			if errors.Is(err, os.ErrExist) {
+				return ErrDestinationExists
+			}
+			return err
+		}
+		return nil
+	}
+	parent := loc
+	parent.Path = path.Dir(loc.Path)
+	if parent.Path == "." {
+		parent.Path = ""
+	}
+	entries, err := DestinationEntries(ctx, parent)
+	if err != nil {
+		return err
+	}
+	if _, exists := entries[strings.ToLower(path.Base(loc.Path))]; exists {
+		return ErrDestinationExists
+	}
+	if dryRun {
+		return nil
+	}
+	ctx = probing(ctx)
+	f, err := newDirFs(ctx, loc)
+	if err != nil {
+		return classify(err)
+	}
+	defer shutdown(f)
+	// Listing tells S3's new backend instance that the bucket already exists;
+	// otherwise Mkdir may try to create it again. A missing SMB child is normal.
+	if _, err := f.List(ctx, ""); err != nil && !errors.Is(err, fs.ErrorDirNotFound) {
+		return classify(err)
+	}
+	return classify(f.Mkdir(ctx, ""))
 }

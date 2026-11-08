@@ -112,7 +112,7 @@ func TestNothingIsRegisteredUnasked(t *testing.T) {
 	if !app.SystemScheduler() {
 		t.Fatal("the system's scheduler is not offered")
 	}
-	if _, err := app.CreateTask(ctx, domain.TaskInput{Name: "Nightly", Source: domain.Location{Path: "/a"},
+	if _, err := app.CreateTask(ctx, domain.TaskInput{AllowRoot: true, Name: "Nightly", Source: domain.Location{Path: "/a"},
 		Destination: domain.Location{Path: "/b"}, Mode: domain.ModeCopy,
 		Schedule: domain.Schedule{Repeat: domain.RepeatDaily, Hour: 2}}); err != nil {
 		t.Fatal(err)
@@ -155,14 +155,14 @@ func TestScheduleIsRegisteredWithTheSystem(t *testing.T) {
 		t.Fatalf("background = %v with no schedule", b)
 	}
 
-	_, err := app.CreateTask(ctx, domain.TaskInput{Name: "Bad", Source: domain.Location{Path: "/a"},
+	_, err := app.CreateTask(ctx, domain.TaskInput{AllowRoot: true, Name: "Bad", Source: domain.Location{Path: "/a"},
 		Destination: domain.Location{Path: "/b"}, Mode: domain.ModeCopy,
 		Schedule: domain.Schedule{Repeat: domain.RepeatWeekly, Hour: 9}})
 	if domain.AsProblems(err).For(domain.FieldSchedule) != domain.CodeNoDays {
 		t.Fatalf("err = %v, want a weekly schedule without days refused", err)
 	}
 
-	task, err := app.CreateTask(ctx, domain.TaskInput{Name: "Evenings", Source: domain.Location{Path: "/a"},
+	task, err := app.CreateTask(ctx, domain.TaskInput{AllowRoot: true, Name: "Evenings", Source: domain.Location{Path: "/a"},
 		Destination: domain.Location{Path: "/b"}, Mode: domain.ModeCopy,
 		Schedule: domain.Schedule{Repeat: domain.RepeatWeekly, Days: domain.WeekdaysOf(time.Monday, time.Friday), Hour: 21}})
 	if err != nil {
@@ -177,7 +177,7 @@ func TestScheduleIsRegisteredWithTheSystem(t *testing.T) {
 		t.Fatalf("background = %v, %v; want the system's", b, err)
 	}
 
-	if _, err := app.UpdateTask(ctx, task.ID, domain.TaskInput{Name: task.Name, Source: task.Source,
+	if _, err := app.UpdateTask(ctx, task.ID, domain.TaskInput{AllowRoot: true, Name: task.Name, Source: task.Source,
 		Destination: task.Destination, Mode: task.Mode}); err != nil {
 		t.Fatal(err)
 	}
@@ -191,7 +191,7 @@ func TestARefusedRegistrationRunsSchedulesInTheApp(t *testing.T) {
 	ctx := context.Background()
 	reg := &fakeRegistrar{err: errors.New("Bootstrap failed: 5: Input/output error")}
 	app := openProcess(t, t.TempDir(), Options{Registrar: reg})
-	task, err := app.CreateTask(ctx, domain.TaskInput{Name: "Nightly", Mode: domain.ModeCopy,
+	task, err := app.CreateTask(ctx, domain.TaskInput{AllowRoot: true, Name: "Nightly", Mode: domain.ModeCopy,
 		Source: domain.Location{Path: t.TempDir()}, Destination: domain.Location{Path: t.TempDir()},
 		Schedule: domain.Schedule{Repeat: domain.RepeatDaily, Hour: 1}})
 	if err != nil {
@@ -284,7 +284,7 @@ func TestTheSchedulerRunsBesideTheWindow(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(src, "a.txt"), []byte("a"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	task, err := app.CreateTask(ctx, domain.TaskInput{Name: "Nightly", Mode: domain.ModeCopy,
+	task, err := app.CreateTask(ctx, domain.TaskInput{AllowRoot: true, Name: "Nightly", Mode: domain.ModeCopy,
 		Source: domain.Location{Path: src}, Destination: domain.Location{Path: t.TempDir()},
 		Schedule: domain.Schedule{Repeat: domain.RepeatDaily, Hour: 2}})
 	if err != nil {
@@ -422,7 +422,7 @@ func TestAScheduledRunThatCannotStartIsTold(t *testing.T) {
 	s.onRefused = func(task domain.Task, err error) { told, toldErr = task, err }
 
 	dst := t.TempDir()
-	a, err := s.CreateTask(ctx, domain.TaskInput{Name: "A", Mode: domain.ModeSync,
+	a, err := s.CreateTask(ctx, domain.TaskInput{AllowRoot: true, Name: "A", Mode: domain.ModeSync,
 		Source: domain.Location{Path: t.TempDir()}, Destination: domain.Location{Path: dst}})
 	if err != nil {
 		t.Fatal(err)

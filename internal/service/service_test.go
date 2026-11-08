@@ -133,7 +133,7 @@ func TestRunRecordsHistory(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	task, err := s.CreateTask(ctx, domain.TaskInput{Name: "Local", Source: domain.Location{Path: src},
+	task, err := s.CreateTask(ctx, domain.TaskInput{AllowRoot: true, Name: "Local", Source: domain.Location{Path: src},
 		Destination: domain.Location{Path: dst}, Mode: domain.ModeCopy})
 	if err != nil {
 		t.Fatal(err)
@@ -170,7 +170,7 @@ func TestRunFailsWithoutSecret(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	task, err := s.CreateTask(ctx, domain.TaskInput{Name: "Up", Source: domain.Location{Path: t.TempDir()},
+	task, err := s.CreateTask(ctx, domain.TaskInput{AllowRoot: true, Name: "Up", Source: domain.Location{Path: t.TempDir()},
 		Destination: domain.Location{StorageID: st.ID, Path: "x"}, Mode: domain.ModeCopy})
 	if err != nil {
 		t.Fatal(err)
@@ -203,7 +203,7 @@ func TestRunLog(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(src, "a.txt"), []byte("alpha"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	task, err := s.CreateTask(ctx, domain.TaskInput{Name: "Local", Source: domain.Location{Path: src},
+	task, err := s.CreateTask(ctx, domain.TaskInput{AllowRoot: true, Name: "Local", Source: domain.Location{Path: src},
 		Destination: domain.Location{Path: t.TempDir()}, Mode: domain.ModeSync})
 	if err != nil {
 		t.Fatal(err)
@@ -302,7 +302,7 @@ func TestTaskOnASMBServerNamesAShare(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	in := domain.TaskInput{Name: "Photos", Mode: domain.ModeCopy,
+	in := domain.TaskInput{AllowRoot: true, Name: "Photos", Mode: domain.ModeCopy,
 		Source: domain.Location{Path: "/Users/me/Pictures"}, Destination: domain.Location{StorageID: st.ID}}
 	if _, err := s.CreateTask(ctx, in); domain.AsProblems(err).For(domain.FieldDestination) != domain.CodeShareRequired {
 		t.Fatalf("a task at the top of the server: %v, want a share required", err)
@@ -333,7 +333,7 @@ func TestSecretsReadOnce(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.CreateTask(ctx, domain.TaskInput{Name: "Nightly", Mode: domain.ModeCopy, Schedule: domain.Schedule{Repeat: domain.RepeatDaily, Hour: 3},
+	if _, err := s.CreateTask(ctx, domain.TaskInput{AllowRoot: true, Name: "Nightly", Mode: domain.ModeCopy, Schedule: domain.Schedule{Repeat: domain.RepeatDaily, Hour: 3},
 		Source: domain.Location{Path: "/Users/me/Pictures"}, Destination: domain.Location{StorageID: st.ID, Path: "Photos"}}); err != nil {
 		t.Fatal(err)
 	}
@@ -437,7 +437,7 @@ func TestSyncDestinationsProtected(t *testing.T) {
 	}
 	src := domain.Location{StorageID: storage.ID, Path: "photos"}
 	mk := func(dest domain.Location) error {
-		_, err := s.CreateTask(ctx, domain.TaskInput{Name: "Backup", Mode: domain.ModeSync,
+		_, err := s.CreateTask(ctx, domain.TaskInput{AllowRoot: true, Name: "Backup", Mode: domain.ModeSync,
 			Source: src, Destination: dest})
 		return err
 	}
@@ -448,11 +448,11 @@ func TestSyncDestinationsProtected(t *testing.T) {
 	}
 	// A copy deletes nothing, so the home folder is a destination it may
 	// use; the app's own data is not, either way.
-	if _, err := s.CreateTask(ctx, domain.TaskInput{Name: "Copy", Mode: domain.ModeCopy,
+	if _, err := s.CreateTask(ctx, domain.TaskInput{AllowRoot: true, Name: "Copy", Mode: domain.ModeCopy,
 		Source: src, Destination: domain.Location{Path: home}}); err != nil {
 		t.Errorf("a copy into the home folder: %v", err)
 	}
-	if _, err := s.CreateTask(ctx, domain.TaskInput{Name: "Copy data", Mode: domain.ModeCopy,
+	if _, err := s.CreateTask(ctx, domain.TaskInput{AllowRoot: true, Name: "Copy data", Mode: domain.ModeCopy,
 		Source: src, Destination: domain.Location{Path: data}}); domain.AsProblems(err).For(domain.FieldDestination) != domain.CodeForbiddenDestination {
 		t.Errorf("a copy into the data folder: %v, want it forbidden", err)
 	}
@@ -464,7 +464,7 @@ func TestOneDestinationTwoTasks(t *testing.T) {
 	src := t.TempDir()
 	dst := t.TempDir()
 	sub := filepath.Join(dst, "2024")
-	if _, err := s.CreateTask(ctx, domain.TaskInput{Name: "A", Mode: domain.ModeSync,
+	if _, err := s.CreateTask(ctx, domain.TaskInput{AllowRoot: true, Name: "A", Mode: domain.ModeSync,
 		Source: domain.Location{Path: src}, Destination: domain.Location{Path: dst}}); err != nil {
 		t.Fatal(err)
 	}
@@ -480,7 +480,7 @@ func TestOneDestinationTwoTasks(t *testing.T) {
 		{"E", domain.ModeCopy, t.TempDir(), domain.Code("")},
 	} {
 		got := domain.AsProblems((func() error {
-			_, err := s.CreateTask(ctx, domain.TaskInput{Name: c.name, Mode: c.mode,
+			_, err := s.CreateTask(ctx, domain.TaskInput{AllowRoot: true, Name: c.name, Mode: c.mode,
 				Source: domain.Location{Path: src}, Destination: domain.Location{Path: c.path}})
 			return err
 		})()).For(domain.FieldDestination)
@@ -497,7 +497,7 @@ func TestSyncRunStopsOnAnEmptySource(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dst, "precious.txt"), []byte("x"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	task, err := s.CreateTask(ctx, domain.TaskInput{Name: "Nightly", Mode: domain.ModeSync,
+	task, err := s.CreateTask(ctx, domain.TaskInput{AllowRoot: true, Name: "Nightly", Mode: domain.ModeSync,
 		Source: domain.Location{Path: src}, Destination: domain.Location{Path: dst}})
 	if err != nil {
 		t.Fatal(err)
@@ -569,7 +569,7 @@ func TestSyncWithoutTheTrashDeletes(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dst, "gone.txt"), []byte("x"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	task, err := s.CreateTask(ctx, domain.TaskInput{Name: "No trash", Mode: domain.ModeSync,
+	task, err := s.CreateTask(ctx, domain.TaskInput{AllowRoot: true, Name: "No trash", Mode: domain.ModeSync,
 		Source: domain.Location{Path: src}, Destination: domain.Location{Path: dst}})
 	if err != nil {
 		t.Fatal(err)
@@ -632,7 +632,7 @@ func TestOneDestinationTwoRunningTasks(t *testing.T) {
 	ctx := context.Background()
 	s, _, done := newService(t)
 	src, dst := t.TempDir(), t.TempDir()
-	a, err := s.CreateTask(ctx, domain.TaskInput{Name: "A", Mode: domain.ModeSync,
+	a, err := s.CreateTask(ctx, domain.TaskInput{AllowRoot: true, Name: "A", Mode: domain.ModeSync,
 		Source: domain.Location{Path: src}, Destination: domain.Location{Path: dst}})
 	if err != nil {
 		t.Fatal(err)
@@ -680,7 +680,7 @@ func TestRunsTakeTurns(t *testing.T) {
 	t.Cleanup(func() { beforeRun = old })
 
 	mk := func(name string) domain.Task {
-		task, err := s.CreateTask(ctx, domain.TaskInput{Name: name, Mode: domain.ModeCopy,
+		task, err := s.CreateTask(ctx, domain.TaskInput{AllowRoot: true, Name: name, Mode: domain.ModeCopy,
 			Source: domain.Location{Path: t.TempDir()}, Destination: domain.Location{Path: t.TempDir()}})
 		if err != nil {
 			t.Fatal(err)
@@ -720,7 +720,7 @@ func TestAPanicEndsTheRun(t *testing.T) {
 	beforeRun = func() { panic("boom") }
 	t.Cleanup(func() { beforeRun = old })
 
-	task, err := s.CreateTask(ctx, domain.TaskInput{Name: "Crash", Mode: domain.ModeCopy,
+	task, err := s.CreateTask(ctx, domain.TaskInput{AllowRoot: true, Name: "Crash", Mode: domain.ModeCopy,
 		Source: domain.Location{Path: t.TempDir()}, Destination: domain.Location{Path: t.TempDir()}})
 	if err != nil {
 		t.Fatal(err)
@@ -820,7 +820,7 @@ func TestATaskChoosesItsTrash(t *testing.T) {
 			if err := os.WriteFile(filepath.Join(dst, "a.txt"), []byte("old"), 0o644); err != nil {
 				t.Fatal(err)
 			}
-			task, err := s.CreateTask(ctx, domain.TaskInput{Name: "T", Mode: c.mode, TrashDays: c.task,
+			task, err := s.CreateTask(ctx, domain.TaskInput{AllowRoot: true, Name: "T", Mode: c.mode, TrashDays: c.task,
 				Source: domain.Location{Path: src}, Destination: domain.Location{Path: dst}})
 			if err != nil {
 				t.Fatal(err)
@@ -842,7 +842,7 @@ func TestATaskChoosesItsTrash(t *testing.T) {
 		})
 	}
 	s, _, _ := newService(t)
-	in := domain.TaskInput{Name: "Bad", Mode: domain.ModeCopy, TrashDays: -5,
+	in := domain.TaskInput{AllowRoot: true, Name: "Bad", Mode: domain.ModeCopy, TrashDays: -5,
 		Source: domain.Location{Path: t.TempDir()}, Destination: domain.Location{Path: t.TempDir()}}
 	if _, err := s.CreateTask(ctx, in); domain.AsProblems(err).For(domain.FieldTrash) != domain.CodeOutOfRange {
 		t.Fatalf("bad trash days: %v", err)
@@ -858,7 +858,7 @@ func TestATaskLeavesOutWhatItExcludes(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	in := domain.TaskInput{Name: "T", Mode: domain.ModeCopy,
+	in := domain.TaskInput{AllowRoot: true, Name: "T", Mode: domain.ModeCopy,
 		Source: domain.Location{Path: src}, Destination: domain.Location{Path: dst},
 		Exclude: domain.Exclude{Patterns: []string{" .DS_Store ", "", ".DS_Store"}, MaxSize: 5}}
 	task, err := s.CreateTask(ctx, in)
@@ -910,7 +910,7 @@ func TestTheSettingsLeaveOutDevelopmentDependencies(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	task, err := s.CreateTask(ctx, domain.TaskInput{Name: "Projects", Mode: domain.ModeCopy,
+	task, err := s.CreateTask(ctx, domain.TaskInput{AllowRoot: true, Name: "Projects", Mode: domain.ModeCopy,
 		Source: domain.Location{Path: src}, Destination: domain.Location{Path: dst}})
 	if err != nil {
 		t.Fatal(err)
@@ -975,7 +975,7 @@ func TestTheSettingsGlobalExcludesAreEditable(t *testing.T) {
 	if _, err := s.SaveSettings(ctx, settings); err != nil {
 		t.Fatal(err)
 	}
-	task, err := s.CreateTask(ctx, domain.TaskInput{Name: "Projects", Mode: domain.ModeCopy,
+	task, err := s.CreateTask(ctx, domain.TaskInput{AllowRoot: true, Name: "Projects", Mode: domain.ModeCopy,
 		Source: domain.Location{Path: src}, Destination: domain.Location{Path: dst}})
 	if err != nil {
 		t.Fatal(err)
@@ -1047,7 +1047,7 @@ func TestTheGlobalExclusionsApplyToSync(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(src, "keep.txt"), []byte("keep"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	task, err := s.CreateTask(ctx, domain.TaskInput{Name: "Projects", Mode: domain.ModeSync,
+	task, err := s.CreateTask(ctx, domain.TaskInput{AllowRoot: true, Name: "Projects", Mode: domain.ModeSync,
 		Source: domain.Location{Path: src}, Destination: domain.Location{Path: dst}})
 	if err != nil {
 		t.Fatal(err)

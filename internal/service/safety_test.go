@@ -24,7 +24,7 @@ func TestProtectedDestinationThroughSymlink(t *testing.T) {
 		t.Fatal(err)
 	}
 	src := t.TempDir()
-	in := domain.TaskInput{Name: "alias", Source: domain.Location{Path: src}, Destination: domain.Location{Path: alias}, Mode: domain.ModeSync}
+	in := domain.TaskInput{AllowRoot: true, Name: "alias", Source: domain.Location{Path: src}, Destination: domain.Location{Path: alias}, Mode: domain.ModeSync}
 	for _, dest := range []string{alias, filepath.Join(alias, "not-created")} {
 		in.Destination.Path = dest
 		if _, err := s.CreateTask(context.Background(), in); domain.AsProblems(err).For(domain.FieldDestination) != domain.CodeForbiddenDestination {
@@ -60,13 +60,13 @@ func TestRealPathAndAliasOverlap(t *testing.T) {
 	if err := os.Symlink(base, alias); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.CreateTask(ctx, domain.TaskInput{Name: "same", Mode: domain.ModeCopy, Source: domain.Location{Path: base}, Destination: domain.Location{Path: alias}}); domain.AsProblems(err).For(domain.FieldDestination) != domain.CodeSameLocation {
+	if _, err := s.CreateTask(ctx, domain.TaskInput{AllowRoot: true, Name: "same", Mode: domain.ModeCopy, Source: domain.Location{Path: base}, Destination: domain.Location{Path: alias}}); domain.AsProblems(err).For(domain.FieldDestination) != domain.CodeSameLocation {
 		t.Fatalf("same location: %v", err)
 	}
-	if _, err := s.CreateTask(ctx, domain.TaskInput{Name: "first", Mode: domain.ModeSync, Source: domain.Location{Path: t.TempDir()}, Destination: domain.Location{Path: base}}); err != nil {
+	if _, err := s.CreateTask(ctx, domain.TaskInput{AllowRoot: true, Name: "first", Mode: domain.ModeSync, Source: domain.Location{Path: t.TempDir()}, Destination: domain.Location{Path: base}}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.CreateTask(ctx, domain.TaskInput{Name: "second", Mode: domain.ModeCopy, Source: domain.Location{Path: t.TempDir()}, Destination: domain.Location{Path: filepath.Join(alias, "new")}}); domain.AsProblems(err).For(domain.FieldDestination) != domain.CodeSharedDestination {
+	if _, err := s.CreateTask(ctx, domain.TaskInput{AllowRoot: true, Name: "second", Mode: domain.ModeCopy, Source: domain.Location{Path: t.TempDir()}, Destination: domain.Location{Path: filepath.Join(alias, "new")}}); domain.AsProblems(err).For(domain.FieldDestination) != domain.CodeSharedDestination {
 		t.Fatalf("alias overlap: %v", err)
 	}
 	dangling := filepath.Join(t.TempDir(), "dangling")
@@ -86,7 +86,7 @@ func TestOrphanCleanupKeepsOwnActiveRun(t *testing.T) {
 	old := beforeRun
 	beforeRun = func() { close(entered); <-gate }
 	defer func() { beforeRun = old }()
-	task, err := s.CreateTask(ctx, domain.TaskInput{Name: "live", Source: domain.Location{Path: t.TempDir()}, Destination: domain.Location{Path: t.TempDir()}, Mode: domain.ModeCopy})
+	task, err := s.CreateTask(ctx, domain.TaskInput{AllowRoot: true, Name: "live", Source: domain.Location{Path: t.TempDir()}, Destination: domain.Location{Path: t.TempDir()}, Mode: domain.ModeCopy})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -111,7 +111,7 @@ func TestRunDueCancellationReachesQueuedRun(t *testing.T) {
 	now := time.Date(2026, 11, 3, 12, 0, 0, 0, time.UTC)
 	p := openProcess(t, t.TempDir(), Options{Owner: OwnerScheduler, Now: func() time.Time { return now }})
 	ctx := context.Background()
-	task, err := p.CreateTask(ctx, domain.TaskInput{Name: "due", Source: domain.Location{Path: t.TempDir()}, Destination: domain.Location{Path: t.TempDir()}, Mode: domain.ModeCopy, Schedule: domain.Schedule{Repeat: domain.RepeatHourly, Every: 1}})
+	task, err := p.CreateTask(ctx, domain.TaskInput{AllowRoot: true, Name: "due", Source: domain.Location{Path: t.TempDir()}, Destination: domain.Location{Path: t.TempDir()}, Mode: domain.ModeCopy, Schedule: domain.Schedule{Repeat: domain.RepeatHourly, Every: 1}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -167,7 +167,7 @@ func TestMaintenanceLockSerializesProcesses(t *testing.T) {
 	app := openProcess(t, dir, Options{})
 	scheduler := openProcess(t, dir, Options{Owner: OwnerScheduler})
 	ctx := context.Background()
-	task, err := app.CreateTask(ctx, domain.TaskInput{Name: "test", Source: domain.Location{Path: t.TempDir()}, Destination: domain.Location{Path: t.TempDir()}, Mode: domain.ModeCopy})
+	task, err := app.CreateTask(ctx, domain.TaskInput{AllowRoot: true, Name: "test", Source: domain.Location{Path: t.TempDir()}, Destination: domain.Location{Path: t.TempDir()}, Mode: domain.ModeCopy})
 	if err != nil {
 		t.Fatal(err)
 	}

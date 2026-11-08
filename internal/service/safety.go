@@ -84,6 +84,9 @@ func resolveTask(in domain.TaskInput) (domain.TaskInput, error) {
 		if err != nil {
 			return in, err
 		}
+		if l == &in.Destination && !in.AllowRoot && in.DestinationFolder != "" && !sameFolder(l.Path, path) {
+			return in, domain.Problems{{Field: domain.FieldDestination, Code: domain.CodeForbiddenDestination}}
+		}
 		l.Path = path
 	}
 	return in, nil
@@ -91,5 +94,5 @@ func resolveTask(in domain.TaskInput) (domain.TaskInput, error) {
 
 func taskInput(t domain.Task) domain.TaskInput {
 	return domain.TaskInput{Name: t.Name, Source: t.Source, Destination: t.Destination, Mode: t.Mode,
-		Schedule: t.Schedule, TrashDays: t.TrashDays, Exclude: t.Exclude}
+		Schedule: t.Schedule, TrashDays: t.TrashDays, Exclude: t.Exclude, AllowRoot: t.AllowRoot, DestinationFolder: t.DestinationFolder, DestinationPending: t.DestinationPending}
 }

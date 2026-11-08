@@ -163,6 +163,8 @@ func problemText(code domain.Code) string {
 // person to read beside the run's technical message.
 func runProblemText(problem string) string {
 	switch problem {
+	case domain.RunProblemDestinationChanged:
+		return locales.RunProblemDestinationChanged()
 	case domain.RunProblemEmptySource:
 		return locales.RunProblemEmptySource()
 	case domain.RunProblemLargeDelete:

@@ -509,5 +509,13 @@
   "trayInstallUpdate": "安装更新 {version}",
   "trayRestartUpdate": "重启以完成更新",
   "notifyUpdateTitle": "云梭 {version} 可用",
-  "notifyUpdateBody": "点按查看更新内容并安装。"
+  "notifyUpdateBody": "点按查看更新内容并安装。",
+  "taskAllowRoot": "允许直接备份到所选目标根目录",
+  "taskAllowRootHint": "默认关闭。在目标下使用来源同名文件夹；同名时可选择覆盖或新建编号文件夹。",
+  "taskDestinationExists": "目标名称已存在",
+  "taskDestinationExistsHint": "使用此文件夹会更新同名文件；同步还可能删除多余文件。也可新建编号文件夹。后续运行会继续使用选定的文件夹。",
+  "taskDestinationFileHint": "此名称已被文件占用，请新建编号文件夹。",
+  "taskDestinationReuse": "使用现有文件夹（允许覆盖）",
+  "taskDestinationUnique": "新建编号文件夹",
+  "runProblemDestinationChanged": "首次传输前，目标名称已被占用。本次未修改文件。请编辑并保存任务，确认使用现有文件夹或新建编号文件夹。"
 }
