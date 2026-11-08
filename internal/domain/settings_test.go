@@ -6,6 +6,26 @@ import (
 	"testing"
 )
 
+// The app starts with its icon in the menu bar alone, as every version
+// before the setting did; a value the app does not offer is refused.
+func TestTheAppIconIsInTheMenuBarUnlessChosen(t *testing.T) {
+	if got := DefaultSettings().AppIcon; got != AppIconMenuBar {
+		t.Errorf("the default app icon is %v, want the menu bar alone", got)
+	}
+	for _, icon := range []AppIcon{AppIconDockAndMenuBar, AppIconDock, AppIconMenuBar} {
+		s := DefaultSettings()
+		s.AppIcon = icon
+		if err := s.Validate(); err != nil {
+			t.Errorf("icon %v: %v", icon, err)
+		}
+	}
+	s := DefaultSettings()
+	s.AppIcon = AppIconMenuBar + 1
+	if code := AsProblems(s.Validate()).For(FieldSettings); code != CodeOutOfRange {
+		t.Errorf("an icon the app does not offer: %q, want %q", code, CodeOutOfRange)
+	}
+}
+
 // A new database starts with the built-in folders, which the person can
 // then edit; the default must hold its own copy of the list.
 func TestTheDefaultsLeaveOutTheDevelopmentDependencies(t *testing.T) {

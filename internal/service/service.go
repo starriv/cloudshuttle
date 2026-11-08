@@ -56,6 +56,11 @@ type Options struct {
 	// that failed, which the person asked to be told about: one of the
 	// window's, or one the scheduler ran, as soon as the window sees it.
 	OnNotify func(domain.Run)
+	// OnStale is called, in the window, from any goroutine, with a
+	// scheduled task that has not succeeded for the configured days, and
+	// when it last succeeded (zero when it never has), which the person
+	// asked to be told about.
+	OnStale func(domain.Task, time.Time, int)
 	// OnRefused is called, from any goroutine, when a scheduled run the
 	// window starts cannot start because another task is writing to its
 	// destination. The run is not recorded: nothing started.
@@ -100,6 +105,7 @@ type Service struct {
 	onProgress func()
 	onDone     func(domain.Run)
 	onNotify   func(domain.Run)
+	onStale    func(domain.Task, time.Time, int)
 	onRefused  func(domain.Task, error)
 	owner      string
 	registrar  Registrar
@@ -170,6 +176,7 @@ func New(opts Options) *Service {
 		onProgress:  opts.OnProgress,
 		onDone:      opts.OnRunFinished,
 		onNotify:    opts.OnNotify,
+		onStale:     opts.OnStale,
 		onRefused:   opts.OnRefused,
 		owner:       opts.Owner,
 		registrar:   opts.Registrar,
@@ -203,6 +210,9 @@ func New(opts Options) *Service {
 	}
 	if s.onNotify == nil {
 		s.onNotify = func(domain.Run) {}
+	}
+	if s.onStale == nil {
+		s.onStale = func(domain.Task, time.Time, int) {}
 	}
 	if s.onRefused == nil {
 		s.onRefused = func(domain.Task, error) {}
@@ -344,11 +354,17 @@ func (s *Service) SaveSettings(ctx context.Context, st domain.Settings) (domain.
 		return st, err
 	}
 	s.settingsMu.Lock()
-	background := s.settings.Background != st.Background
+	previous := s.settings
+	background := previous.Background != st.Background
 	s.settings = st
 	s.settingsMu.Unlock()
 	if background {
 		s.requestSync()
+	}
+	if st.NotifyStale && (!previous.NotifyStale || st.StaleDays < previous.StaleDays) {
+		// Turning it on, or shortening the wait, may make a task stale at
+		// once; do not wait for the next periodic check.
+		s.goBackground(func() { s.tellStale(s.ctx) })
 	}
 	s.onChange()
 	s.goBackground(func() { s.pruneRuns(s.ctx) })
@@ -361,6 +377,15 @@ func (s *Service) SaveSettings(ctx context.Context, st domain.Settings) (domain.
 func (s *Service) SetAppearance(ctx context.Context, a domain.Appearance) error {
 	st := s.Settings()
 	st.Appearance = a
+	_, err := s.SaveSettings(ctx, st)
+	return err
+}
+
+// SetAppIcon keeps where the app shows its icon, and nothing else of the
+// settings, for the same reason.
+func (s *Service) SetAppIcon(ctx context.Context, icon domain.AppIcon) error {
+	st := s.Settings()
+	st.AppIcon = icon
 	_, err := s.SaveSettings(ctx, st)
 	return err
 }
@@ -1202,6 +1227,14 @@ func (s *Service) recordRun(ctx context.Context, a *activeRun, run domain.Run, s
 	}
 	if err := retryRecord(func() error { return s.store.FinishRun(record, run) }); err != nil {
 		slog.Error("record run", "run", run.ID, "err", err)
+	}
+	if run.Status == domain.StatusSuccess && !run.DryRun {
+		if err := retryRecord(func() error { return s.store.MarkTaskSuccess(record, run.TaskID, run.StartedAt) }); err != nil {
+			slog.Error("record the last success", "run", run.ID, "err", err)
+		}
+		if err := retryRecord(func() error { return s.store.ClearStaleNotice(record, run.TaskID) }); err != nil {
+			slog.Error("clear the stale notice", "run", run.ID, "err", err)
+		}
 	}
 	if run.Status == domain.StatusFailed {
 		slog.Warn("run failed", "task", run.TaskName, "run", run.ID, "trigger", run.Trigger, "err", run.Message)

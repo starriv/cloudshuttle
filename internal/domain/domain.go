@@ -174,9 +174,13 @@ type Task struct {
 	// settings', TrashOff keeps none, and more is that many days.
 	TrashDays int
 	// Exclude is what the task's runs leave out, on both sides.
-	Exclude   Exclude
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	Exclude Exclude
+	// LastSuccessAt is when the task last finished a real run that
+	// succeeded, for the long-without-success notice; zero when it has
+	// not in the history the app keeps.
+	LastSuccessAt time.Time
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
 }
 
 // Exclude is what a task leaves out: a file it matches is neither copied

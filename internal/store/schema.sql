@@ -39,8 +39,19 @@ CREATE TABLE IF NOT EXISTS tasks (
     -- the largest file in bytes, 0 for any.
     excludes            TEXT NOT NULL DEFAULT '[]',
     max_size            INTEGER NOT NULL DEFAULT 0,
+    -- When the task last finished a real run that succeeded.
+    last_success_at     INTEGER NOT NULL DEFAULT 0,
     created_at          INTEGER NOT NULL,
     updated_at          INTEGER NOT NULL
+);
+
+-- What the app has told about a scheduled task that has not succeeded for
+-- a while, so the window and the scheduler agree and a restart does not
+-- repeat it. pending marks a notice the scheduler left for the window.
+CREATE TABLE IF NOT EXISTS stale_notices (
+    task_id  TEXT PRIMARY KEY,
+    told_at  INTEGER NOT NULL,
+    pending  INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS runs (
@@ -87,10 +98,13 @@ CREATE TABLE IF NOT EXISTS settings (
     bandwidth_mbps INTEGER NOT NULL,
     notify_failed  INTEGER NOT NULL,
     notify_skipped INTEGER NOT NULL,
+    notify_stale   INTEGER NOT NULL DEFAULT 1,
+    stale_days     INTEGER NOT NULL DEFAULT 7,
     retention_days INTEGER NOT NULL,
     backup_icloud  INTEGER NOT NULL DEFAULT 0,
     background     INTEGER NOT NULL DEFAULT 0, -- domain.Consent
     appearance     INTEGER NOT NULL DEFAULT 0, -- domain.Appearance
+    app_icon       INTEGER NOT NULL DEFAULT 2, -- domain.AppIcon: the menu bar alone, as before the setting
     check_updates  INTEGER NOT NULL DEFAULT 1,
     install_updates INTEGER NOT NULL DEFAULT 0,
     trash_days     INTEGER NOT NULL DEFAULT 30,

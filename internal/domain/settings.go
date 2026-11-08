@@ -13,6 +13,13 @@ type Settings struct {
 	BandwidthMBps int // the cap for a run in MB/s, 0 for none
 	NotifyFailed  bool
 	NotifySkipped bool
+	// NotifyStale tells the person when a scheduled task has not
+	// succeeded for StaleDays; it never tells about a task that runs only
+	// by hand.
+	NotifyStale bool
+	// StaleDays is how many days a scheduled task may go without a
+	// success before that notice, 1 to 365.
+	StaleDays     int
 	RetentionDays int // days of run history to keep, 0 for good
 	// TrashDays is how long a run keeps the files it deletes or replaces,
 	// in a trash folder of its destination, for the tasks that follow the
@@ -26,6 +33,11 @@ type Settings struct {
 	Background Consent
 	// Appearance is light, dark, or the system's.
 	Appearance Appearance
+	// AppIcon is where the app shows its icon besides its window: the
+	// Dock, the menu bar, or both. The app's bundle carries no Dock icon
+	// (LSUIElement), so the window process applies it at startup; other
+	// systems keep their taskbar entry and notification-area icon.
+	AppIcon AppIcon
 	// CheckUpdates lets the app check for a newer version on its own;
 	// InstallUpdates lets it then download it and restart into it, when
 	// no task runs and its window is closed.
@@ -48,6 +60,22 @@ const (
 	AppearanceSystem Appearance = iota
 	AppearanceLight
 	AppearanceDark
+)
+
+// AppIcon is where the app shows itself besides its window: in the Dock,
+// in the menu bar (its status menu), or both. Either way closing the window
+// keeps the app running, and the icon it leaves behind opens the window
+// again.
+type AppIcon int
+
+const (
+	// AppIconDockAndMenuBar shows the app in both places.
+	AppIconDockAndMenuBar AppIcon = iota
+	// AppIconDock shows the app in the Dock alone.
+	AppIconDock
+	// AppIconMenuBar shows the app in the menu bar alone, without a Dock
+	// icon: how every version before the setting started.
+	AppIconMenuBar
 )
 
 // Consent is the person's answer to a question the app must ask before it
@@ -74,9 +102,12 @@ func DefaultSettings() Settings {
 		BandwidthMBps:  0,
 		NotifyFailed:   true,
 		NotifySkipped:  true,
+		NotifyStale:    true,
+		StaleDays:      7,
 		RetentionDays:  90,
 		TrashDays:      30,
 		BackupICloud:   false,
+		AppIcon:        AppIconMenuBar,
 		CheckUpdates:   true,
 		ExcludeEnabled: true,
 		GlobalExcludes: slices.Clone(DevDependencyExcludes),
@@ -120,7 +151,9 @@ func (s Settings) Validate() error {
 	add(s.BandwidthMBps < 0 || s.BandwidthMBps > 1000)
 	add(s.RetentionDays < 0 || s.RetentionDays > 3650)
 	add(s.TrashDays < 0 || s.TrashDays > 3650)
+	add(s.StaleDays < 1 || s.StaleDays > 365)
 	add(s.Appearance < AppearanceSystem || s.Appearance > AppearanceDark)
+	add(s.AppIcon < AppIconDockAndMenuBar || s.AppIcon > AppIconMenuBar)
 	if code := (Exclude{Patterns: s.GlobalExcludes}).Validate(); code != "" {
 		p = append(p, Problem{FieldGlobalExclude, code})
 	}

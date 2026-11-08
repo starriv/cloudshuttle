@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -56,6 +57,7 @@ type testHost struct {
 	folder   string
 	settings int // how many times the background settings were opened
 	shown    []domain.Appearance
+	icons    []domain.AppIcon
 }
 
 func (h *testHost) Update(fn func())                  { h.updates <- fn }
@@ -63,6 +65,7 @@ func (h *testHost) ChooseFolder() (string, error)     { return h.folder, nil }
 func (h *testHost) OpenBackgroundSettings()           { h.settings++ }
 func (h *testHost) ChooseFile(string) (string, error) { return h.folder, nil }
 func (h *testHost) SetAppearance(a domain.Appearance) { h.shown = append(h.shown, a) }
+func (h *testHost) SetAppIcon(icon domain.AppIcon)    { h.icons = append(h.icons, icon) }
 
 type harness struct {
 	t    *testing.T
@@ -849,6 +852,27 @@ func TestTheExcludeEditorsRefuseTooManyRules(t *testing.T) {
 	h.click(locales.ButtonCancel())
 }
 
+func TestTheSettingsKeepTheStaleNotify(t *testing.T) {
+	h := newHarness(t)
+	h.click(locales.NavSettings())
+	if !h.app.settingsForm.notifyStale || h.app.settingsForm.staleDays != locales.SettingsStaleDaysValue(7) {
+		t.Fatalf("stale notify at start = %v %q", h.app.settingsForm.notifyStale, h.app.settingsForm.staleDays)
+	}
+	h.app.settingsForm.notifyStale = false
+	h.app.settingsForm.staleDays = locales.SettingsStaleDaysValue(14)
+	h.app.saveSettings()
+	h.waitFor("the stale settings to save", func() bool {
+		st := h.svc.Settings()
+		return !st.NotifyStale && st.StaleDays == 14
+	})
+	h.app.settingsForm.loaded = false
+	h.app.Reload()
+	h.click(locales.NavSettings())
+	if h.app.settingsForm.notifyStale || h.app.settingsForm.staleDays != locales.SettingsStaleDaysValue(14) {
+		t.Fatalf("stale notify after reload = %v %q", h.app.settingsForm.notifyStale, h.app.settingsForm.staleDays)
+	}
+}
+
 func TestDefaultStorageName(t *testing.T) {
 	a := &App{storages: []domain.Storage{
 		{ID: "1", Name: "MinIO"},
@@ -914,6 +938,39 @@ func TestChoosingAnAppearanceShowsAndKeepsIt(t *testing.T) {
 	h.app.Reload()
 	if len(h.host.shown) != n {
 		t.Fatalf("shown again on reload: %v", h.host.shown)
+	}
+}
+
+func TestChoosingAnAppIconShowsAndKeepsIt(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("only macOS has a Dock to put the icon in")
+	}
+	h := newHarness(t)
+	if len(h.host.icons) != 1 || h.host.icons[0] != domain.AppIconMenuBar {
+		t.Fatalf("shown at start = %v, want the menu bar alone", h.host.icons)
+	}
+	h.click(locales.NavSettings())
+	h.expect(locales.SettingsAppIcon())
+	// An unsaved change of the page stays unsaved.
+	h.app.settingsForm.transfers = "2"
+	// The select shows the mode in force; opening it offers the others.
+	h.click(locales.SettingsAppIconMenuBar())
+	h.settle()
+	h.click(locales.SettingsAppIconDock())
+	h.settle()
+	if got := h.host.icons[len(h.host.icons)-1]; got != domain.AppIconDock {
+		t.Fatalf("shown = %v, want the Dock", got)
+	}
+	h.waitFor("the save", func() bool { return h.svc.Settings().AppIcon == domain.AppIconDock })
+	h.expect(locales.SettingsAppIconDockHint())
+	if got := h.svc.Settings().Transfers; got != domain.DefaultSettings().Transfers {
+		t.Fatalf("transfers = %d, saved with the icon", got)
+	}
+	// A reload, as after any change, shows it no more than once.
+	n := len(h.host.icons)
+	h.app.Reload()
+	if len(h.host.icons) != n {
+		t.Fatalf("shown again on reload: %v", h.host.icons)
 	}
 }
 

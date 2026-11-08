@@ -2,6 +2,9 @@ package main
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/egoist/mygo"
@@ -24,6 +27,101 @@ func TestFirstRunOpensTheWindow(t *testing.T) {
 	}
 	if firstRun(view.Snapshot{TaskErr: errors.New("unreadable")}) || firstRun(view.Snapshot{StorageErr: errors.New("unreadable")}) {
 		t.Fatal("a failed read must not be taken for an empty app")
+	}
+}
+
+// TestTheAppIconDecidesWhereTheAppShows guards the mapping from the setting
+// to the activation policy and the two icons.
+func TestTheAppIconDecidesWhereTheAppShows(t *testing.T) {
+	for _, c := range []struct {
+		icon       domain.AppIcon
+		policy     mygo.ActivationPolicy
+		dock, menu bool
+	}{
+		{domain.AppIconDockAndMenuBar, mygo.ActivationPolicyRegular, true, true},
+		{domain.AppIconDock, mygo.ActivationPolicyRegular, true, false},
+		{domain.AppIconMenuBar, mygo.ActivationPolicyAccessory, false, true},
+	} {
+		if got := activationPolicyFor(c.icon); got != c.policy {
+			t.Errorf("icon %v: policy = %q, want %q", c.icon, got, c.policy)
+		}
+		if got := appShowsDock(c.icon); got != c.dock {
+			t.Errorf("icon %v: Dock = %v, want %v", c.icon, got, c.dock)
+		}
+		if got := appShowsMenuBar(c.icon); got != c.menu {
+			t.Errorf("icon %v: menu bar = %v, want %v", c.icon, got, c.menu)
+		}
+	}
+}
+
+// TestOnlyMacOSLeavesTheDockOut guards that the other systems keep the
+// notification-area icon whatever a restored backup says.
+func TestOnlyMacOSLeavesTheDockOut(t *testing.T) {
+	want := domain.AppIconDock
+	if runtime.GOOS != "darwin" {
+		want = domain.AppIconDockAndMenuBar
+	}
+	if got := iconOnThisSystem(domain.AppIconDock); got != want {
+		t.Errorf("Dock only on %s = %v, want %v", runtime.GOOS, got, want)
+	}
+}
+
+// TestTheWindowOpensWhenTheAppDoes guards the launches that show the window:
+// a first run, an update the person was using, and opening a Dock app. A
+// launch the system makes in the background is not opening the app.
+func TestTheWindowOpensWhenTheAppDoes(t *testing.T) {
+	for _, c := range []struct {
+		name                                     string
+		firstRun, windowShowed, dock, background bool
+		want                                     bool
+	}{
+		{"first run", true, false, false, false, true},
+		{"update the person was using", false, true, false, true, true},
+		{"update installed in the background", false, false, true, true, false},
+		{"a Dock app opening", false, false, true, false, true},
+		{"a menu bar app opening", false, false, false, false, false},
+		{"a wake in the background", false, false, true, true, false},
+	} {
+		if got := showOnLaunch(c.firstRun, c.windowShowed, c.dock, c.background); got != c.want {
+			t.Errorf("%s: show = %v, want %v", c.name, got, c.want)
+		}
+	}
+}
+
+// TestAnUpdateRestartIsToldApartFromThePersonOpeningTheApp guards the two
+// markers the restart leaves: one says it restarted at all, the other that
+// its window showed, each read once.
+func TestAnUpdateRestartIsToldApartFromThePersonOpeningTheApp(t *testing.T) {
+	dir := t.TempDir()
+	if restartedIntoUpdate(dir) || shownBeforeUpdate(dir) {
+		t.Fatal("an ordinary launch looks like a restart into an update")
+	}
+	for _, name := range []string{relaunchMarker, showAfterUpdate} {
+		if err := os.WriteFile(filepath.Join(dir, name), nil, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if !restartedIntoUpdate(dir) {
+		t.Fatal("the restart into the update was not seen")
+	}
+	if !shownBeforeUpdate(dir) {
+		t.Fatal("the window that showed was not seen")
+	}
+	if restartedIntoUpdate(dir) || shownBeforeUpdate(dir) {
+		t.Fatal("a marker was reported twice")
+	}
+}
+
+// TestTheHostMovesTheIconAtOnce guards that a choice from the settings
+// reaches the window at once, and that nothing happens before it is ready.
+func TestTheHostMovesTheIconAtOnce(t *testing.T) {
+	host := &windowHost{}
+	host.SetAppIcon(domain.AppIconDock) // before the window is ready
+	var got []domain.AppIcon
+	host.icon = func(icon domain.AppIcon) { got = append(got, icon) }
+	host.SetAppIcon(domain.AppIconMenuBar)
+	if len(got) != 1 || got[0] != domain.AppIconMenuBar {
+		t.Fatalf("the host was shown %v, want the menu bar once", got)
 	}
 }
 

@@ -49,18 +49,33 @@ func updateStep(u *updates.Updater, s updates.State) {
 
 // showAfterUpdate is the file, in the data folder, that tells the app
 // restarted into an update to show its window again: the person was using
-// it when the app restarted.
-const showAfterUpdate = "show-after-update"
+// it when the app restarted. relaunchMarker marks the restart itself, which
+// is not the same as the person opening the app: a Dock app shows its window
+// when it is opened, but not when an update installed by itself restarts
+// it.
+const (
+	showAfterUpdate = "show-after-update"
+	relaunchMarker  = "relaunched-into-update"
+)
 
 // relaunchIntoUpdate quits the app and opens it again, into the update
 // installed, with its window shown if it was.
 func relaunchIntoUpdate(dir string, windowShown bool) {
+	if err := os.WriteFile(filepath.Join(dir, relaunchMarker), nil, 0o600); err != nil {
+		slog.Warn("remember the restart into the update", "err", err)
+	}
 	if windowShown {
 		if err := os.WriteFile(filepath.Join(dir, showAfterUpdate), nil, 0o600); err != nil {
 			slog.Warn("remember the window across the restart", "err", err)
 		}
 	}
 	mygo.App.Relaunch() // it goes to the main thread itself
+}
+
+// restartedIntoUpdate reports, once, whether the app restarted into an
+// update at all.
+func restartedIntoUpdate(dir string) bool {
+	return os.Remove(filepath.Join(dir, relaunchMarker)) == nil
 }
 
 // shownBeforeUpdate reports, once, whether the app restarted into an update

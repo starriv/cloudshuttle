@@ -76,6 +76,19 @@
   "settingsNotifyTitle": "Notifications",
   "settingsNotifyFailed": "Notify when a run fails",
   "settingsNotifySkipped": "Notify when a scheduled run cannot start",
+  "settingsNotifyStale": "Notify when a scheduled task hasn't succeeded for",
+  "settingsNotifyStaleHint": "Only tasks that run on a schedule. A task that has never succeeded is counted from when its schedule was set.",
+  "settingsStaleDays": "Days without success",
+  "settingsStaleDaysValue": "{count, plural, one {# day} other {# days}}",
+  "@settingsStaleDaysValue": {
+    "description": "A choice for how long a scheduled task may go without succeeding.",
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "7"
+      }
+    }
+  },
   "settingsHistoryTitle": "History",
   "settingsRetention": "Keep runs and logs for",
   "settingsRetentionHint": "Older runs and logs are deleted. Synced files are not affected.",
@@ -1071,6 +1084,17 @@
   "trayOpen": "Open CloudShuttle",
   "notifyFailedTitle": "{name} failed",
   "notifySkippedTitle": "{name} did not start",
+  "notifyStaleTitle": "{name} hasn't succeeded for a while",
+  "notifyStaleBody": "{count, plural, one {No successful run for at least # day.} other {No successful run for at least # days.}}",
+  "@notifyStaleBody": {
+    "description": "A scheduled task has gone too long without a successful run.",
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "7"
+      }
+    }
+  },
   "notifyDestinationBusy": "Another task is writing to this destination. The task will be retried at the next scheduled time.",
   "@notifyFailedTitle": {
     "placeholders": {
@@ -1115,6 +1139,13 @@
   "appearanceSystem": "System",
   "appearanceLight": "Light",
   "appearanceDark": "Dark",
+  "settingsAppIcon": "App icon",
+  "settingsAppIconDockAndMenuBar": "Dock and menu bar",
+  "settingsAppIconDock": "Dock only",
+  "settingsAppIconMenuBar": "Menu bar only",
+  "settingsAppIconDockAndMenuBarHint": "Shows the app in both places. After the window closes, either icon opens it again.",
+  "settingsAppIconDockHint": "Shows the app only in the Dock. After its window closes, the Dock icon opens it again.",
+  "settingsAppIconMenuBarHint": "Shows the app only in the menu bar. After its window closes, the menu bar icon opens it again.",
   "settingsUpdatesTitle": "Updates",
   "updatesVersion": "CloudShuttle {version}",
   "@updatesVersion": {

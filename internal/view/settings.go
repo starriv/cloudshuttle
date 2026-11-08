@@ -22,6 +22,7 @@ var (
 	bandwidthValues = []int{0, 1, 5, 10, 50}
 	retentionValues = []int{0, 30, 90, 180, 365}
 	trashValues     = []int{0, 7, 30, 90}
+	staleValues     = []int{3, 7, 14, 30}
 )
 
 // settingsForm is the settings page as it is edited: the labels the selects
@@ -37,6 +38,8 @@ type settingsForm struct {
 	trash         string
 	notifyFailed  bool
 	notifySkipped bool
+	notifyStale   bool
+	staleDays     string
 	// excludeEnabled leaves out the global rules in every run, and
 	// globalExclude holds them as the page edits them: one a line.
 	excludeEnabled bool
@@ -85,6 +88,14 @@ func retentionLabels() []string {
 	return out
 }
 
+func staleLabels() []string {
+	out := make([]string, len(staleValues))
+	for i, days := range staleValues {
+		out[i] = locales.SettingsStaleDaysValue(days)
+	}
+	return out
+}
+
 func trashLabels() []string {
 	out := make([]string, len(trashValues))
 	for i, days := range trashValues {
@@ -128,6 +139,8 @@ func (a *App) loadSettingsForm() {
 	f.retention = labelAt(retentionValues, retentionLabels(), s.RetentionDays)
 	f.trash = labelAt(trashValues, trashLabels(), s.TrashDays)
 	f.notifyFailed, f.notifySkipped = s.NotifyFailed, s.NotifySkipped
+	f.notifyStale = s.NotifyStale
+	f.staleDays = labelAt(staleValues, staleLabels(), s.StaleDays)
 	f.excludeEnabled = s.ExcludeEnabled
 	f.globalExclude = strings.Join(s.GlobalExcludes, "\n")
 	f.backupICloud = s.BackupICloud
@@ -161,6 +174,8 @@ func (a *App) saveSettings() {
 		BandwidthMBps: valueAt(bandwidthValues, bandwidthLabels(), f.bandwidth),
 		NotifyFailed:  f.notifyFailed,
 		NotifySkipped: f.notifySkipped,
+		NotifyStale:   f.notifyStale,
+		StaleDays:     valueAt(staleValues, staleLabels(), f.staleDays),
 		RetentionDays: valueAt(retentionValues, retentionLabels(), f.retention),
 		TrashDays:     valueAt(trashValues, trashLabels(), f.trash),
 		BackupICloud:  f.backupICloud,
@@ -169,6 +184,7 @@ func (a *App) saveSettings() {
 		GlobalExcludes: strings.Split(f.globalExclude, "\n"),
 		Background:     a.settings.Background,
 		Appearance:     a.settings.Appearance,
+		AppIcon:        a.settings.AppIcon,
 		// Kept at once by their card, as the appearance is.
 		CheckUpdates:   a.settings.CheckUpdates,
 		InstallUpdates: a.settings.InstallUpdates,
@@ -284,6 +300,12 @@ func (a *App) settingsPage(c *ui.Context) {
 				{label: locales.SettingsNotifySkipped(), hint: "", control: func(label string) {
 					ui.Checkbox(c, &f.notifySkipped, "").Label(label)
 				}},
+				{label: locales.SettingsNotifyStale(), hint: locales.SettingsNotifyStaleHint(), control: func(label string) {
+					ui.Checkbox(c, &f.notifyStale, "").Label(label)
+				}},
+				{label: locales.SettingsStaleDays(), hint: "", control: func(label string) {
+					ui.Select(c, &f.staleDays, staleLabels()).Label(label).Width(selectWidth)
+				}},
 			})
 			settingsCard(c, locales.SettingsHistoryTitle(), []settingsRow{
 				{label: locales.SettingsRetention(), hint: locales.SettingsRetentionHint(), control: func(label string) {
@@ -379,11 +401,11 @@ func (a *App) scheduleCard(c *ui.Context) {
 	settingsCard(c, locales.SettingsScheduleTitle(), []settingsRow{row})
 }
 
-// appearanceCard lets the person choose the window's look. The choice
-// shows and is kept at once, apart from the page's Save: nothing runs
-// differently for it.
+// appearanceCard lets the person choose the window's look, and on macOS
+// where the app shows its icon. The choices show and are kept at once,
+// apart from the page's Save: nothing runs differently for them.
 func (a *App) appearanceCard(c *ui.Context) {
-	settingsCard(c, locales.SettingsAppearanceTitle(), []settingsRow{{
+	rows := []settingsRow{{
 		label: locales.SettingsAppearance(), hint: locales.SettingsAppearanceHint(),
 		control: func(label string) {
 			chosen := int(a.settings.Appearance)
@@ -392,7 +414,83 @@ func (a *App) appearanceCard(c *ui.Context) {
 				a.chooseAppearance(domain.Appearance(chosen))
 			}
 		},
-	}})
+	}}
+	if runtime.GOOS == "darwin" {
+		// The Dock and the menu bar are the macOS edges: elsewhere the
+		// app keeps its taskbar entry and its notification-area icon.
+		rows = append(rows, settingsRow{
+			label: locales.SettingsAppIcon(), hint: appIconHint(a.settings.AppIcon),
+			control: func(label string) {
+				labels := appIconLabels()
+				chosen := appIconLabel(a.settings.AppIcon)
+				if ui.Select(c, &chosen, labels).Label(label).Width(selectWidth).Changed() {
+					a.chooseAppIcon(appIconFor(chosen))
+				}
+			},
+		})
+	}
+	settingsCard(c, locales.SettingsAppearanceTitle(), rows)
+}
+
+// appIconLabels names the placements in the order of domain.AppIcon.
+func appIconLabels() []string {
+	return []string{
+		locales.SettingsAppIconDockAndMenuBar(),
+		locales.SettingsAppIconDock(),
+		locales.SettingsAppIconMenuBar(),
+	}
+}
+
+// appIconLabel is the label of a placement, the first one's when it is not
+// one the app offers.
+func appIconLabel(icon domain.AppIcon) string {
+	labels := appIconLabels()
+	if i := int(icon); i >= 0 && i < len(labels) {
+		return labels[i]
+	}
+	return labels[0]
+}
+
+// appIconFor is the placement a label names; the first when it names none.
+func appIconFor(label string) domain.AppIcon {
+	for i, l := range appIconLabels() {
+		if l == label {
+			return domain.AppIcon(i)
+		}
+	}
+	return domain.AppIconDockAndMenuBar
+}
+
+// appIconHint says what closing the window does where the icon shows.
+func appIconHint(icon domain.AppIcon) string {
+	switch icon {
+	case domain.AppIconDock:
+		return locales.SettingsAppIconDockHint()
+	case domain.AppIconMenuBar:
+		return locales.SettingsAppIconMenuBarHint()
+	}
+	return locales.SettingsAppIconDockAndMenuBarHint()
+}
+
+// chooseAppIcon shows and keeps where the app's icon goes. A failure to
+// keep it puts the icon back where it was.
+func (a *App) chooseAppIcon(choice domain.AppIcon) {
+	previous := a.settings.AppIcon
+	a.settings.AppIcon = choice
+	a.showIcon()
+	go func() {
+		err := a.svc.SetAppIcon(context.Background(), choice)
+		if err == nil {
+			return
+		}
+		a.host.Update(func() {
+			if a.settings.AppIcon == choice {
+				a.settings.AppIcon = previous
+				a.showIcon()
+			}
+			a.toastError(err)
+		})
+	}()
 }
 
 func (a *App) chooseAppearance(choice domain.Appearance) {

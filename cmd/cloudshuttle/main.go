@@ -21,6 +21,7 @@ import (
 	"slices"
 	"sync/atomic"
 	"syscall"
+	"time"
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
@@ -39,9 +40,13 @@ var trayIcon []byte
 //go:embed tray-color.png
 var trayColorIcon []byte
 
-// The app's argument, which only the system passes: schedulerArg starts the
-// scheduler instead of the app.
-const schedulerArg = "--scheduler"
+// The app's arguments, which only the system passes: schedulerArg starts the
+// scheduler instead of the app, and wakeArg opens the app in the background,
+// for it to tell a failure or to finish an update without its window.
+const (
+	schedulerArg = "--scheduler"
+	wakeArg      = "--wake"
+)
 
 func main() {
 	if slices.Contains(os.Args[1:], schedulerArg) {
@@ -69,7 +74,8 @@ func main() {
 
 	host := &windowHost{}
 	var svc *service.Service
-	var tray *taskTray // accessed only on the main thread
+	var tray *taskTray          // accessed only on the main thread
+	var iconMode domain.AppIcon // where the app's icon shows, as applied
 	var isl *notchIsland
 	var show func()             // shows the main window, once it exists
 	var windowShown atomic.Bool // the main window is on screen
@@ -143,6 +149,14 @@ func main() {
 			go upd.RunsChanged()
 		},
 		OnNotify: notifyFailure,
+		OnStale: func(t domain.Task, last time.Time, days int) {
+			notifyStale(t, days, func() {
+				host.update(func(a *view.App) { a.OpenRun(t.ID, "") })
+				if show != nil {
+					show()
+				}
+			})
+		},
 		OnRefused: func(t domain.Task, err error) {
 			notifyRefused(svc.Settings(), t)
 		},
@@ -175,18 +189,21 @@ func main() {
 		})
 		host.win = win
 
-		// Closing the window hides it, and the island goes on showing the
-		// runs. The schedules do not need it: the system runs them.
-		trayAvailable := true
+		// Closing the window hides it while one of the app's icons can open
+		// it again: the one in the Dock, the menu bar, or both. The island
+		// goes on showing the runs, and the schedules do not need the
+		// window: the system runs them. With no icon at all the app would
+		// keep running with no way to its window, so closing quits instead.
 		win.OnClose(func(e *mygo.CloseEvent) {
-			if !quitting {
-				e.PreventDefault()
-				if trayAvailable {
-					win.Hide()
-				} else {
-					mygo.App.Quit()
-				}
+			if quitting {
+				return
 			}
+			e.PreventDefault()
+			if tray != nil || (runtime.GOOS == "darwin" && appShowsDock(iconMode)) {
+				win.Hide()
+				return
+			}
+			mygo.App.Quit()
 		})
 		win.OnShow(func() { windowShown.Store(true) })
 		win.OnHide(func() {
@@ -194,8 +211,8 @@ func main() {
 			go upd.RunsChanged() // an update installed by itself waits for this
 		})
 		show = func() {
-			// Restore, so a window the user minimized comes back too: with no
-			// Dock icon, the status menu is the only way to it.
+			// Restore, so a window the user minimized comes back too: the
+			// status menu or the Dock icon is the way to it.
 			win.Restore()
 			win.Show()
 			win.Focus()
@@ -206,24 +223,57 @@ func main() {
 		// app always brings the window back.
 		mygo.App.OnActivate(func(bool) { show() })
 
-		statusIcon, err := mygo.NewTray(mygo.TrayOptions{
-			ID: "main", Icon: brandTrayIcon(), IconIsTemplate: runtime.GOOS == "darwin", ToolTip: locales.AppName(),
-		})
-		if err != nil {
-			slog.Warn("tray", "err", err)
-			mygo.App.SetActivationPolicy(mygo.ActivationPolicyRegular)
-			show()
-			trayAvailable = false
-		} else {
-			tray = &taskTray{tray: statusIcon, svc: svc, show: show, openRun: func(r domain.Run) {
+		// newTray makes the status menu's icon, nil when it cannot.
+		newTray := func() *taskTray {
+			statusIcon, err := mygo.NewTray(mygo.TrayOptions{
+				ID: "main", Icon: brandTrayIcon(), IconIsTemplate: runtime.GOOS == "darwin", ToolTip: locales.AppName(),
+			})
+			if err != nil {
+				slog.Warn("tray", "err", err)
+				return nil
+			}
+			t := &taskTray{tray: statusIcon, svc: svc, show: show, openRun: func(r domain.Run) {
 				host.update(func(a *view.App) { a.OpenRun(r.TaskID, r.ID) })
 				show()
 			}, onUpdate: func(s updates.State) {
 				openUpdates()
 				updateStep(upd, s)
 			}, updateState: upd.State()}
-			tray.set(app.Snapshot())
+			t.set(app.Snapshot())
+			return t
 		}
+		// applyIcon puts the app's icon where the mode says, and with it the
+		// activation policy, which is the Dock icon and how closing the
+		// window is taken. A menu bar whose icon could not be made falls
+		// back to the Dock, and the next launch tries the saved mode again.
+		// activate is false for a launch the system made in the background:
+		// the Dock icon then appears without taking the foreground.
+		applyIcon := func(mode domain.AppIcon, activate bool) {
+			mode = iconOnThisSystem(mode)
+			if appShowsMenuBar(mode) {
+				if tray == nil {
+					if tray = newTray(); tray == nil {
+						mode = domain.AppIconDock
+					}
+				}
+			} else if tray != nil {
+				tray.destroy()
+				tray = nil
+			}
+			iconMode = mode
+			if appShowsDock(mode) && !activate {
+				showDockIconWithoutActivation()
+				return
+			}
+			mygo.App.SetActivationPolicy(activationPolicyFor(mode))
+		}
+		host.icon = func(mode domain.AppIcon) { applyIcon(mode, true) }
+		// A restart into an update and a wake in the background are not the
+		// person opening the app.
+		showedBefore := shownBeforeUpdate(dir)
+		background := restartedIntoUpdate(dir) || slices.Contains(os.Args[1:], wakeArg)
+		iconMode = svc.Settings().AppIcon
+		applyIcon(iconMode, !background)
 
 		isl = newIsland()
 
@@ -236,10 +286,16 @@ func main() {
 			}))
 		}
 
-		// A first run has nothing in the status menu yet: open the window so
-		// the person sees where to add a storage and a task. Later launches,
-		// and a wake to tell a failure, leave the window hidden.
-		if firstRun(app.Snapshot()) || shownBeforeUpdate(dir) {
+		// A first run opens the window so the person sees where to add a
+		// storage and a task; a restart into an update opens it again when
+		// it was showing; and launching an app whose icon is in the Dock
+		// opens it, as the person asked. A wake to tell a failure, and a
+		// restart into an update installed by itself, leave it hidden.
+		dockIcon := runtime.GOOS == "darwin" && appShowsDock(iconMode)
+		if tray == nil && !dockIcon {
+			// Without an icon, hiding the window would leave no way to it.
+			show()
+		} else if showOnLaunch(firstRun(app.Snapshot()), showedBefore, dockIcon, background) {
 			show()
 		}
 
@@ -262,6 +318,44 @@ func main() {
 // and is left in the menu bar, at login too.
 func firstRun(s view.Snapshot) bool {
 	return s.TaskErr == nil && s.StorageErr == nil && len(s.Tasks) == 0 && len(s.Storages) == 0
+}
+
+// appShowsDock reports whether the mode puts the app's icon in the Dock.
+func appShowsDock(icon domain.AppIcon) bool { return icon != domain.AppIconMenuBar }
+
+// appShowsMenuBar reports whether the mode puts the app's icon in the menu
+// bar, its status menu.
+func appShowsMenuBar(icon domain.AppIcon) bool { return icon != domain.AppIconDock }
+
+// iconOnThisSystem is the chosen mode as this system can show it: only
+// macOS has a Dock that can be left out, so the other systems always keep
+// the notification-area icon.
+func iconOnThisSystem(icon domain.AppIcon) domain.AppIcon {
+	if runtime.GOOS == "darwin" {
+		return icon
+	}
+	return domain.AppIconDockAndMenuBar
+}
+
+// activationPolicyFor is the macOS activation policy the mode needs: a Dock
+// icon needs the regular policy, a menu bar alone the accessory one.
+func activationPolicyFor(icon domain.AppIcon) mygo.ActivationPolicy {
+	if appShowsDock(icon) {
+		return mygo.ActivationPolicyRegular
+	}
+	return mygo.ActivationPolicyAccessory
+}
+
+// showOnLaunch reports whether the app opens its window as it starts: on a
+// first run, when a restart into an update found it showing, or when the
+// person opens an app whose icon is in the Dock. A launch the system made in
+// the background, to tell a failure or to finish an update installed by
+// itself, leaves the window hidden.
+func showOnLaunch(firstRun, windowShowed, dockIcon, background bool) bool {
+	if firstRun || windowShowed {
+		return true
+	}
+	return dockIcon && !background
 }
 
 // appMenu is the system's menu bar: the default one, whose About shows the
@@ -316,6 +410,9 @@ func openLog(dir string) (io.Writer, func()) {
 type windowHost struct {
 	app *view.App
 	win *mygo.Window
+	// icon shows the app's icon where the person chose. It is set when the
+	// window is ready; before that the startup reads the settings itself.
+	icon func(domain.AppIcon)
 }
 
 func (h *windowHost) Update(fn func()) {
@@ -337,6 +434,13 @@ func (h *windowHost) SetAppearance(a domain.Appearance) {
 		source = mygo.ThemeDark
 	}
 	mygo.Theme.SetSource(source)
+}
+
+// SetAppIcon moves the app's icon at once, where the person chose it.
+func (h *windowHost) SetAppIcon(icon domain.AppIcon) {
+	if h.icon != nil {
+		h.icon(icon)
+	}
 }
 
 func (h *windowHost) OpenBackgroundSettings() {
@@ -406,6 +510,25 @@ func notifyFailure(run domain.Run) {
 		Title: locales.NotifyFailedTitle(run.TaskName),
 		Body:  body,
 	})
+	go func() {
+		if err := n.Show(); err != nil {
+			slog.Warn("notify", "err", err)
+		}
+	}()
+}
+
+// notifyStale tells the user a scheduled task has gone too long without
+// succeeding. Clicking it opens the task's history.
+func notifyStale(t domain.Task, days int, open func()) {
+	if !mygo.NotificationsSupported() {
+		return
+	}
+	n := mygo.NewNotification(mygo.NotificationOptions{
+		ID:    "stale/" + t.ID,
+		Title: locales.NotifyStaleTitle(t.Name),
+		Body:  locales.NotifyStaleBody(days),
+	})
+	n.OnClick(open)
 	go func() {
 		if err := n.Show(); err != nil {
 			slog.Warn("notify", "err", err)

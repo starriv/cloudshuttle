@@ -83,6 +83,11 @@ var (
 	// tickEvery is how often the window runs the due tasks itself, where
 	// the system does not.
 	tickEvery = 30 * time.Second
+	// staleEvery is how often the window checks for tasks that have gone
+	// too long without a success; pendingEvery picks up a notice the
+	// scheduler left while the window was running.
+	staleEvery   = 6 * time.Hour
+	pendingEvery = time.Minute
 	// lockPoll is how often a run waiting for the other process's
 	// transfer tries again.
 	lockPoll = time.Second
@@ -163,6 +168,9 @@ func (s *Service) RunDue(ctx context.Context) error {
 		return nil
 	}
 	s.cancelOrphans(ctx, true)
+	// The scheduler has no window of its own: after the due tasks, leave a
+	// stale notice for the window and wake the app if it is not running.
+	defer func() { s.tellStale(context.WithoutCancel(ctx)) }()
 	for ctx.Err() == nil {
 		list, soonest, err := s.dueTasks(ctx, s.now())
 		if err != nil {
@@ -357,7 +365,7 @@ func (s *Service) watch(ctx context.Context) {
 	tick := time.NewTicker(watchEvery)
 	defer tick.Stop()
 	version := int64(-1)
-	lastDue, lastRetry := time.Time{}, s.now()
+	lastDue, lastRetry, lastStale, lastPending := time.Time{}, s.now(), time.Time{}, time.Time{}
 	for {
 		select {
 		case <-ctx.Done():
@@ -377,6 +385,16 @@ func (s *Service) watch(ctx context.Context) {
 		if changed || version < 0 {
 			s.refreshForeign(ctx)
 			s.tellFailures(ctx)
+		}
+		if s.now().Sub(lastStale) >= staleEvery {
+			lastStale = s.now()
+			s.tellStale(ctx)
+		}
+		if s.now().Sub(lastPending) >= pendingEvery {
+			lastPending = s.now()
+			if s.hasPendingStale(ctx) {
+				s.tellStale(ctx)
+			}
 		}
 		if b, _ := s.Background(); b == BackgroundBlocked && s.now().Sub(lastRetry) >= retryBlocked {
 			lastRetry = s.now()
@@ -462,6 +480,120 @@ func (s *Service) tellFailures(ctx context.Context) {
 			s.onNotify(r)
 		}
 	}
+}
+
+// tellStale tells the person about scheduled tasks that have not succeeded
+// for the configured days. A task is counted from its last real success, or
+// from when its schedule was set when it has never succeeded. The window
+// shows the notice; the scheduler leaves one pending and wakes the window
+// when it is not running. stale_notices keeps both processes and restarts
+// from repeating it within a day.
+func (s *Service) tellStale(ctx context.Context) {
+	settings := s.Settings()
+	if !settings.NotifyStale || settings.StaleDays <= 0 {
+		return
+	}
+	tasks, err := s.store.Tasks(ctx)
+	if err != nil {
+		if !errors.Is(err, context.Canceled) {
+			slog.Warn("read the tasks to tell stale", "err", err)
+		}
+		return
+	}
+	notices, err := s.store.StaleNotices(ctx)
+	if err != nil {
+		if !errors.Is(err, context.Canceled) {
+			slog.Warn("read the stale notices", "err", err)
+		}
+		return
+	}
+	// The task's own time survives the run history's retention; the
+	// history may still hold a newer success, as after restoring an older
+	// configuration on a machine whose history was kept.
+	successes, err := s.store.LastSuccesses(ctx)
+	if err != nil {
+		if !errors.Is(err, context.Canceled) {
+			slog.Warn("read the last successes", "err", err)
+		}
+		return
+	}
+	now := s.now()
+	cutoff := now.AddDate(0, 0, -settings.StaleDays)
+	wake := false
+	for _, t := range tasks {
+		if !t.Schedule.On() {
+			continue // a task by hand is not late
+		}
+		s.mu.Lock()
+		_, here := s.active[t.ID]
+		_, there := s.foreign[t.ID]
+		s.mu.Unlock()
+		if here || there {
+			continue // it is running; its last start is not a missed one
+		}
+		last := t.LastSuccessAt
+		if kept := successes[t.ID]; kept.After(last) {
+			last = kept
+		}
+		from := last
+		if t.ScheduleSince.After(from) {
+			from = t.ScheduleSince
+		}
+		if from.IsZero() {
+			from = t.CreatedAt
+		}
+		if from.IsZero() || from.After(cutoff) {
+			continue
+		}
+		notice := notices[t.ID]
+		recent := !notice.ToldAt.IsZero() && now.Sub(notice.ToldAt) < 24*time.Hour
+		if s.owner == OwnerApp {
+			if recent && !notice.Pending {
+				continue // already told today
+			}
+			s.onStale(t, last, settings.StaleDays)
+			if err := s.store.PutStaleNotice(ctx, t.ID, now, false); err != nil {
+				slog.Warn("record the stale notice", "task", t.ID, "err", err)
+			}
+			continue
+		}
+		// The scheduler has no window to show it: leave a pending notice
+		// for the window, and wake the app when it is not running. The
+		// conditional write keeps a window that told it meanwhile's clear
+		// from being overwritten.
+		if recent {
+			continue
+		}
+		changed, err := s.store.PutStalePending(ctx, t.ID, now, now.Add(-24*time.Hour))
+		if err != nil {
+			slog.Warn("record the stale notice", "task", t.ID, "err", err)
+			continue
+		}
+		if changed {
+			wake = true
+		}
+	}
+	if wake && s.wakeApp != nil && !s.alive(OwnerApp) {
+		s.wakeApp()
+	}
+}
+
+// hasPendingStale reports whether the scheduler left a notice for the
+// window to show.
+func (s *Service) hasPendingStale(ctx context.Context) bool {
+	notices, err := s.store.StaleNotices(ctx)
+	if err != nil {
+		if !errors.Is(err, context.Canceled) {
+			slog.Warn("read the pending stale notices", "err", err)
+		}
+		return false
+	}
+	for _, n := range notices {
+		if n.Pending {
+			return true
+		}
+	}
+	return false
 }
 
 // publish keeps a run of the scheduler's in the database as it goes, for

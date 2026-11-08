@@ -54,7 +54,12 @@ func trayStatusText(runs []service.Active) string {
 }
 
 // trayMenu is the part of MyGo's tray the menu uses. Tests replace it.
-type trayMenu interface{ SetMenu(*mygo.Menu) }
+type trayMenu interface {
+	SetMenu(*mygo.Menu)
+	// Destroy removes the icon, when the person chooses a mode without
+	// the menu bar.
+	Destroy()
+}
 
 // trayService is the part of the service the menu reads. Tests replace it.
 type trayService interface{ Active() []service.Active }
@@ -105,6 +110,10 @@ type trayRow struct {
 	run         domain.Run
 	opensWindow bool // opens the main window
 }
+
+// destroy removes the status menu's icon, when the person chooses a mode
+// without the menu bar.
+func (t *taskTray) destroy() { t.tray.Destroy() }
 
 // set takes what the window just read, so a change is read from the store
 // once for the window and the status menu alike.

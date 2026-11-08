@@ -126,6 +126,75 @@ INSERT INTO schedule_starts(task_id, started_at)
 	// 15: that list is the person's to see and edit: the switch moves to
 	// exclude_enabled, and the built-in folders seed global_excludes.
 	addGlobalExcludes,
+	// 16: a scheduled task that has not succeeded for a while is told
+	// about, unless the person turns that off.
+	addStaleNotify,
+	// 17: the task remembers its last real success, and stale notices are
+	// kept so both processes agree and a restart does not repeat one.
+	addStaleState,
+	// 18: the person chooses whether the app shows in the Dock, the menu
+	// bar, or both. A database made before the setting keeps the menu bar
+	// alone, as the app always showed.
+	addAppIcon,
+}
+
+// addAppIcon is step 18. It also copes with a development build that added
+// the column already.
+func addAppIcon(tx *sql.Tx) error {
+	has, err := hasColumn(tx, "settings", "app_icon")
+	if err != nil {
+		return err
+	}
+	if has {
+		return nil
+	}
+	_, err = tx.Exec(`ALTER TABLE settings ADD COLUMN app_icon INTEGER NOT NULL DEFAULT 2`)
+	return err
+}
+
+// addStaleState is step 17. The column is filled from the runs a database
+// still has; from now on every successful run updates it.
+func addStaleState(tx *sql.Tx) error {
+	has, err := hasColumn(tx, "tasks", "last_success_at")
+	if err != nil {
+		return err
+	}
+	if !has {
+		if _, err := tx.Exec(`ALTER TABLE tasks ADD COLUMN last_success_at INTEGER NOT NULL DEFAULT 0`); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(`UPDATE tasks SET last_success_at = COALESCE((
+			SELECT MAX(started_at) FROM runs
+			WHERE task_id = tasks.id AND status = ? AND dry_run = 0), 0)`, domain.StatusSuccess); err != nil {
+			return err
+		}
+	}
+	_, err = tx.Exec(`CREATE TABLE IF NOT EXISTS stale_notices (
+		task_id  TEXT PRIMARY KEY,
+		told_at  INTEGER NOT NULL,
+		pending  INTEGER NOT NULL DEFAULT 0
+	)`)
+	return err
+}
+
+// addStaleNotify is step 16. It also copes with a development build that
+// added the columns already.
+func addStaleNotify(tx *sql.Tx) error {
+	for _, col := range []struct{ name, def string }{
+		{"notify_stale", `INTEGER NOT NULL DEFAULT 1`},
+		{"stale_days", `INTEGER NOT NULL DEFAULT 7`},
+	} {
+		has, err := hasColumn(tx, "settings", col.name)
+		if err != nil {
+			return err
+		}
+		if !has {
+			if _, err := tx.Exec(`ALTER TABLE settings ADD COLUMN ` + col.name + ` ` + col.def); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 // addDependencySwitch is step 14. It also copes with a development build
@@ -285,13 +354,13 @@ func seedSettings(db *sql.DB) error {
 	d := domain.DefaultSettings()
 	_, err := db.Exec(`
 		INSERT INTO settings (id, transfers, checkers, retries, bandwidth_mbps,
-			notify_failed, notify_skipped, retention_days, backup_icloud, check_updates, install_updates,
-			trash_days, exclude_enabled, global_excludes)
-		VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			notify_failed, notify_skipped, notify_stale, stale_days, retention_days, backup_icloud, app_icon,
+			check_updates, install_updates, trash_days, exclude_enabled, global_excludes)
+		VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (id) DO NOTHING`,
 		d.Transfers, d.Checkers, d.Retries, d.BandwidthMBps, d.NotifyFailed, d.NotifySkipped,
-		d.RetentionDays, d.BackupICloud, d.CheckUpdates, d.InstallUpdates, d.TrashDays,
-		d.ExcludeEnabled, encodeExcludes(d.GlobalExcludes))
+		d.NotifyStale, d.StaleDays, d.RetentionDays, d.BackupICloud, int(d.AppIcon),
+		d.CheckUpdates, d.InstallUpdates, d.TrashDays, d.ExcludeEnabled, encodeExcludes(d.GlobalExcludes))
 	return err
 }
 
@@ -299,20 +368,21 @@ func seedSettings(db *sql.DB) error {
 // none yet.
 func (s *Store) Settings(ctx context.Context) (domain.Settings, error) {
 	var (
-		st                                        domain.Settings
-		notifyFailed, notifySkipped, backupICloud int
-		background, appearance, excludeEnabled    int
-		checkUpdates, installUpdates              int
-		globalExcludes                            string
+		st                                                     domain.Settings
+		notifyFailed, notifySkipped, notifyStale, backupICloud int
+		background, appearance, appIcon, excludeEnabled        int
+		checkUpdates, installUpdates                           int
+		globalExcludes                                         string
 	)
 	err := s.db.QueryRowContext(ctx, `
 		SELECT transfers, checkers, retries, bandwidth_mbps, notify_failed, notify_skipped,
-			retention_days, backup_icloud, background, appearance, check_updates, install_updates,
-			trash_days, exclude_enabled, global_excludes
+			notify_stale, stale_days, retention_days, backup_icloud, background, appearance, app_icon,
+			check_updates, install_updates, trash_days, exclude_enabled, global_excludes
 		FROM settings WHERE id = 1`).
 		Scan(&st.Transfers, &st.Checkers, &st.Retries, &st.BandwidthMBps,
-			&notifyFailed, &notifySkipped, &st.RetentionDays, &backupICloud, &background, &appearance,
-			&checkUpdates, &installUpdates, &st.TrashDays, &excludeEnabled, &globalExcludes)
+			&notifyFailed, &notifySkipped, &notifyStale, &st.StaleDays, &st.RetentionDays,
+			&backupICloud, &background, &appearance, &appIcon, &checkUpdates, &installUpdates, &st.TrashDays,
+			&excludeEnabled, &globalExcludes)
 	if errors.Is(err, sql.ErrNoRows) {
 		return domain.DefaultSettings(), nil
 	}
@@ -320,9 +390,11 @@ func (s *Store) Settings(ctx context.Context) (domain.Settings, error) {
 		return st, err
 	}
 	st.NotifyFailed, st.NotifySkipped = notifyFailed != 0, notifySkipped != 0
+	st.NotifyStale = notifyStale != 0
 	st.BackupICloud = backupICloud != 0
 	st.Background = domain.Consent(background)
 	st.Appearance = domain.Appearance(appearance)
+	st.AppIcon = domain.AppIcon(appIcon)
 	st.CheckUpdates, st.InstallUpdates = checkUpdates != 0, installUpdates != 0
 	st.ExcludeEnabled = excludeEnabled != 0
 	if err := json.Unmarshal([]byte(globalExcludes), &st.GlobalExcludes); err != nil {
@@ -341,22 +413,23 @@ func (s *Store) Settings(ctx context.Context) (domain.Settings, error) {
 func (s *Store) PutSettings(ctx context.Context, st domain.Settings) error {
 	_, err := s.db.ExecContext(ctx, `
 		INSERT INTO settings (id, transfers, checkers, retries, bandwidth_mbps,
-			notify_failed, notify_skipped, retention_days, backup_icloud, background, appearance,
+			notify_failed, notify_skipped, notify_stale, stale_days, retention_days, backup_icloud, background, appearance, app_icon,
 			check_updates, install_updates, trash_days, exclude_enabled, global_excludes)
-		VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (id) DO UPDATE SET
 			transfers = excluded.transfers, checkers = excluded.checkers, retries = excluded.retries,
 			bandwidth_mbps = excluded.bandwidth_mbps, notify_failed = excluded.notify_failed,
-			notify_skipped = excluded.notify_skipped, retention_days = excluded.retention_days,
+			notify_skipped = excluded.notify_skipped, notify_stale = excluded.notify_stale,
+			stale_days = excluded.stale_days, retention_days = excluded.retention_days,
 			backup_icloud = excluded.backup_icloud, background = excluded.background,
-			appearance = excluded.appearance, check_updates = excluded.check_updates,
+			appearance = excluded.appearance, app_icon = excluded.app_icon, check_updates = excluded.check_updates,
 			install_updates = excluded.install_updates, trash_days = excluded.trash_days,
 			exclude_enabled = excluded.exclude_enabled,
 			global_excludes = excluded.global_excludes`,
 		st.Transfers, st.Checkers, st.Retries, st.BandwidthMBps,
-		st.NotifyFailed, st.NotifySkipped, st.RetentionDays, st.BackupICloud, int(st.Background),
-		int(st.Appearance), st.CheckUpdates, st.InstallUpdates, st.TrashDays, st.ExcludeEnabled,
-		encodeExcludes(st.GlobalExcludes))
+		st.NotifyFailed, st.NotifySkipped, st.NotifyStale, st.StaleDays, st.RetentionDays,
+		st.BackupICloud, int(st.Background), int(st.Appearance), int(st.AppIcon), st.CheckUpdates, st.InstallUpdates,
+		st.TrashDays, st.ExcludeEnabled, encodeExcludes(st.GlobalExcludes))
 	return err
 }
 
@@ -382,7 +455,7 @@ func (s *Store) BackupConfig(ctx context.Context, path string) error {
 		return fmt.Errorf("open the copy: %w", err)
 	}
 	defer conn.ExecContext(context.WithoutCancel(ctx), `DETACH DATABASE config`)
-	if _, err := conn.ExecContext(ctx, `DELETE FROM config.run_logs; DELETE FROM config.runs`); err != nil {
+	if _, err := conn.ExecContext(ctx, `DELETE FROM config.run_logs; DELETE FROM config.runs; DELETE FROM config.stale_notices`); err != nil {
 		return fmt.Errorf("clear the history of the copy: %w", err)
 	}
 	// Deleting rows leaves their pages in the file; iCloud should not carry
@@ -548,7 +621,7 @@ func (s *Store) DeleteStorage(ctx context.Context, id string) error {
 }
 
 const taskColumns = `id, name, source_storage_id, source_path, dest_storage_id, dest_path, mode, schedule,
-	schedule_since, trash_days, excludes, max_size, created_at, updated_at`
+	schedule_since, trash_days, excludes, max_size, last_success_at, created_at, updated_at`
 
 // Tasks returns every task, by name.
 func (s *Store) Tasks(ctx context.Context) ([]domain.Task, error) {
@@ -581,18 +654,18 @@ func (s *Store) Task(ctx context.Context, id string) (domain.Task, error) {
 func (s *Store) PutTask(ctx context.Context, t domain.Task) error {
 	_, err := s.db.ExecContext(ctx, `
 		INSERT INTO tasks (`+taskColumns+`)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (id) DO UPDATE SET
 			name = excluded.name, source_storage_id = excluded.source_storage_id,
 			source_path = excluded.source_path, dest_storage_id = excluded.dest_storage_id,
 			dest_path = excluded.dest_path, mode = excluded.mode, schedule = excluded.schedule,
 			schedule_since = excluded.schedule_since, trash_days = excluded.trash_days,
 			excludes = excluded.excludes, max_size = excluded.max_size,
-			updated_at = excluded.updated_at`,
+			last_success_at = excluded.last_success_at, updated_at = excluded.updated_at`,
 		t.ID, t.Name, nullable(t.Source.StorageID), t.Source.Path,
 		nullable(t.Destination.StorageID), t.Destination.Path, t.Mode, encodeSchedule(t.Schedule),
 		millis(t.ScheduleSince), t.TrashDays, encodeExcludes(t.Exclude.Patterns), t.Exclude.MaxSize,
-		millis(t.CreatedAt), millis(t.UpdatedAt))
+		millis(t.LastSuccessAt), millis(t.CreatedAt), millis(t.UpdatedAt))
 	return mapConstraint(err)
 }
 
@@ -602,7 +675,11 @@ func (s *Store) DeleteTask(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
-	return requireOne(res)
+	if err := requireOne(res); err != nil {
+		return err
+	}
+	_, err = s.db.ExecContext(ctx, `DELETE FROM stale_notices WHERE task_id = ?`, id)
+	return err
 }
 
 // InsertRun records a run that started.
@@ -843,19 +920,115 @@ func (s *Store) LastRuns(ctx context.Context) (map[string]domain.Run, error) {
 	return out, rows.Err()
 }
 
+// LastSuccesses returns, by task ID, when the task last finished a real run
+// that succeeded: dry runs do not count. A task it does not hold has never
+// succeeded, or its success is older than the history kept.
+func (s *Store) LastSuccesses(ctx context.Context) (map[string]time.Time, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT task_id, MAX(started_at) FROM runs
+		WHERE status = ? AND dry_run = 0
+		GROUP BY task_id`, domain.StatusSuccess)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]time.Time{}
+	for rows.Next() {
+		var id string
+		var at int64
+		if err := rows.Scan(&id, &at); err != nil {
+			return nil, err
+		}
+		out[id] = fromMillis(at)
+	}
+	return out, rows.Err()
+}
+
+// MarkTaskSuccess records when a task last finished a real run that
+// succeeded. It keeps an earlier success if the new time is older, as a
+// repeated record of a run must not move the time back.
+func (s *Store) MarkTaskSuccess(ctx context.Context, taskID string, at time.Time) error {
+	_, err := s.db.ExecContext(ctx,
+		`UPDATE tasks SET last_success_at = MAX(last_success_at, ?) WHERE id = ?`,
+		millis(at), taskID)
+	return err
+}
+
+// StaleNotice is what the app has told about one task's long lack of
+// success: when it told, and whether a scheduler left the notice for the
+// window to show.
+type StaleNotice struct {
+	ToldAt  time.Time
+	Pending bool
+}
+
+// StaleNotices returns the notices, by task ID.
+func (s *Store) StaleNotices(ctx context.Context) (map[string]StaleNotice, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT task_id, told_at, pending FROM stale_notices`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]StaleNotice{}
+	for rows.Next() {
+		var id string
+		var at int64
+		var pending int
+		if err := rows.Scan(&id, &at, &pending); err != nil {
+			return nil, err
+		}
+		out[id] = StaleNotice{ToldAt: fromMillis(at), Pending: pending != 0}
+	}
+	return out, rows.Err()
+}
+
+// PutStaleNotice records a notice for a task.
+func (s *Store) PutStaleNotice(ctx context.Context, taskID string, at time.Time, pending bool) error {
+	_, err := s.db.ExecContext(ctx, `
+		INSERT INTO stale_notices (task_id, told_at, pending)
+		VALUES (?, ?, ?)
+		ON CONFLICT (task_id) DO UPDATE SET told_at = excluded.told_at, pending = excluded.pending`,
+		taskID, millis(at), pending)
+	return err
+}
+
+// PutStalePending leaves a pending notice for the window, unless the last
+// notice is newer than before: a scheduler that raced the window cannot
+// overwrite the notice the window just cleared. It reports whether the row
+// changed and the app should be woken.
+func (s *Store) PutStalePending(ctx context.Context, taskID string, at, before time.Time) (bool, error) {
+	res, err := s.db.ExecContext(ctx, `
+		INSERT INTO stale_notices (task_id, told_at, pending)
+		VALUES (?, ?, 1)
+		ON CONFLICT (task_id) DO UPDATE SET told_at = excluded.told_at, pending = 1
+		WHERE stale_notices.told_at <= ?`, taskID, millis(at), millis(before))
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	return n > 0, err
+}
+
+// ClearStaleNotice forgets a task's notice, after it succeeds again.
+func (s *Store) ClearStaleNotice(ctx context.Context, taskID string) error {
+	_, err := s.db.ExecContext(ctx, `DELETE FROM stale_notices WHERE task_id = ?`, taskID)
+	return err
+}
+
 type scanner interface{ Scan(dest ...any) error }
 
 func scanTask(row scanner) (domain.Task, error) {
 	var t domain.Task
 	var src, dst sql.NullString
 	var schedule, excludes string
-	var since, created, updated int64
+	var since, created, updated, lastSuccess int64
 	if err := row.Scan(&t.ID, &t.Name, &src, &t.Source.Path, &dst, &t.Destination.Path, &t.Mode,
-		&schedule, &since, &t.TrashDays, &excludes, &t.Exclude.MaxSize, &created, &updated); err != nil {
+		&schedule, &since, &t.TrashDays, &excludes, &t.Exclude.MaxSize, &lastSuccess, &created, &updated); err != nil {
 		return domain.Task{}, err
 	}
 	t.Source.StorageID, t.Destination.StorageID = src.String, dst.String
 	t.ScheduleSince, t.CreatedAt, t.UpdatedAt = fromMillis(since), fromMillis(created), fromMillis(updated)
+	t.LastSuccessAt = fromMillis(lastSuccess)
 	var err error
 	if t.Schedule, err = decodeSchedule(schedule); err != nil {
 		// A schedule the app cannot read runs nothing, and says so, rather
@@ -932,8 +1105,8 @@ func mapConstraint(err error) error {
 // settingsColumns are those a backup restores: whether the app may run in
 // the background is this computer's, and stays.
 const settingsColumns = `id, transfers, checkers, retries, bandwidth_mbps, notify_failed, notify_skipped,
-	retention_days, backup_icloud, appearance, check_updates, install_updates, trash_days,
-	exclude_enabled, global_excludes`
+	notify_stale, stale_days, retention_days, backup_icloud, appearance, app_icon, check_updates, install_updates,
+	trash_days, exclude_enabled, global_excludes`
 
 // settingsBaseColumns are those a settings table had when backups began.
 // inspectBackup checks only these: a backup of an earlier version lacks the
@@ -992,6 +1165,7 @@ func (s *Store) RestoreConfig(ctx context.Context, path string, validate ...func
 	// in another order than one made from schema.sql.
 	for _, q := range []string{
 		`DELETE FROM main.tasks`,
+		`DELETE FROM main.stale_notices`,
 		`DELETE FROM main.storages`,
 		`INSERT INTO main.storages (` + storageColumns + `) SELECT ` + storageColumns + ` FROM restored.storages`,
 		`INSERT INTO main.tasks (` + taskColumns + `) SELECT ` + taskColumns + ` FROM restored.tasks`,

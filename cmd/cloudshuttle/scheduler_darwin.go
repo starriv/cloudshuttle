@@ -54,13 +54,16 @@ func newRegistrar() service.Registrar {
 }
 
 // wakeApp opens the app in the background, with no window showing, for it
-// to tell a failure of the scheduler's. The window starts hidden.
+// to tell a failure of the scheduler's, or to check a stale notice. The
+// window starts hidden, whatever icon the app shows, so wakeArg says why
+// the app was opened; it is not hidden as a whole, so an icon the app keeps
+// in the Dock opens the window as usual.
 func wakeApp() {
 	bundle, _, _, ok := appBundle()
 	if !ok {
 		return
 	}
-	if out, err := exec.Command("open", "-g", "-j", "-a", bundle).CombinedOutput(); err != nil {
+	if out, err := exec.Command("open", "-g", "-a", bundle, "--args", wakeArg).CombinedOutput(); err != nil {
 		slog.Warn("open the app to tell a failure", "err", err, "out", string(out))
 	}
 }

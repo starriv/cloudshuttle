@@ -12,7 +12,7 @@ go vet ./... && go tool mygo vet
 go tool mygo generate       # 修改 locales/*.json 之后执行
 ```
 
-构建后打开应用默认只显示状态栏图标，不弹主窗口、不显示 Dock 图标（还没有存储和任务时会打开主窗口，方便第一次配置）；点击状态栏菜单中的「打开云梭」进入主界面。关闭主窗口后应用继续运行，退出请使用状态栏菜单。
+构建后打开应用默认只显示状态栏图标，不弹主窗口、不显示 Dock 图标（还没有存储和任务时会打开主窗口，方便第一次配置）；点击状态栏菜单中的「打开云梭」进入主界面。设置页「外观」里可以把应用图标改为程序坞与菜单栏、仅程序坞或仅菜单栏。关闭主窗口后应用继续运行，退出请使用状态栏菜单或 ⌘Q。
 
 `go tool mygo` 会运行 `go.mod` 里锁定版本的 MyGo CLI。
 
@@ -23,7 +23,7 @@ go tool mygo generate       # 修改 locales/*.json 之后执行
 发布在 GitHub Actions 上打包（`.github/workflows/release.yml`），不依赖本机。改好 `mygo.json` 的 `version`，提交后推送同名标签：
 
 ```sh
-git tag v1.3.1 && git push origin main v1.3.1
+git tag v1.4.0 && git push origin main v1.4.0
 ```
 
 workflow 先检查标签和 `version` 一致，建立草稿 Release `v<版本>`，再依次打三个包，连同各自的更新文件上传到草稿（不能同时：每个包都要合并草稿里的 `SHA256SUMS` 再传回，两个 macOS 包还都上传 `install.sh`，同时上传会互相覆盖）：
@@ -77,7 +77,7 @@ CI 必须用和 `signingIdentity` 同一张证书签名：钥匙串按证书认�
 | iCloud 备份（开启时） | `~/Library/Mobile Documents/com~apple~CloudDocs/CloudShuttle/cloudshuttle.backup`，加密，包含存储、任务、设置和调度去重状态 |
 | 备份密钥 | 系统凭据存储，键名 `backup/key`（由密码拉伸出的密钥，不是密码本身） |
 | 已装好、等应用退出后换上的更新 | 应用旁边的隐藏文件夹 `.CloudShuttle.app.update-*`，换上后删除 |
-| 更新后重新打开主窗口的标记 | 数据目录下的 `show-after-update`，新版本启动时删除 |
+| 更新后重启的标记，以及重新打开主窗口的标记 | 数据目录下的 `relaunched-into-update` 与 `show-after-update`，新版本启动时删除 |
 | 应用自身的日志（不含密钥） | 同一目录下的 `cloudshuttle.log`，后台调度进程的行带 `process=scheduler` |
 | 进程锁（窗口、后台调度、传输轮换、配置维护） | 同一目录下的 `app.lock`、`scheduler.lock`、`transfer.lock`、`maintenance.lock`，内容为空 |
 | 定时任务的系统登记（macOS） | `~/Library/LaunchAgents/com.starriv.cloudshuttle.scheduler.plist`；没有任何定时任务、或未允许在退出后运行时删除 |

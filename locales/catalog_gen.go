@@ -438,6 +438,50 @@ func (msgs Messages) SettingsNotifySkipped() string {
 	return Catalog.Format(msgs.locale, "settingsNotifySkipped", nil)
 }
 
+// SettingsNotifyStale says "Notify when a scheduled task hasn't succeeded for"
+// in the language the app shows.
+func SettingsNotifyStale() string { return In(i18n.Locale()).SettingsNotifyStale() }
+
+// SettingsNotifyStale says "Notify when a scheduled task hasn't succeeded for"
+// in the language of msgs.
+func (msgs Messages) SettingsNotifyStale() string {
+	return Catalog.Format(msgs.locale, "settingsNotifyStale", nil)
+}
+
+// SettingsNotifyStaleHint says "Only tasks that run on a schedule. A task that has never succeeded is counted from when its schedule was set."
+// in the language the app shows.
+func SettingsNotifyStaleHint() string { return In(i18n.Locale()).SettingsNotifyStaleHint() }
+
+// SettingsNotifyStaleHint says "Only tasks that run on a schedule. A task that has never succeeded is counted from when its schedule was set."
+// in the language of msgs.
+func (msgs Messages) SettingsNotifyStaleHint() string {
+	return Catalog.Format(msgs.locale, "settingsNotifyStaleHint", nil)
+}
+
+// SettingsStaleDays says "Days without success"
+// in the language the app shows.
+func SettingsStaleDays() string { return In(i18n.Locale()).SettingsStaleDays() }
+
+// SettingsStaleDays says "Days without success"
+// in the language of msgs.
+func (msgs Messages) SettingsStaleDays() string {
+	return Catalog.Format(msgs.locale, "settingsStaleDays", nil)
+}
+
+// SettingsStaleDaysValue says "{count, plural, one {# day} other {# days}}"
+// in the language the app shows.
+//
+// A choice for how long a scheduled task may go without succeeding.
+func SettingsStaleDaysValue(count int) string { return In(i18n.Locale()).SettingsStaleDaysValue(count) }
+
+// SettingsStaleDaysValue says "{count, plural, one {# day} other {# days}}"
+// in the language of msgs.
+//
+// A choice for how long a scheduled task may go without succeeding.
+func (msgs Messages) SettingsStaleDaysValue(count int) string {
+	return Catalog.Format(msgs.locale, "settingsStaleDaysValue", map[string]any{"count": count})
+}
+
 // SettingsHistoryTitle says "History"
 // in the language the app shows.
 func SettingsHistoryTitle() string { return In(i18n.Locale()).SettingsHistoryTitle() }
@@ -4034,6 +4078,30 @@ func (msgs Messages) NotifySkippedTitle(name string) string {
 	return Catalog.Format(msgs.locale, "notifySkippedTitle", map[string]any{"name": name})
 }
 
+// NotifyStaleTitle says "{name} hasn't succeeded for a while"
+// in the language the app shows.
+func NotifyStaleTitle(name string) string { return In(i18n.Locale()).NotifyStaleTitle(name) }
+
+// NotifyStaleTitle says "{name} hasn't succeeded for a while"
+// in the language of msgs.
+func (msgs Messages) NotifyStaleTitle(name string) string {
+	return Catalog.Format(msgs.locale, "notifyStaleTitle", map[string]any{"name": name})
+}
+
+// NotifyStaleBody says "{count, plural, one {No successful run for at least # day.} other {No successful run for at least # days.}}"
+// in the language the app shows.
+//
+// A scheduled task has gone too long without a successful run.
+func NotifyStaleBody(count int) string { return In(i18n.Locale()).NotifyStaleBody(count) }
+
+// NotifyStaleBody says "{count, plural, one {No successful run for at least # day.} other {No successful run for at least # days.}}"
+// in the language of msgs.
+//
+// A scheduled task has gone too long without a successful run.
+func (msgs Messages) NotifyStaleBody(count int) string {
+	return Catalog.Format(msgs.locale, "notifyStaleBody", map[string]any{"count": count})
+}
+
 // NotifyDestinationBusy says "Another task is writing to this destination. The task will be retried at the next scheduled time."
 // in the language the app shows.
 func NotifyDestinationBusy() string { return In(i18n.Locale()).NotifyDestinationBusy() }
@@ -4140,6 +4208,78 @@ func AppearanceDark() string { return In(i18n.Locale()).AppearanceDark() }
 // in the language of msgs.
 func (msgs Messages) AppearanceDark() string {
 	return Catalog.Format(msgs.locale, "appearanceDark", nil)
+}
+
+// SettingsAppIcon says "App icon"
+// in the language the app shows.
+func SettingsAppIcon() string { return In(i18n.Locale()).SettingsAppIcon() }
+
+// SettingsAppIcon says "App icon"
+// in the language of msgs.
+func (msgs Messages) SettingsAppIcon() string {
+	return Catalog.Format(msgs.locale, "settingsAppIcon", nil)
+}
+
+// SettingsAppIconDockAndMenuBar says "Dock and menu bar"
+// in the language the app shows.
+func SettingsAppIconDockAndMenuBar() string { return In(i18n.Locale()).SettingsAppIconDockAndMenuBar() }
+
+// SettingsAppIconDockAndMenuBar says "Dock and menu bar"
+// in the language of msgs.
+func (msgs Messages) SettingsAppIconDockAndMenuBar() string {
+	return Catalog.Format(msgs.locale, "settingsAppIconDockAndMenuBar", nil)
+}
+
+// SettingsAppIconDock says "Dock only"
+// in the language the app shows.
+func SettingsAppIconDock() string { return In(i18n.Locale()).SettingsAppIconDock() }
+
+// SettingsAppIconDock says "Dock only"
+// in the language of msgs.
+func (msgs Messages) SettingsAppIconDock() string {
+	return Catalog.Format(msgs.locale, "settingsAppIconDock", nil)
+}
+
+// SettingsAppIconMenuBar says "Menu bar only"
+// in the language the app shows.
+func SettingsAppIconMenuBar() string { return In(i18n.Locale()).SettingsAppIconMenuBar() }
+
+// SettingsAppIconMenuBar says "Menu bar only"
+// in the language of msgs.
+func (msgs Messages) SettingsAppIconMenuBar() string {
+	return Catalog.Format(msgs.locale, "settingsAppIconMenuBar", nil)
+}
+
+// SettingsAppIconDockAndMenuBarHint says "Shows the app in both places. After the window closes, either icon opens it again."
+// in the language the app shows.
+func SettingsAppIconDockAndMenuBarHint() string {
+	return In(i18n.Locale()).SettingsAppIconDockAndMenuBarHint()
+}
+
+// SettingsAppIconDockAndMenuBarHint says "Shows the app in both places. After the window closes, either icon opens it again."
+// in the language of msgs.
+func (msgs Messages) SettingsAppIconDockAndMenuBarHint() string {
+	return Catalog.Format(msgs.locale, "settingsAppIconDockAndMenuBarHint", nil)
+}
+
+// SettingsAppIconDockHint says "Shows the app only in the Dock. After its window closes, the Dock icon opens it again."
+// in the language the app shows.
+func SettingsAppIconDockHint() string { return In(i18n.Locale()).SettingsAppIconDockHint() }
+
+// SettingsAppIconDockHint says "Shows the app only in the Dock. After its window closes, the Dock icon opens it again."
+// in the language of msgs.
+func (msgs Messages) SettingsAppIconDockHint() string {
+	return Catalog.Format(msgs.locale, "settingsAppIconDockHint", nil)
+}
+
+// SettingsAppIconMenuBarHint says "Shows the app only in the menu bar. After its window closes, the menu bar icon opens it again."
+// in the language the app shows.
+func SettingsAppIconMenuBarHint() string { return In(i18n.Locale()).SettingsAppIconMenuBarHint() }
+
+// SettingsAppIconMenuBarHint says "Shows the app only in the menu bar. After its window closes, the menu bar icon opens it again."
+// in the language of msgs.
+func (msgs Messages) SettingsAppIconMenuBarHint() string {
+	return Catalog.Format(msgs.locale, "settingsAppIconMenuBarHint", nil)
 }
 
 // SettingsUpdatesTitle says "Updates"

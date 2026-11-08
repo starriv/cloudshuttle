@@ -35,6 +35,9 @@ type Host interface {
 	// SetAppearance gives the window, and the app's other windows, the
 	// appearance the person chose.
 	SetAppearance(domain.Appearance)
+	// SetAppIcon shows the app's icon where the person chose: the Dock,
+	// the menu bar, or both (macOS; elsewhere the app keeps both).
+	SetAppIcon(domain.AppIcon)
 }
 
 const (
@@ -75,12 +78,16 @@ type App struct {
 	settings domain.Settings
 	shown    domain.Appearance // the appearance given to the host last
 	shownSet bool
-	lastRuns map[string]domain.Run
-	recent   []domain.Run
-	week     []domain.Run              // the runs of the last seven days
-	running  []service.Active          // the oldest first
-	active   map[string]service.Active // the same, by task ID
-	loadErr  error
+	// shownIcon is the icon placement given to the host last, and
+	// shownIconSet whether it was given at all.
+	shownIcon    domain.AppIcon
+	shownIconSet bool
+	lastRuns     map[string]domain.Run
+	recent       []domain.Run
+	week         []domain.Run              // the runs of the last seven days
+	running      []service.Active          // the oldest first
+	active       map[string]service.Active // the same, by task ID
+	loadErr      error
 
 	taskList    ui.ListState
 	storageList ui.ListState
@@ -161,6 +168,7 @@ func (a *App) Reload() {
 	}
 	a.settings = a.svc.Settings()
 	a.showAppearance()
+	a.showIcon()
 	a.reloadHistory()
 	a.ReloadProgress()
 }
@@ -176,6 +184,16 @@ func (a *App) showAppearance() {
 	}
 	a.shown, a.shownSet = a.settings.Appearance, true
 	a.host.SetAppearance(a.shown)
+}
+
+// showIcon gives the host where the settings say the app shows its icon,
+// once per change: a restored backup brings its own.
+func (a *App) showIcon() {
+	if a.shownIconSet && a.shownIcon == a.settings.AppIcon {
+		return
+	}
+	a.shownIcon, a.shownIconSet = a.settings.AppIcon, true
+	a.host.SetAppIcon(a.shownIcon)
 }
 
 // ReloadProgress reads the runs in progress again. Call it on the main thread.

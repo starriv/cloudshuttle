@@ -770,6 +770,30 @@ func TestSettingsAreKept(t *testing.T) {
 	}
 }
 
+// Where the app shows its icon is kept at once, by itself, as the
+// appearance is: the settings page may hold changes not saved yet.
+func TestTheAppIconIsKeptByItself(t *testing.T) {
+	ctx := context.Background()
+	s, _, _ := newService(t)
+	if err := s.SetAppIcon(ctx, domain.AppIconDock); err != nil {
+		t.Fatal(err)
+	}
+	got := s.Settings()
+	if got.AppIcon != domain.AppIconDock {
+		t.Fatalf("app icon = %v, want the Dock", got.AppIcon)
+	}
+	if got.Transfers != domain.DefaultSettings().Transfers {
+		t.Fatalf("transfers = %d, changed with the icon", got.Transfers)
+	}
+	// A value the app does not offer changes nothing.
+	if err := s.SetAppIcon(ctx, domain.AppIconMenuBar+1); domain.AsProblems(err).For(domain.FieldSettings) != domain.CodeOutOfRange {
+		t.Fatalf("an icon the app does not offer = %v, want a problem", err)
+	}
+	if got := s.Settings().AppIcon; got != domain.AppIconDock {
+		t.Fatalf("app icon = %v after a refused save, want the Dock", got)
+	}
+}
+
 func TestATaskChoosesItsTrash(t *testing.T) {
 	ctx := context.Background()
 	for _, c := range []struct {
@@ -1058,5 +1082,447 @@ func TestTheGlobalExclusionsApplyToSync(t *testing.T) {
 		if _, err := os.Stat(filepath.Join(dst, gone)); err == nil {
 			t.Errorf("%s stayed after the setting was turned off", gone)
 		}
+	}
+}
+
+// A scheduled task that has gone too long without a real success is told
+// about once a day; manual tasks and tasks that are succeeding are not.
+func TestStaleScheduledTasksAreTold(t *testing.T) {
+	ctx := context.Background()
+	st, err := store.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	now := time.Date(2026, 11, 6, 12, 0, 0, 0, time.UTC)
+	var told []struct {
+		task domain.Task
+		last time.Time
+		days int
+	}
+	s := New(Options{Store: st, Secrets: &memSecrets{m: map[string]string{}},
+		Now: func() time.Time { return now },
+		OnStale: func(task domain.Task, last time.Time, days int) {
+			told = append(told, struct {
+				task domain.Task
+				last time.Time
+				days int
+			}{task, last, days})
+		}})
+	tell := func() map[string]bool {
+		told = nil
+		s.tellStale(ctx)
+		out := map[string]bool{}
+		for _, v := range told {
+			out[v.task.ID] = true
+			if v.days != 7 {
+				t.Errorf("%s: days = %d, want 7", v.task.ID, v.days)
+			}
+		}
+		return out
+	}
+	task := func(id string, schedule domain.Schedule, since time.Time) domain.Task {
+		return domain.Task{ID: id, Name: id, Mode: domain.ModeCopy,
+			Source: domain.Location{Path: "/src"}, Destination: domain.Location{Path: "/dst"},
+			Schedule: schedule, ScheduleSince: since, CreatedAt: since.AddDate(0, 0, -30)}
+	}
+	daily := domain.Schedule{Repeat: domain.RepeatDaily, Hour: 3}
+	stale := task("stale", daily, now.AddDate(0, 0, -10))
+	fresh := task("fresh", daily, now.AddDate(0, 0, -10))
+	dry := task("dry", daily, now.AddDate(0, 0, -10))
+	manual := task("manual", domain.Schedule{}, now.AddDate(0, 0, -30))
+	for _, task := range []domain.Task{stale, fresh, dry, manual} {
+		if err := st.PutTask(ctx, task); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := st.InsertRun(ctx, domain.Run{ID: "fresh-ok", TaskID: "fresh", Mode: domain.ModeCopy,
+		Status: domain.StatusSuccess, StartedAt: now.Add(-24 * time.Hour)}); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.InsertRun(ctx, domain.Run{ID: "dry-ok", TaskID: "dry", Mode: domain.ModeCopy,
+		Status: domain.StatusSuccess, DryRun: true, StartedAt: now.Add(-24 * time.Hour)}); err != nil {
+		t.Fatal(err)
+	}
+
+	got := tell()
+	if !got["stale"] || !got["dry"] || got["fresh"] || got["manual"] {
+		t.Fatalf("told = %v, want stale and dry only", got)
+	}
+	if len(told) != 2 {
+		t.Fatalf("told %d tasks, want 2", len(told))
+	}
+	for _, v := range told {
+		if v.task.ID == "stale" && !v.last.IsZero() {
+			t.Errorf("stale last success = %v, want zero", v.last)
+		}
+	}
+	// The same evening, nothing is repeated.
+	if got := tell(); len(got) != 0 {
+		t.Fatalf("told again the same day: %v", got)
+	}
+	// The next day, the still-stale tasks are told again; the fresh one is
+	// still recent enough.
+	now = now.Add(25 * time.Hour)
+	got = tell()
+	if !got["stale"] || !got["dry"] || got["fresh"] || got["manual"] {
+		t.Fatalf("next day told = %v, want stale and dry only", got)
+	}
+}
+
+// A longer threshold or the switch off keeps the notice quiet.
+func TestStaleNotifyRespectsItsSettings(t *testing.T) {
+	ctx := context.Background()
+	st, err := store.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	now := time.Date(2026, 11, 6, 12, 0, 0, 0, time.UTC)
+	task := domain.Task{ID: "t", Name: "T", Mode: domain.ModeCopy,
+		Source: domain.Location{Path: "/src"}, Destination: domain.Location{Path: "/dst"},
+		Schedule:      domain.Schedule{Repeat: domain.RepeatDaily, Hour: 3},
+		ScheduleSince: now.AddDate(0, 0, -10), CreatedAt: now.AddDate(0, 0, -30)}
+	if err := st.PutTask(ctx, task); err != nil {
+		t.Fatal(err)
+	}
+	told := 0
+	makeService := func(notify bool, days int) *Service {
+		settings := domain.DefaultSettings()
+		settings.NotifyStale, settings.StaleDays = notify, days
+		if err := st.PutSettings(ctx, settings); err != nil {
+			t.Fatal(err)
+		}
+		svc := New(Options{Store: st, Secrets: &memSecrets{m: map[string]string{}},
+			Now: func() time.Time { return now },
+			OnStale: func(domain.Task, time.Time, int) {
+				told++
+			}})
+		svc.tellStale(ctx)
+		return svc
+	}
+	// 10 days without success is inside a 14-day threshold.
+	makeService(true, 14)
+	if told != 0 {
+		t.Fatalf("told with a 14-day threshold: %d", told)
+	}
+	// Off.
+	makeService(false, 7)
+	if told != 0 {
+		t.Fatalf("told with the switch off: %d", told)
+	}
+	// And on at the default 7 days, it tells once.
+	makeService(true, 7)
+	if told != 1 {
+		t.Fatalf("told %d times with the switch on, want once", told)
+	}
+}
+
+// Turning stale notices on checks at once, without waiting for the periodic
+// check.
+func TestStaleNotifyChecksWhenTurnedOn(t *testing.T) {
+	ctx := context.Background()
+	st, err := store.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	now := time.Date(2026, 11, 6, 12, 0, 0, 0, time.UTC)
+	task := domain.Task{ID: "t", Name: "T", Mode: domain.ModeCopy,
+		Source: domain.Location{Path: "/src"}, Destination: domain.Location{Path: "/dst"},
+		Schedule:      domain.Schedule{Repeat: domain.RepeatDaily, Hour: 3},
+		ScheduleSince: now.AddDate(0, 0, -10), CreatedAt: now.AddDate(0, 0, -30)}
+	if err := st.PutTask(ctx, task); err != nil {
+		t.Fatal(err)
+	}
+	settings := domain.DefaultSettings()
+	settings.NotifyStale = false
+	if err := st.PutSettings(ctx, settings); err != nil {
+		t.Fatal(err)
+	}
+	told := make(chan domain.Task, 1)
+	s := New(Options{Store: st, Secrets: &memSecrets{m: map[string]string{}},
+		Now: func() time.Time { return now },
+		OnStale: func(task domain.Task, _ time.Time, _ int) {
+			told <- task
+		}})
+	settings.NotifyStale = true
+	if _, err := s.SaveSettings(ctx, settings); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case got := <-told:
+		if got.ID != task.ID {
+			t.Fatalf("told %q, want %q", got.ID, task.ID)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("no notice after turning stale notices on")
+	}
+}
+
+// A task that is running is not stale; once it ends, it is told.
+func TestStaleNotifySkipsRunningTasks(t *testing.T) {
+	ctx := context.Background()
+	st, err := store.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	now := time.Date(2026, 11, 6, 12, 0, 0, 0, time.UTC)
+	task := domain.Task{ID: "t", Name: "T", Mode: domain.ModeCopy,
+		Source: domain.Location{Path: "/src"}, Destination: domain.Location{Path: "/dst"},
+		Schedule:      domain.Schedule{Repeat: domain.RepeatDaily, Hour: 3},
+		ScheduleSince: now.AddDate(0, 0, -10), CreatedAt: now.AddDate(0, 0, -30)}
+	if err := st.PutTask(ctx, task); err != nil {
+		t.Fatal(err)
+	}
+	told := make(chan domain.Task, 1)
+	s := New(Options{Store: st, Secrets: &memSecrets{m: map[string]string{}},
+		Now: func() time.Time { return now },
+		OnStale: func(task domain.Task, _ time.Time, _ int) {
+			told <- task
+		}})
+	s.mu.Lock()
+	s.active[task.ID] = &activeRun{}
+	s.mu.Unlock()
+	s.tellStale(ctx)
+	select {
+	case got := <-told:
+		t.Fatalf("told about running task %q", got.ID)
+	case <-time.After(100 * time.Millisecond):
+	}
+	s.mu.Lock()
+	delete(s.active, task.ID)
+	s.mu.Unlock()
+	s.tellStale(ctx)
+	select {
+	case got := <-told:
+		if got.ID != task.ID {
+			t.Fatalf("told %q, want %q", got.ID, task.ID)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("no notice after the task stopped running")
+	}
+}
+
+// The scheduler leaves a stale notice for the window and wakes the app;
+// the window shows it, and neither process repeats it within the day.
+func TestSchedulerLeavesStaleNoticeForTheWindow(t *testing.T) {
+	ctx := context.Background()
+	st, err := store.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	now := time.Date(2026, 11, 6, 12, 0, 0, 0, time.UTC)
+	task := domain.Task{ID: "t", Name: "T", Mode: domain.ModeCopy,
+		Source: domain.Location{Path: "/src"}, Destination: domain.Location{Path: "/dst"},
+		Schedule:      domain.Schedule{Repeat: domain.RepeatDaily, Hour: 3},
+		ScheduleSince: now.AddDate(0, 0, -10), CreatedAt: now.AddDate(0, 0, -30)}
+	if err := st.PutTask(ctx, task); err != nil {
+		t.Fatal(err)
+	}
+	var woken, windowTold int
+	scheduler := New(Options{Store: st, Secrets: &memSecrets{m: map[string]string{}},
+		Owner: OwnerScheduler, Now: func() time.Time { return now },
+		WakeApp: func() { woken++ },
+		OnStale: func(domain.Task, time.Time, int) {
+			t.Error("the scheduler told stale itself")
+		}})
+	scheduler.tellStale(ctx)
+	if woken != 1 {
+		t.Fatalf("woke the app %d times, want once", woken)
+	}
+	notices, err := st.StaleNotices(ctx)
+	if err != nil || !notices["t"].Pending {
+		t.Fatalf("notices = %+v, %v; want a pending notice", notices, err)
+	}
+
+	window := New(Options{Store: st, Secrets: &memSecrets{m: map[string]string{}},
+		Now: func() time.Time { return now },
+		OnStale: func(task domain.Task, _ time.Time, _ int) {
+			if task.ID != "t" {
+				t.Errorf("told %q", task.ID)
+			}
+			windowTold++
+		}})
+	window.tellStale(ctx)
+	if windowTold != 1 {
+		t.Fatalf("the window told %d times, want once", windowTold)
+	}
+	notices, _ = st.StaleNotices(ctx)
+	if notices["t"].Pending {
+		t.Error("the notice is still pending after the window told it")
+	}
+	window.tellStale(ctx)
+	scheduler.tellStale(ctx)
+	if windowTold != 1 || woken != 1 {
+		t.Fatalf("repeated: window %d, wake %d", windowTold, woken)
+	}
+}
+
+// The notice is kept across a restart, so the same day does not repeat it;
+// a success clears it.
+func TestStaleNoticeSurvivesARestart(t *testing.T) {
+	ctx := context.Background()
+	st, err := store.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	now := time.Date(2026, 11, 6, 12, 0, 0, 0, time.UTC)
+	task := domain.Task{ID: "t", Name: "T", Mode: domain.ModeCopy,
+		Source: domain.Location{Path: "/src"}, Destination: domain.Location{Path: "/dst"},
+		Schedule:      domain.Schedule{Repeat: domain.RepeatDaily, Hour: 3},
+		ScheduleSince: now.AddDate(0, 0, -10), CreatedAt: now.AddDate(0, 0, -30)}
+	if err := st.PutTask(ctx, task); err != nil {
+		t.Fatal(err)
+	}
+	told := 0
+	newWindow := func(at time.Time) *Service {
+		return New(Options{Store: st, Secrets: &memSecrets{m: map[string]string{}},
+			Now: func() time.Time { return at },
+			OnStale: func(domain.Task, time.Time, int) {
+				told++
+			}})
+	}
+	newWindow(now).tellStale(ctx)
+	if told != 1 {
+		t.Fatalf("told %d times, want once", told)
+	}
+	newWindow(now.Add(time.Hour)).tellStale(ctx)
+	if told != 1 {
+		t.Fatalf("told again after a restart: %d", told)
+	}
+	newWindow(now.Add(25 * time.Hour)).tellStale(ctx)
+	if told != 2 {
+		t.Fatalf("did not tell the next day: %d", told)
+	}
+	// A new success clears the notice and is the new baseline.
+	if err := st.MarkTaskSuccess(ctx, "t", now.Add(24*time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.ClearStaleNotice(ctx, "t"); err != nil {
+		t.Fatal(err)
+	}
+	newWindow(now.Add(25 * time.Hour)).tellStale(ctx)
+	if told != 2 {
+		t.Fatalf("told after a success: %d", told)
+	}
+}
+
+// A success still in the kept history wins over an older LastSuccessAt, as
+// after restoring an older configuration on a machine that kept its runs.
+func TestStaleUsesANewerKeptSuccess(t *testing.T) {
+	ctx := context.Background()
+	st, err := store.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	now := time.Date(2026, 11, 6, 12, 0, 0, 0, time.UTC)
+	task := domain.Task{ID: "t", Name: "T", Mode: domain.ModeCopy,
+		Source: domain.Location{Path: "/src"}, Destination: domain.Location{Path: "/dst"},
+		Schedule:      domain.Schedule{Repeat: domain.RepeatDaily, Hour: 3},
+		ScheduleSince: now.AddDate(0, 0, -30), LastSuccessAt: now.AddDate(0, 0, -10),
+		CreatedAt: now.AddDate(0, 0, -40)}
+	if err := st.PutTask(ctx, task); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.InsertRun(ctx, domain.Run{ID: "new", TaskID: "t", Mode: domain.ModeCopy,
+		Status: domain.StatusSuccess, StartedAt: now.Add(-24 * time.Hour)}); err != nil {
+		t.Fatal(err)
+	}
+	told := 0
+	s := New(Options{Store: st, Secrets: &memSecrets{m: map[string]string{}},
+		Now: func() time.Time { return now },
+		OnStale: func(domain.Task, time.Time, int) {
+			told++
+		}})
+	s.tellStale(ctx)
+	if told != 0 {
+		t.Fatalf("told although a success a day ago is still kept: %d", told)
+	}
+}
+
+// A real success records its time and clears the stale notice.
+func TestASuccessClearsTheStaleNotice(t *testing.T) {
+	ctx := context.Background()
+	st, err := store.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	now := time.Date(2026, 11, 6, 12, 0, 0, 0, time.UTC)
+	task := domain.Task{ID: "t", Name: "T", Mode: domain.ModeCopy,
+		Source: domain.Location{Path: "/src"}, Destination: domain.Location{Path: "/dst"},
+		CreatedAt: now, UpdatedAt: now}
+	if err := st.PutTask(ctx, task); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.PutStaleNotice(ctx, task.ID, now, true); err != nil {
+		t.Fatal(err)
+	}
+	run := domain.Run{ID: "r", TaskID: task.ID, TaskName: task.Name,
+		Mode: domain.ModeCopy, Status: domain.StatusSuccess, StartedAt: now}
+	if err := st.InsertRun(ctx, run); err != nil {
+		t.Fatal(err)
+	}
+	s := New(Options{Store: st, Secrets: &memSecrets{m: map[string]string{}},
+		Now: func() time.Time { return now }})
+	s.recordRun(ctx, &activeRun{log: &runLog{}, done: make(chan struct{})}, run, s.Settings())
+	got, _ := st.Task(ctx, task.ID)
+	if !got.LastSuccessAt.Equal(now) {
+		t.Fatalf("last success = %v, want %v", got.LastSuccessAt, now)
+	}
+	if notices, _ := st.StaleNotices(ctx); len(notices) != 0 {
+		t.Fatalf("stale notice stayed: %+v", notices)
+	}
+}
+
+// RunDue checks for stale tasks after its runs, leaves a pending notice for
+// the window, and wakes the app when no window is running.
+func TestRunDueLeavesAStaleNotice(t *testing.T) {
+	ctx := context.Background()
+	st, err := store.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	now := time.Date(2026, 11, 6, 12, 0, 0, 0, time.UTC)
+	task := domain.Task{ID: "t", Name: "T", Mode: domain.ModeCopy,
+		Source: domain.Location{Path: "/src"}, Destination: domain.Location{Path: "/dst"},
+		Schedule:      domain.Schedule{Repeat: domain.RepeatDaily, Hour: 3},
+		ScheduleSince: now.AddDate(0, 0, -10), CreatedAt: now.AddDate(0, 0, -30)}
+	if err := st.PutTask(ctx, task); err != nil {
+		t.Fatal(err)
+	}
+	// It started a run now, so it is not due; it has not succeeded for ten
+	// days, so it is stale once that run is over.
+	run := domain.Run{ID: "old", TaskID: task.ID, TaskName: task.Name, Mode: domain.ModeCopy,
+		Status: domain.StatusRunning, StartedAt: now}
+	if err := st.StartRun(ctx, run, OwnerApp, false, time.Time{}); err != nil {
+		t.Fatal(err)
+	}
+	run.Status, run.FinishedAt = domain.StatusCanceled, now
+	if err := st.FinishRun(ctx, run); err != nil {
+		t.Fatal(err)
+	}
+	woken := 0
+	s := New(Options{Store: st, Secrets: &memSecrets{m: map[string]string{}},
+		Owner: OwnerScheduler, Now: func() time.Time { return now },
+		WakeApp: func() { woken++ },
+		OnStale: func(domain.Task, time.Time, int) {
+			t.Error("the scheduler told stale itself")
+		}})
+	if err := s.RunDue(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if woken != 1 {
+		t.Fatalf("woke %d times, want once", woken)
+	}
+	notices, _ := st.StaleNotices(ctx)
+	if !notices[task.ID].Pending {
+		t.Fatalf("notices = %+v, want a pending notice", notices)
 	}
 }

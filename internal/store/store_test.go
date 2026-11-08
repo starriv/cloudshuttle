@@ -44,7 +44,8 @@ func TestStoragesAndTasks(t *testing.T) {
 	task := domain.Task{ID: "t1", Name: "Photos", Source: domain.Location{Path: "/p"},
 		Destination: domain.Location{StorageID: "s1", Path: "x"}, Mode: domain.ModeCopy,
 		Schedule:      domain.Schedule{Repeat: domain.RepeatWeekly, Days: domain.WorkDays, Hour: 21, Minute: 30},
-		ScheduleSince: now, TrashDays: 7, CreatedAt: now, UpdatedAt: now,
+		ScheduleSince: now, TrashDays: 7, LastSuccessAt: now.Add(-time.Hour),
+		CreatedAt: now, UpdatedAt: now,
 		Exclude: domain.Exclude{Patterns: []string{".DS_Store", "node_modules/"}, MaxSize: 1 << 30}}
 	if err := s.PutTask(ctx, task); err != nil {
 		t.Fatal(err)
@@ -460,6 +461,8 @@ func TestSettingsRoundTrip(t *testing.T) {
 	want.NotifyFailed, want.NotifySkipped, want.RetentionDays, want.TrashDays = false, false, 30, 7
 	want.ExcludeEnabled = false
 	want.GlobalExcludes = []string{"*.log", "/cache/"}
+	want.NotifyStale, want.StaleDays = false, 14
+	want.AppIcon = domain.AppIconDock
 	if err := s.PutSettings(ctx, want); err != nil {
 		t.Fatal(err)
 	}
@@ -528,6 +531,31 @@ func TestSchedulesThatRanInTheBackgroundStayAllowed(t *testing.T) {
 		if got.TrashDays != 30 {
 			t.Errorf("scheduled %v: trash days = %d, want 30", scheduled, got.TrashDays)
 		}
+	}
+}
+
+// A database step 17 left gets the app icon in step 18: the menu bar alone,
+// where the app always showed before the setting.
+func TestMigrateTheAppIconFromStep17(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "old.db")
+	st, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.db.Exec(`ALTER TABLE settings DROP COLUMN app_icon;
+		PRAGMA user_version = 17`); err != nil {
+		t.Fatal(err)
+	}
+	st.Close()
+	st, err = Open(path)
+	if err != nil {
+		t.Fatalf("open the database of step 17: %v", err)
+	}
+	defer st.Close()
+	got, err := st.Settings(ctx)
+	if err != nil || got.AppIcon != domain.AppIconMenuBar {
+		t.Fatalf("settings = %+v, %v; want the menu bar alone", got, err)
 	}
 }
 
@@ -624,6 +652,177 @@ func TestMigrateTheGlobalExclusionFromStep14(t *testing.T) {
 	got, err := st.Settings(ctx)
 	if err != nil || got.ExcludeEnabled || !slices.Equal(got.GlobalExcludes, domain.DevDependencyExcludes) {
 		t.Fatalf("settings = %+v, %v; want the switch off with the built-in list", got, err)
+	}
+}
+
+// A database step 15 left gets the stale-notification settings in step 16.
+func TestMigrateStaleNotify(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "old.db")
+	st, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.db.Exec(`ALTER TABLE settings DROP COLUMN notify_stale;
+		ALTER TABLE settings DROP COLUMN stale_days;
+		PRAGMA user_version = 15`); err != nil {
+		t.Fatal(err)
+	}
+	st.Close()
+	st, err = Open(path)
+	if err != nil {
+		t.Fatalf("open the database of step 15: %v", err)
+	}
+	defer st.Close()
+	got, err := st.Settings(ctx)
+	if err != nil || !got.NotifyStale || got.StaleDays != 7 {
+		t.Fatalf("settings = %+v, %v; want stale notices on after 7 days", got, err)
+	}
+}
+
+// A database step 16 left gets the task's last success, backfilled from the
+// runs it still has, and the stale-notice table in step 17.
+func TestMigrateStaleState(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "old.db")
+	st, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	at := time.Date(2026, 10, 1, 10, 0, 0, 0, time.UTC)
+	task := domain.Task{ID: "t", Name: "T", Mode: domain.ModeCopy,
+		Source: domain.Location{Path: "/src"}, Destination: domain.Location{Path: "/dst"},
+		CreatedAt: at, UpdatedAt: at}
+	if err := st.PutTask(ctx, task); err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range []domain.Run{
+		{ID: "failed", TaskID: "t", Mode: domain.ModeCopy, Status: domain.StatusFailed, StartedAt: at.Add(time.Hour)},
+		{ID: "success", TaskID: "t", Mode: domain.ModeCopy, Status: domain.StatusSuccess, StartedAt: at.Add(2 * time.Hour)},
+	} {
+		if err := st.InsertRun(ctx, r); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := st.db.Exec(`ALTER TABLE tasks DROP COLUMN last_success_at;
+		DROP TABLE stale_notices; PRAGMA user_version = 16`); err != nil {
+		t.Fatal(err)
+	}
+	st.Close()
+	st, err = Open(path)
+	if err != nil {
+		t.Fatalf("open the database of step 16: %v", err)
+	}
+	defer st.Close()
+	got, err := st.Task(ctx, "t")
+	if err != nil || !got.LastSuccessAt.Equal(at.Add(2*time.Hour)) {
+		t.Fatalf("task = %+v, %v; want the backfilled success", got, err)
+	}
+	// The new table is usable.
+	if err := st.PutStaleNotice(ctx, "t", at, true); err != nil {
+		t.Fatal(err)
+	}
+	notices, err := st.StaleNotices(ctx)
+	if err != nil || !notices["t"].Pending || !notices["t"].ToldAt.Equal(at) {
+		t.Fatalf("notices = %+v, %v", notices, err)
+	}
+	if err := st.ClearStaleNotice(ctx, "t"); err != nil {
+		t.Fatal(err)
+	}
+	if notices, _ := st.StaleNotices(ctx); len(notices) != 0 {
+		t.Fatalf("notice stayed: %+v", notices)
+	}
+}
+
+// A scheduler's pending notice must not overwrite one the window cleared
+// moments before.
+func TestPutStalePendingRespectsANewerNotice(t *testing.T) {
+	ctx := context.Background()
+	st, err := Open(filepath.Join(t.TempDir(), "db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	now := time.Date(2026, 11, 6, 12, 0, 0, 0, time.UTC)
+	if err := st.PutStaleNotice(ctx, "t", now, false); err != nil {
+		t.Fatal(err)
+	}
+	changed, err := st.PutStalePending(ctx, "t", now, now.Add(-24*time.Hour))
+	if err != nil || changed {
+		t.Fatalf("newer notice changed = %v, %v; want false", changed, err)
+	}
+	if notices, _ := st.StaleNotices(ctx); notices["t"].Pending {
+		t.Fatal("a newer cleared notice became pending")
+	}
+	// An old notice can be made pending.
+	if err := st.PutStaleNotice(ctx, "t", now.Add(-25*time.Hour), false); err != nil {
+		t.Fatal(err)
+	}
+	changed, err = st.PutStalePending(ctx, "t", now, now.Add(-24*time.Hour))
+	if err != nil || !changed {
+		t.Fatalf("old notice changed = %v, %v; want true", changed, err)
+	}
+	if notices, _ := st.StaleNotices(ctx); !notices["t"].Pending || !notices["t"].ToldAt.Equal(now) {
+		t.Fatalf("notice = %+v, want pending now", notices["t"])
+	}
+}
+
+// MarkTaskSuccess moves the time forward only, never back.
+func TestMarkTaskSuccess(t *testing.T) {
+	ctx := context.Background()
+	st, err := Open(filepath.Join(t.TempDir(), "db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	at := time.Date(2026, 10, 1, 10, 0, 0, 0, time.UTC)
+	task := domain.Task{ID: "t", Name: "T", Mode: domain.ModeCopy,
+		Source: domain.Location{Path: "/src"}, Destination: domain.Location{Path: "/dst"},
+		CreatedAt: at, UpdatedAt: at}
+	if err := st.PutTask(ctx, task); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.MarkTaskSuccess(ctx, "t", at); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.MarkTaskSuccess(ctx, "t", at.Add(-time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	got, _ := st.Task(ctx, "t")
+	if !got.LastSuccessAt.Equal(at) {
+		t.Fatalf("last success = %v, want %v", got.LastSuccessAt, at)
+	}
+}
+
+// LastSuccesses counts real successes only, and the newest one.
+func TestLastSuccesses(t *testing.T) {
+	ctx := context.Background()
+	st, err := Open(filepath.Join(t.TempDir(), "db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	at := time.Date(2026, 11, 1, 10, 0, 0, 0, time.UTC)
+	for _, r := range []domain.Run{
+		{ID: "a1", TaskID: "a", Status: domain.StatusSuccess, StartedAt: at},
+		{ID: "a2", TaskID: "a", Status: domain.StatusSuccess, StartedAt: at.Add(time.Hour)},
+		{ID: "a3", TaskID: "a", Status: domain.StatusSuccess, DryRun: true, StartedAt: at.Add(2 * time.Hour)},
+		{ID: "a4", TaskID: "a", Status: domain.StatusFailed, StartedAt: at.Add(3 * time.Hour)},
+		{ID: "b1", TaskID: "b", Status: domain.StatusFailed, StartedAt: at},
+	} {
+		if err := st.InsertRun(ctx, r); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got, err := st.LastSuccesses(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got["a"].Equal(at.Add(time.Hour)) {
+		t.Errorf("a = %v, want the newest real success", got["a"])
+	}
+	if _, ok := got["b"]; ok {
+		t.Error("b has no success")
 	}
 }
 

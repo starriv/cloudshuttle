@@ -18,10 +18,14 @@ import (
 	"github.com/starriv/cloudshuttle/locales"
 )
 
-// fakeTray records the menus the tray is given.
-type fakeTray struct{ menus []*mygo.Menu }
+// fakeTray records the menus the tray is given, and whether it was destroyed.
+type fakeTray struct {
+	menus     []*mygo.Menu
+	destroyed bool
+}
 
 func (f *fakeTray) SetMenu(m *mygo.Menu) { f.menus = append(f.menus, m) }
+func (f *fakeTray) Destroy()             { f.destroyed = true }
 
 // fakeTrayService stands in for the service, which needs a database.
 type fakeTrayService struct{ active []service.Active }

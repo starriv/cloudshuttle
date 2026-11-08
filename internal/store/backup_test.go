@@ -57,8 +57,8 @@ func TestBackupConfig(t *testing.T) {
 	}
 	task := domain.Task{ID: "t1", Name: "Photos", Source: domain.Location{Path: "/p"},
 		Destination: domain.Location{StorageID: "s1", Path: "x"}, Mode: domain.ModeCopy,
-		Exclude:   domain.Exclude{Patterns: []string{".DS_Store", "node_modules/"}, MaxSize: 1 << 30},
-		CreatedAt: now, UpdatedAt: now}
+		Exclude:       domain.Exclude{Patterns: []string{".DS_Store", "node_modules/"}, MaxSize: 1 << 30},
+		LastSuccessAt: now.Add(-time.Hour), CreatedAt: now, UpdatedAt: now}
 	if err := s.PutTask(ctx, task); err != nil {
 		t.Fatal(err)
 	}
@@ -134,11 +134,13 @@ func TestRestoreConfig(t *testing.T) {
 	st := domain.Storage{ID: "s1", Name: "NAS", Kind: domain.KindSMB, Host: "nas.local", Port: 445, Username: "me", CreatedAt: now, UpdatedAt: now}
 	task := domain.Task{ID: "t1", Name: "Photos", Source: domain.Location{Path: "/p"}, Destination: domain.Location{StorageID: "s1", Path: "Photos"},
 		Mode: domain.ModeCopy, Schedule: domain.Schedule{Repeat: domain.RepeatDaily, Hour: 3}, ScheduleSince: now,
-		Exclude: domain.Exclude{Patterns: []string{"*.tmp"}, MaxSize: 5_000_000}, CreatedAt: now, UpdatedAt: now}
+		Exclude:       domain.Exclude{Patterns: []string{"*.tmp"}, MaxSize: 5_000_000},
+		LastSuccessAt: now.Add(-2 * time.Hour), CreatedAt: now, UpdatedAt: now}
 	settings := domain.DefaultSettings()
 	settings.RetentionDays = 30
 	settings.Background = domain.ConsentGiven   // the other computer's answer
 	settings.Appearance = domain.AppearanceDark // a preference, restored
+	settings.AppIcon = domain.AppIconDockAndMenuBar
 	settings.CheckUpdates, settings.InstallUpdates = false, true
 	if err := from.PutStorage(ctx, st); err != nil {
 		t.Fatal(err)
