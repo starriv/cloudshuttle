@@ -4,6 +4,10 @@
 
 # 云梭 CloudShuttle
 
+[简体中文](README.md) · [English](README.en.md)
+
+[![Listed on Awesome MyGo](https://awesomemygo.dev/badge.svg)](https://awesomemygo.dev/apps/cloudshuttle)
+
 在本机文件夹、NAS 与云存储之间，轻松复制与同步文件。
 
 云梭常驻状态栏，按计划在后台运行。随时查看同步进度与最近结果，需要管理任务时再打开主窗口。
@@ -89,3 +93,7 @@ Windows 版与 macOS 版的差异：
 - 定时任务在云梭运行期间执行；关闭窗口后云梭在通知区域继续运行，退出后定时任务暂停。
 - 不提供 iCloud 加密备份。
 - 访问密钥与 NAS 密码保存在 Windows 凭据管理器中。
+
+## 许可证
+
+本项目采用 [MIT 许可证](LICENSE)。第三方依赖及资源遵循各自的许可证。
