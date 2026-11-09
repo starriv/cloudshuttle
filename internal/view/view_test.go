@@ -746,7 +746,7 @@ func TestTheSettingsKeepTheGlobalExclude(t *testing.T) {
 	// A new install leaves out the folders that development tools fill, so
 	// the box shows checked and the rules are the built-in ones.
 	h.expect(locales.SettingsExcludeEnabled())
-	h.expect(locales.SettingsExcludeRulesHint(len(domain.DevDependencyExcludes)))
+	h.expect(locales.SettingsExcludeRulesHint(len(domain.DefaultGlobalExcludes())))
 	if !h.app.settingsForm.excludeEnabled {
 		t.Fatal("the checkbox is off at start, want it on")
 	}
@@ -814,7 +814,7 @@ func TestTheSettingsKeepTheGlobalExclude(t *testing.T) {
 	h.settle()
 	h.app.saveSettings()
 	h.waitFor("the defaults to save", func() bool {
-		return reflect.DeepEqual(h.svc.Settings().GlobalExcludes, domain.DevDependencyExcludes)
+		return reflect.DeepEqual(h.svc.Settings().GlobalExcludes, domain.DefaultGlobalExcludes())
 	})
 }
 
@@ -1040,7 +1040,7 @@ func TestATaskExcludesFiles(t *testing.T) {
 	h.click(locales.TasksAdd())
 	// A new task leaves out what the systems make, on top of the global rules.
 	h.expect(locales.TaskExcludeRules(2))
-	h.expect(locales.TaskExcludeGlobalHint(len(domain.DevDependencyExcludes)))
+	h.expect(locales.TaskExcludeGlobalHint(len(domain.DefaultGlobalExcludes())))
 	h.fill(locales.TaskFieldName(), "Projects")
 	h.app.taskForm.source.path, h.app.taskForm.dest.path = src, dst
 	h.click(locales.TaskExcludeEdit())

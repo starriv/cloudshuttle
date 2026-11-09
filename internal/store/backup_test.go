@@ -228,7 +228,7 @@ func TestRestoreFromBeforeTheGlobalExclusionList(t *testing.T) {
 			}
 			got, err := to.Settings(ctx)
 			if err != nil || got.ExcludeEnabled != (c.version == 13) ||
-				!slices.Equal(got.GlobalExcludes, domain.DevDependencyExcludes) {
+				!slices.Equal(got.GlobalExcludes, domain.DefaultGlobalExcludes()) {
 				t.Fatalf("settings = %+v, %v; want the built-in list and the switch as saved", got, err)
 			}
 		})

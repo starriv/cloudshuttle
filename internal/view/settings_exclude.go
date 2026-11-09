@@ -107,7 +107,7 @@ func (a *App) globalExcludeDialog(c *ui.Context) {
 	}, func() {
 		if accentButton(c, "exclude-defaults", icons.Refresh, locales.SettingsExcludeRestoreDefaults(), buttonSoft).
 			Clicked() {
-			f.text = strings.Join(domain.DevDependencyExcludes, "\n")
+			f.text = strings.Join(domain.DefaultGlobalExcludes(), "\n")
 			f.checked = ""
 		}
 		sheetActions(c, func() {

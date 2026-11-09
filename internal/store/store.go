@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -139,6 +140,44 @@ INSERT INTO schedule_starts(task_id, started_at)
 	// 19: existing tasks keep their exact destination; new tasks use a child.
 	addDestinationFolder,
 	addDestinationPending,
+	// 21: the global list also leaves out the files a system leaves in its
+	// folders, such as .DS_Store.
+	prependGlobalExcludes(".DS_Store"),
+	// 22: and Git's repository folders.
+	prependGlobalExcludes(".git/"),
+}
+
+// prependGlobalExcludes is a step that puts each of patterns the stored
+// global list lacks before the person's own rules, so a list they edited
+// keeps everything else as it was. A step names its patterns itself rather
+// than reading a list of domain, which may grow after the step has run.
+func prependGlobalExcludes(patterns ...string) migration {
+	return func(tx *sql.Tx) error {
+		var stored string
+		err := tx.QueryRow(`SELECT global_excludes FROM settings WHERE id = 1`).Scan(&stored)
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil // the defaults apply when the settings are first saved
+		}
+		if err != nil {
+			return err
+		}
+		var have []string
+		if err := json.Unmarshal([]byte(stored), &have); err != nil {
+			return nil // an unreadable list stays as it is; reading it reports it
+		}
+		var missing []string
+		for _, p := range patterns {
+			if !slices.Contains(have, p) {
+				missing = append(missing, p)
+			}
+		}
+		if len(missing) == 0 {
+			return nil
+		}
+		_, err = tx.Exec(`UPDATE settings SET global_excludes = ? WHERE id = 1`,
+			encodeExcludes(slices.Concat(missing, have)))
+		return err
+	}
 }
 
 // 20: a newly chosen directory must still be unused when first initialized.
@@ -287,7 +326,8 @@ func addGlobalExcludes(tx *sql.Tx) error {
 		}
 	}
 	// A list left empty by a development build gets the built-in folders
-	// the setting promises; a person's edited list is left alone.
+	// the setting promised then; a person's edited list is left alone.
+	// Step 21 adds the system files.
 	if _, err := tx.Exec(`UPDATE settings SET global_excludes = ? WHERE global_excludes = '[]'`,
 		encodeExcludes(domain.DevDependencyExcludes)); err != nil {
 		return err

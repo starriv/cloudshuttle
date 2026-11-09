@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
+	"slices"
 	"time"
 )
 
@@ -212,13 +213,17 @@ type Exclude struct {
 var ExcludePresets = []string{".DS_Store", "Thumbs.db", "node_modules/", "*.tmp"}
 
 // DevDependencyExcludes are the folders that development tools fill with
-// downloaded dependencies and regenerable builds. They are what a new
-// database puts in Settings.GlobalExcludes, which every run leaves out
-// while ExcludeEnabled is on, as it is by default: a backup does not need
-// them, and copying or keeping them only makes a run slower. The person can
-// then edit that list. Each names a folder, and a name without a leading
-// slash matches it in any folder (see Exclude).
+// version-control data, downloaded dependencies and regenerable builds.
+// They are part of what a new database puts in Settings.GlobalExcludes (see
+// DefaultGlobalExcludes), which every run leaves out while ExcludeEnabled
+// is on, as it is by default: a backup does not need them, and copying or
+// keeping them only makes a run slower. The person can then edit that list.
+// Each names a folder, and a name without a leading slash matches it in any
+// folder (see Exclude).
 var DevDependencyExcludes = []string{
+	// Git keeps a repository's objects and history here; its remote holds
+	// them, and its thousands of small files slow every run.
+	".git/",
 	// JavaScript and TypeScript: npm, Yarn and Bun install into
 	// node_modules; pnpm links it from its store. The rest are the build
 	// caches of the frameworks and monorepo tools.
@@ -272,6 +277,21 @@ var DevDependencyExcludes = []string{
 	".terraform/",
 	// Godot's import cache.
 	".godot/",
+}
+
+// SystemFileExcludes are the files a system leaves in the folders it shows,
+// which no backup needs. With DevDependencyExcludes they make
+// DefaultGlobalExcludes.
+var SystemFileExcludes = []string{
+	// Finder writes one into every folder it opens on macOS.
+	".DS_Store",
+}
+
+// DefaultGlobalExcludes is what a new database puts in
+// Settings.GlobalExcludes, and what the editor's "Restore defaults" brings
+// back: the system files, then the development folders.
+func DefaultGlobalExcludes() []string {
+	return slices.Concat(SystemFileExcludes, DevDependencyExcludes)
 }
 
 // build, dist, out, bin, obj, packages and Library are not in the list

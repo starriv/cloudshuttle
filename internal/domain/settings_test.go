@@ -26,19 +26,25 @@ func TestTheAppIconIsInTheMenuBarUnlessChosen(t *testing.T) {
 	}
 }
 
-// A new database starts with the built-in folders, which the person can
-// then edit; the default must hold its own copy of the list.
+// A new database starts with the system files and the built-in folders,
+// which the person can then edit; the default must hold its own copy of the
+// list.
 func TestTheDefaultsLeaveOutTheDevelopmentDependencies(t *testing.T) {
 	s := DefaultSettings()
 	if !s.ExcludeEnabled {
 		t.Fatal("the global exclusion is off in a new database")
 	}
-	if !slices.Equal(s.GlobalExcludes, DevDependencyExcludes) {
+	if !slices.Equal(s.GlobalExcludes, DefaultGlobalExcludes()) {
 		t.Fatalf("global excludes = %v, want the built-in list", s.GlobalExcludes)
 	}
-	s.GlobalExcludes[0] = "changed/"
-	if DevDependencyExcludes[0] == "changed/" {
-		t.Fatal("the defaults share their slice with DevDependencyExcludes")
+	if !slices.Contains(s.GlobalExcludes, ".DS_Store") {
+		t.Errorf("global excludes = %v, want .DS_Store", s.GlobalExcludes)
+	}
+	for i := range s.GlobalExcludes {
+		s.GlobalExcludes[i] = "changed"
+	}
+	if SystemFileExcludes[0] == "changed" || DevDependencyExcludes[0] == "changed" {
+		t.Fatal("the defaults share their slice with the built-in lists")
 	}
 }
 
@@ -56,8 +62,9 @@ func TestExcludeForAddsTheGlobalPatterns(t *testing.T) {
 	if n := count(got.Patterns, "node_modules/"); n != 1 {
 		t.Errorf("node_modules appears %d times, want once", n)
 	}
-	if len(got.Patterns) != len(DevDependencyExcludes)+1 {
-		t.Errorf("patterns = %d, want %d: %v", len(got.Patterns), len(DevDependencyExcludes)+1, got.Patterns)
+	// .DS_Store is both the task's and the global list's too.
+	if len(got.Patterns) != len(DefaultGlobalExcludes()) {
+		t.Errorf("patterns = %d, want %d: %v", len(got.Patterns), len(DefaultGlobalExcludes()), got.Patterns)
 	}
 	if !slices.Equal(task.Patterns, []string{".DS_Store", "node_modules/"}) {
 		t.Errorf("the task's exclusion changed: %v", task.Patterns)

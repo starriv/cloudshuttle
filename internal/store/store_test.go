@@ -594,7 +594,7 @@ func TestMigrateExcludesAfterTrash(t *testing.T) {
 		if err != nil || !got.ExcludeEnabled {
 			t.Errorf("columns %v: settings = %+v, %v; want the global exclusion on", hasColumns, got, err)
 		}
-		if err != nil || !slices.Equal(got.GlobalExcludes, domain.DevDependencyExcludes) {
+		if err != nil || !slices.Equal(got.GlobalExcludes, domain.DefaultGlobalExcludes()) {
 			t.Errorf("columns %v: global excludes = %v, want the built-in list", hasColumns, got.GlobalExcludes)
 		}
 		st.Close()
@@ -622,7 +622,7 @@ func TestMigrateTheGlobalExclusionFromStep13(t *testing.T) {
 	}
 	defer st.Close()
 	got, err := st.Settings(ctx)
-	if err != nil || !got.ExcludeEnabled || !slices.Equal(got.GlobalExcludes, domain.DevDependencyExcludes) {
+	if err != nil || !got.ExcludeEnabled || !slices.Equal(got.GlobalExcludes, domain.DefaultGlobalExcludes()) {
 		t.Fatalf("settings = %+v, %v; want the global exclusion on with the built-in list", got, err)
 	}
 }
@@ -650,8 +650,45 @@ func TestMigrateTheGlobalExclusionFromStep14(t *testing.T) {
 	}
 	defer st.Close()
 	got, err := st.Settings(ctx)
-	if err != nil || got.ExcludeEnabled || !slices.Equal(got.GlobalExcludes, domain.DevDependencyExcludes) {
+	if err != nil || got.ExcludeEnabled || !slices.Equal(got.GlobalExcludes, domain.DefaultGlobalExcludes()) {
 		t.Fatalf("settings = %+v, %v; want the switch off with the built-in list", got, err)
+	}
+}
+
+// Steps 21 and 22 put .DS_Store and .git/ in front of a list the person
+// edited and keep the rest as it was; a pattern the list has already stays
+// where it is.
+func TestMigrateTheSystemFileExcludes(t *testing.T) {
+	for _, tc := range []struct {
+		stored string
+		want   []string
+	}{
+		{`["*.log","custom/"]`, []string{".git/", ".DS_Store", "*.log", "custom/"}},
+		{`["custom/",".DS_Store"]`, []string{".git/", "custom/", ".DS_Store"}},
+		{`[".git/","custom/",".DS_Store"]`, []string{".git/", "custom/", ".DS_Store"}},
+	} {
+		ctx := context.Background()
+		path := filepath.Join(t.TempDir(), "old.db")
+		st, err := Open(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := st.db.Exec(`UPDATE settings SET global_excludes = ? WHERE id = 1`, tc.stored); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := st.db.Exec(`PRAGMA user_version = 20`); err != nil {
+			t.Fatal(err)
+		}
+		st.Close()
+		st, err = Open(path)
+		if err != nil {
+			t.Fatalf("open the database of step 20: %v", err)
+		}
+		got, err := st.Settings(ctx)
+		st.Close()
+		if err != nil || !slices.Equal(got.GlobalExcludes, tc.want) {
+			t.Errorf("from %s: global excludes = %v, %v; want %v", tc.stored, got.GlobalExcludes, err, tc.want)
+		}
 	}
 }
 
@@ -874,7 +911,7 @@ func TestMigrateFromStep13WithTheDependencySwitch(t *testing.T) {
 	}
 	defer st.Close()
 	got, err := st.Settings(ctx)
-	if err != nil || got.ExcludeEnabled || !slices.Equal(got.GlobalExcludes, domain.DevDependencyExcludes) {
+	if err != nil || got.ExcludeEnabled || !slices.Equal(got.GlobalExcludes, domain.DefaultGlobalExcludes()) {
 		t.Fatalf("settings = %+v, %v; want the old switch off and the built-in list", got, err)
 	}
 }

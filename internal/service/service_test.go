@@ -1016,9 +1016,9 @@ func TestTheSettingsGlobalExcludesAreEditable(t *testing.T) {
 // The engine builds a filter from the built-in patterns: one that is not a
 // glob would make every run fail.
 func TestDevDependencyExcludesAreGlobs(t *testing.T) {
-	for _, p := range domain.DevDependencyExcludes {
+	for _, p := range domain.DefaultGlobalExcludes() {
 		if !engine.ValidExclude(p) {
-			t.Errorf("DevDependencyExcludes has %q, which rclone does not take as a glob", p)
+			t.Errorf("DefaultGlobalExcludes has %q, which rclone does not take as a glob", p)
 		}
 	}
 }

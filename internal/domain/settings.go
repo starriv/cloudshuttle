@@ -48,7 +48,7 @@ type Settings struct {
 	ExcludeEnabled bool
 	// GlobalExcludes are globs every run leaves out, on both sides, on top
 	// of the task's own patterns. A new database starts with
-	// DevDependencyExcludes, which the person can then edit. The same
+	// DefaultGlobalExcludes, which the person can then edit. The same
 	// syntax as a task's patterns applies (see Exclude).
 	GlobalExcludes []string
 }
@@ -92,8 +92,8 @@ const (
 
 // DefaultSettings is how the app starts: rclone's own defaults for the
 // transfer, notifications on, three months of history, a month of what
-// syncs delete or replace, and the folders of development dependencies left
-// out of every run.
+// syncs delete or replace, and the system files and the folders of
+// development dependencies left out of every run.
 func DefaultSettings() Settings {
 	return Settings{
 		Transfers:      4,
@@ -110,7 +110,7 @@ func DefaultSettings() Settings {
 		AppIcon:        AppIconMenuBar,
 		CheckUpdates:   true,
 		ExcludeEnabled: true,
-		GlobalExcludes: slices.Clone(DevDependencyExcludes),
+		GlobalExcludes: DefaultGlobalExcludes(),
 	}
 }
 
