@@ -2,7 +2,7 @@
   "name": "CloudShuttle",
   "slug": "cloudshuttle",
   "identifier": "com.starriv.cloudshuttle",
-  "version": "1.6.1",
+  "version": "1.7.0",
   "main": "./cmd/cloudshuttle",
   "out": "build",
   "i18n": {
@@ -17,7 +17,7 @@
   "macos": {
     "infoPlist": {
       "LSUIElement": true,
-      "NSLocalNetworkUsageDescription": "CloudShuttle connects to NAS and other SMB servers on your local network to sync files."
+      "NSLocalNetworkUsageDescription": "CloudShuttle connects to SMB and NFS servers on your local network to sync files."
     },
     "signingIdentity": "Apple Development: icloud@starriv.net (3793V3CKX2)",
     "icon": "design/brand/AppIcon.icon"

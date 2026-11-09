@@ -296,17 +296,20 @@ func (a *App) locationControl(c *ui.Context, label string, f *locationField, fie
 		f.where = options[0]
 	}
 	local := f.where == options[0]
-	share := false
+	share, export := false, false
 	var storage domain.Storage
 	if i := indexOf(options, f.where); i > 0 {
 		storage = a.storages[i-1]
 		share = storage.Kind == domain.KindSMB
+		export = storage.Kind == domain.KindNFS
 	}
 	placeholder := locales.TaskFieldFolder()
 	desc := ""
 	switch {
 	case share:
 		placeholder, desc = locales.TaskFieldSharePath(), locales.TaskFieldSharePathHint()
+	case export:
+		placeholder, desc = locales.TaskFieldExportPath(), locales.TaskFieldExportPathHint()
 	case !local:
 		placeholder, desc = locales.TaskFieldPrefix(), locales.TaskFieldPrefixHint()
 	}

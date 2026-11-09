@@ -19,6 +19,8 @@ import (
 	stdsync "sync"
 	"time"
 
+	"github.com/starriv/cloudshuttle/internal/engine/nfs3"
+
 	smb2 "github.com/cloudsoda/go-smb2"
 	"github.com/rclone/rclone/fs"
 	"github.com/rclone/rclone/fs/accounting"
@@ -54,14 +56,19 @@ type SMB struct {
 	Password string // empty for a guest
 }
 
-// Location is a folder on this computer when S3 and SMB are both nil, a
-// path in the bucket of S3, or a path on the server of SMB, which begins
-// with the share: at the top, an SMB location holds the server's shares.
+// Location is a folder on this computer when S3, SMB and NFS are all nil,
+// a path in the bucket of S3, a path on the server of SMB, which begins
+// with the share (at the top, an SMB location holds the server's shares),
+// or a path in the export of NFS.
 type Location struct {
 	S3   *S3
 	SMB  *SMB
+	NFS  *NFS
 	Path string
 }
+
+// local reports whether the location is a folder on this computer.
+func (l Location) local() bool { return l.S3 == nil && l.SMB == nil && l.NFS == nil }
 
 // Job is one transfer.
 type Job struct {
@@ -127,6 +134,14 @@ var (
 	ErrUnreachable   = errors.New("server unreachable")
 	ErrAuthFailed    = errors.New("authentication failed")
 	ErrShareNotFound = errors.New("share not found")
+	// ErrNoNFSv3 is an NFS server that does not offer version 3, the
+	// only one the app speaks.
+	ErrNoNFSv3 = errors.New("the server does not offer NFS version 3")
+	// ErrNoMount is an NFS server that offers no MOUNT protocol on the
+	// port it was asked on. NFS version 3 needs MOUNT to find the
+	// export's root; a server whose MOUNT is elsewhere is reached by
+	// leaving the port empty, so the portmapper says where to go.
+	ErrNoMount = errors.New("the server serves no MOUNT on this port")
 )
 
 // Errors that stop a sync before it changes anything: an empty source would
@@ -297,6 +312,9 @@ const (
 func classify(err error) error {
 	if err == nil {
 		return nil
+	}
+	if nfsErr := classifyNFS(err); nfsErr != nil {
+		return nfsErr
 	}
 	var status *smb2.ResponseError
 	if errors.As(err, &status) {
@@ -483,8 +501,10 @@ func runAttempt(ctx context.Context, job Job, number int, policy attemptPolicy, 
 	started := time.Now()
 
 	done := make(chan struct{})
+	stopped := make(chan struct{})
 	if progress != nil {
 		go func() {
+			defer close(stopped)
 			ticker := time.NewTicker(500 * time.Millisecond)
 			defer ticker.Stop()
 			for {
@@ -504,6 +524,12 @@ func runAttempt(ctx context.Context, job Job, number int, policy attemptPolicy, 
 		err = sync.CopyDir(ctx, dst, src, false)
 	}
 	close(done)
+	// The progress goroutine reads the statistics group; the attempt's
+	// deferred deleteStats writes to it. Wait for the last report to be
+	// written before it can run.
+	if progress != nil {
+		<-stopped
+	}
 	final := measure()
 	what := ""
 	if number > 1 {
@@ -580,6 +606,13 @@ func previewSync(ctx context.Context, src, dst fs.Fs, group string) (Progress, [
 
 func describe(loc Location) string {
 	switch {
+	case loc.NFS != nil:
+		r := loc.NFS
+		port := "portmapper"
+		if r.Port != 0 {
+			port = strconv.Itoa(r.Port)
+		}
+		return fmt.Sprintf("nfs://%s%s (port %s, uid %d, gid %d) path %q", r.Host, r.Export, port, r.UID, r.GID, loc.Path)
 	case loc.SMB != nil:
 		r := loc.SMB
 		port := r.Port
@@ -636,6 +669,14 @@ func makeFsWithOptions(ctx context.Context, loc Location, dir, browser, markers,
 		cfg     = configmap.Simple{}
 	)
 	switch {
+	case loc.NFS != nil:
+		r := loc.NFS
+		backend, root = "nfs", loc.Path
+		cfg["host"] = r.Host
+		cfg["port"] = strconv.Itoa(r.Port)
+		cfg["export"] = r.Export
+		cfg["uid"] = strconv.FormatUint(uint64(r.UID), 10)
+		cfg["gid"] = strconv.FormatUint(uint64(r.GID), 10)
 	case loc.SMB != nil:
 		r := loc.SMB
 		backend, root = "smb", loc.Path
@@ -650,7 +691,7 @@ func makeFsWithOptions(ctx context.Context, loc Location, dir, browser, markers,
 			// keeps it; this one stays in memory.
 			cfg["pass"] = obscure.MustObscure(r.Password)
 		}
-	case loc.S3 == nil:
+	case loc.local():
 		backend, root = "local", loc.Path
 	default:
 		r := loc.S3
@@ -688,6 +729,7 @@ func makeFsWithOptions(ctx context.Context, loc Location, dir, browser, markers,
 	}
 	f, err := info.NewFs(ctx, backend, root, m)
 	if errors.Is(err, fs.ErrorIsFile) {
+		shutdown(f)
 		return nil, ErrIsFile
 	}
 	return f, err
@@ -783,7 +825,7 @@ func safeEndpoint(raw string) string {
 func DestinationEntries(ctx context.Context, loc Location) (map[string]bool, error) {
 	// rclone intentionally omits symlinks. Collision checks must see every
 	// occupied local name, including dangling links, without following them.
-	if loc.SMB == nil && loc.S3 == nil {
+	if loc.local() {
 		entries, err := os.ReadDir(loc.Path)
 		if err != nil && !errors.Is(err, os.ErrNotExist) {
 			return nil, err
@@ -800,6 +842,20 @@ func DestinationEntries(ctx context.Context, loc Location) (map[string]bool, err
 		return nil, classify(err)
 	}
 	defer shutdown(f)
+	if nf, ok := f.(*nfsFs); ok {
+		entries, err := nf.readDir(ctx, nf.root)
+		if err != nil && !errors.Is(err, fs.ErrorDirNotFound) {
+			return nil, classify(err)
+		}
+		names := make(map[string]bool, len(entries))
+		for _, e := range entries {
+			key := strings.ToLower(e.Name)
+			if previous, exists := names[key]; !exists || previous {
+				names[key] = e.Attr.Type == nfs3.TypeDir
+			}
+		}
+		return names, nil
+	}
 	entries, err := f.List(ctx, "")
 	if err != nil && !errors.Is(err, fs.ErrorDirNotFound) {
 		return nil, classify(err)
@@ -825,7 +881,7 @@ func InitializeDestination(ctx context.Context, loc Location, dryRun bool) error
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if loc.SMB == nil && loc.S3 == nil {
+	if loc.local() {
 		if _, err := os.Lstat(loc.Path); err == nil {
 			return ErrDestinationExists
 		} else if !errors.Is(err, os.ErrNotExist) {
@@ -861,11 +917,18 @@ func InitializeDestination(ctx context.Context, loc Location, dryRun bool) error
 		return nil
 	}
 	ctx = probing(ctx)
-	f, err := newDirFs(ctx, loc)
+	target := loc
+	if loc.NFS != nil {
+		target = parent
+	}
+	f, err := newDirFs(ctx, target)
 	if err != nil {
 		return classify(err)
 	}
 	defer shutdown(f)
+	if nf, ok := f.(*nfsFs); ok {
+		return classify(nf.claimDestination(ctx, path.Base(loc.Path)))
+	}
 	// Listing tells S3's new backend instance that the bucket already exists;
 	// otherwise Mkdir may try to create it again. A missing SMB child is normal.
 	if _, err := f.List(ctx, ""); err != nil && !errors.Is(err, fs.ErrorDirNotFound) {

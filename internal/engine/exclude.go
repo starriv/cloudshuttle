@@ -27,15 +27,22 @@ func ValidExclude(pattern string) bool {
 	return fi.AddRule(ExcludeRule(pattern)) == nil
 }
 
-// withFilter makes the run's filter: the trash, then the job's patterns and
-// its size limit. It applies to both sides, so a sync leaves alone in the
-// destination what it does not copy.
+// withFilter makes the run's filter: the trash and the names a write passes
+// through, then the job's patterns and its size limit. It applies to both
+// sides, so a sync leaves alone in the destination what it does not copy.
 func withFilter(ctx context.Context, job Job) (context.Context, error) {
 	fi, err := filter.NewFilter(nil)
 	if err != nil {
 		return ctx, err
 	}
-	rules := []string{"- /" + TrashRoot + "/**"}
+	rules := []string{
+		"- /" + TrashRoot + "/**",
+		// A write in flight is a hidden sibling of its target: it is no
+		// file of the backup, and one a crash left behind must not become
+		// part of one.
+		"- " + partialPrefix + "*",
+		"- " + uploadPrefix + "*",
+	}
 	for _, p := range job.Exclude {
 		rules = append(rules, ExcludeRule(p))
 	}

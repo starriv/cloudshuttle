@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"fmt"
 	"net/url"
-	"strconv"
 	"strings"
 
 	"github.com/starriv/cloudshuttle/internal/domain"
@@ -81,7 +80,7 @@ func validateConfig(ctx context.Context, backup *Store) error {
 		return fmt.Errorf("%w: unreadable storages", domain.ErrNotBackup)
 	}
 	for _, st := range storages {
-		in := domain.StorageInput{Name: st.Name, Kind: st.Kind, Provider: st.Provider, Endpoint: st.Endpoint, Region: st.Region, Bucket: st.Bucket, AccessKeyID: st.AccessKeyID, Host: st.Host, Port: strconv.Itoa(st.Port), Username: st.Username}
+		in := st.Input()
 		if st.ID == "" || in.Normalize().Validate(false) != nil {
 			return domain.ErrNotBackup
 		}

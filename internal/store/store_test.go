@@ -936,3 +936,43 @@ func TestUnreadableGlobalExcludes(t *testing.T) {
 		t.Fatalf("settings = %+v, want no global rules and the other settings kept", got)
 	}
 }
+
+// An NFS storage keeps its export and ids; a database of step 22 gets the
+// columns in step 23.
+func TestAnNFSStorageIsKept(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "old.db")
+	st, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.db.Exec(`ALTER TABLE storages DROP COLUMN export;
+		ALTER TABLE storages DROP COLUMN uid;
+		ALTER TABLE storages DROP COLUMN gid;
+		PRAGMA user_version = 22`); err != nil {
+		t.Fatal(err)
+	}
+	st.Close()
+	st, err = Open(path)
+	if err != nil {
+		t.Fatalf("open the database of step 22: %v", err)
+	}
+	defer st.Close()
+	now := time.UnixMilli(time.Now().UnixMilli())
+	want := domain.Storage{ID: "n", Name: "NAS", Kind: domain.KindNFS, Host: "nas.local", Port: 0,
+		Export: "/volume1/backup", UID: 501, GID: 20, CreatedAt: now, UpdatedAt: now}
+	if err := st.PutStorage(ctx, want); err != nil {
+		t.Fatal(err)
+	}
+	got, err := st.Storage(ctx, "n")
+	if err != nil || got != want {
+		t.Fatalf("storage = %+v, %v; want %+v", got, err, want)
+	}
+	want.UID = domain.MaxID // the largest id NFS carries fits
+	if err := st.PutStorage(ctx, want); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := st.Storage(ctx, "n"); got.UID != domain.MaxID {
+		t.Fatalf("uid = %d, want %d", got.UID, domain.MaxID)
+	}
+}

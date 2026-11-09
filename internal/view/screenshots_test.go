@@ -150,6 +150,18 @@ func TestScreenshots(t *testing.T) {
 	h.app.taskForm.open = false
 	h.app.openStorageForm(&h.app.storages[0])
 	shot("dialog-storage")
+	for i, kind := range domain.Kinds {
+		h.app.openStorageForm(nil)
+		h.app.storageForm.kind = i
+		h.app.kindChanged()
+		h.tt.Frame()
+		h.tt.Scroll(540, 420, 0, -2400)
+		shot("dialog-storage-new-" + string(kind))
+		// And the foot of the form, where the connection test is.
+		h.tt.Scroll(540, 420, 0, 2400)
+		h.tt.Advance(300 * time.Millisecond)
+		shot("dialog-storage-new-" + string(kind) + "-bottom")
+	}
 	h.app.storageForm.open = false
 	h.app.restoreForm = restoreForm{open: true}
 	shot("dialog-restore")

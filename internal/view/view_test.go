@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -16,6 +17,7 @@ import (
 	"github.com/egoist/mygo/ui"
 	"github.com/starriv/cloudshuttle/internal/discovery"
 	"github.com/starriv/cloudshuttle/internal/domain"
+	"github.com/starriv/cloudshuttle/internal/engine/nfs3/nfstest"
 	"github.com/starriv/cloudshuttle/internal/format"
 	"github.com/starriv/cloudshuttle/internal/service"
 	"github.com/starriv/cloudshuttle/internal/store"
@@ -97,7 +99,7 @@ func newHarnessWith(t *testing.T, opts service.Options) *harness {
 	}
 	opts.OnChange = func() { h.host.Update(func() { h.app.Reload() }) }
 	opts.OnProgress = func() { h.host.Update(func() { h.app.ReloadProgress() }) }
-	opts.Browse = func(context.Context) ([]discovery.Server, error) { return h.found, nil }
+	opts.Browse = func(context.Context, string) ([]discovery.Server, error) { return h.found, nil }
 	h.svc = service.New(opts)
 	if opts.Registrar != nil {
 		if err := h.svc.Start(context.Background()); err != nil {
@@ -1108,4 +1110,114 @@ func TestSidebarArrowKeysMoveSelectionAndFocus(t *testing.T) {
 	if h.app.page != pageHistory || !h.tt.Focused(locales.NavHistory()) {
 		t.Fatalf("up did not choose and focus History: %s", h.app.page)
 	}
+}
+
+func TestAddNFSExport(t *testing.T) {
+	disk := t.TempDir()
+	srv := nfstest.Start(t, disk)
+	h := newHarness(t)
+	h.click(locales.NavStorages())
+	h.click(locales.StoragesAdd())
+	h.click(locales.KindNFS())
+	if uid, gid, ok := service.LocalIDs(); ok {
+		if f := h.app.storageForm.in; f.UID != strconv.Itoa(uid) || f.GID != strconv.Itoa(gid) {
+			t.Fatalf("the ids = %q %q, want this computer's", f.UID, f.GID)
+		}
+	}
+	h.fill(locales.StorageFieldHost(), srv.Host)
+	h.fill(locales.StorageFieldPort(), strconv.Itoa(srv.Port))
+	h.click(locales.StorageSave())
+	h.expect(locales.ErrorRequired()) // the export
+
+	// go-nfs keeps its exports to itself: the form says to type one.
+	h.click(locales.StorageListExports())
+	h.waitFor("the listing", func() bool { return !h.app.storageForm.listingExports })
+	h.settle()
+	h.expect(locales.StorageExportsHidden())
+	h.fill(locales.StorageFieldPort(), "2049")
+	if f := h.app.storageForm; f.exportsListed || f.exportsFailed != "" {
+		t.Fatal("the old server's export result survived a port change")
+	}
+	h.fill(locales.StorageFieldPort(), strconv.Itoa(srv.Port))
+
+	h.fill(locales.StorageFieldExport(), "/")
+	h.click(locales.StorageTest())
+	h.waitFor("the test", func() bool { return !h.app.storageForm.testing })
+	h.settle()
+	if f := h.app.storageForm; f.testFailed {
+		t.Fatalf("the test failed: %s", f.testResult)
+	}
+	h.click(locales.StorageSave())
+	h.waitFor("storage save", func() bool { return !h.app.storageForm.saving })
+	h.settle()
+	if h.app.storageForm.open {
+		t.Fatalf("the dialog stayed open; problems %v", h.app.storageForm.problems)
+	}
+	h.expect(locales.KindNFS())
+	h.expect(srv.Host + ":" + strconv.Itoa(srv.Port) + ":/")
+
+	// Editing opens on the export's fields.
+	h.click(locales.StorageActions(h.app.storages[0].Name))
+	if err := h.tt.ChooseMenuItem(locales.StorageEdit()); err != nil {
+		t.Fatalf("menu %q: %v", h.tt.Menu(), err)
+	}
+	h.settle()
+	if f := h.app.storageForm; domain.Kinds[f.kind] != domain.KindNFS || f.in.Export != "/" || f.in.Port != strconv.Itoa(srv.Port) {
+		t.Fatalf("edit form = %+v", f.in)
+	}
+}
+
+// A click on a row's label puts the caret in its field, as a label does.
+func TestALabelFocusesItsField(t *testing.T) {
+	h := newHarness(t)
+	h.click(locales.NavStorages())
+	h.click(locales.StoragesAdd())
+	h.click(locales.StorageFieldRegion())
+	h.tt.Type("auto")
+	h.settle()
+	if got := h.app.storageForm.in.Region; got != "auto" {
+		t.Fatalf("region = %q, want what was typed after clicking its label", got)
+	}
+}
+
+// Switching the kind drops the port the other kind held: one port means one
+// thing for each kind, and the old value would be read as a port of the new
+// one.
+func TestSwitchingStorageKindDropsThePort(t *testing.T) {
+	h := newHarness(t)
+	h.click(locales.NavStorages())
+	h.click(locales.StoragesAdd())
+	h.click(locales.KindSMB())
+	h.fill(locales.StorageFieldPort(), "4455")
+	if got := h.app.storageForm.in.Port; got != "4455" {
+		t.Fatalf("the SMB port = %q", got)
+	}
+	h.click(locales.KindNFS())
+	h.settle()
+	if f := h.app.storageForm; f.in.Port != "" || f.testing || f.testResult != "" || f.problems != nil {
+		t.Fatalf("the NFS form kept the SMB form's state: port %q testing %v result %q problems %v",
+			f.in.Port, f.testing, f.testResult, f.problems)
+	}
+	// Coming back, the SMB port is the one it was: a look at another kind
+	// does not drop a value the person typed.
+	h.click(locales.KindSMB())
+	h.settle()
+	if got := h.app.storageForm.in.Port; got != "4455" {
+		t.Fatalf("the SMB port after coming back = %q, want 4455", got)
+	}
+}
+
+// A user id that is not a number says what a number looks like, rather than
+// asking to choose one of the options as a select does.
+func TestAnInvalidUserIDIsExplained(t *testing.T) {
+	h := newHarness(t)
+	h.click(locales.NavStorages())
+	h.click(locales.StoragesAdd())
+	h.click(locales.KindNFS())
+	h.fill(locales.StorageFieldHost(), "nas.local")
+	h.fill(locales.StorageFieldExport(), "/backup")
+	h.fill(locales.StorageFieldUID(), "abc")
+	h.click(locales.StorageSave())
+	h.settle()
+	h.expect(locales.ErrorInvalidID())
 }

@@ -3,7 +3,9 @@ package domain
 import (
 	"errors"
 	"net"
+	"net/netip"
 	"net/url"
+	"path"
 	"runtime"
 	"slices"
 	"strconv"
@@ -24,6 +26,9 @@ const (
 	FieldHost          Field = "host"
 	FieldPort          Field = "port"
 	FieldUsername      Field = "username"
+	FieldExport        Field = "export"
+	FieldUID           Field = "uid"
+	FieldGID           Field = "gid"
 	FieldSource        Field = "source"
 	FieldDestination   Field = "destination"
 	FieldMode          Field = "mode"
@@ -47,6 +52,7 @@ const (
 	CodeInvalidURL     Code = "invalidUrl"
 	CodeInvalidHost    Code = "invalidHost"
 	CodeInvalidPort    Code = "invalidPort"
+	CodeInvalidID      Code = "invalidId"
 	CodeShareRequired  Code = "shareRequired"
 	CodeNotAbsolute    Code = "notAbsolute"
 	CodeUnknownStorage Code = "unknownStorage"
@@ -130,15 +136,43 @@ type StorageInput struct {
 	AccessKeyID string
 
 	Host     string
-	Port     string // empty for DefaultSMBPort
+	Port     string // empty for DefaultSMBPort, or NFS's portmapper
 	Username string
+
+	Export string // NFS
+	UID    string // NFS, a number
+	GID    string // NFS, a number
 
 	Secret string // the secret access key, or the SMB password
 }
 
-// Normalize trims the input's text. For SMB it also takes the host and the
-// port out of an address pasted whole, such as smb://nas.local:445/photos
-// or \\nas\photos; the share is the tasks' to choose.
+// Input is the form an edit starts from: the storage's fields as the person
+// entered them. It never holds the secret.
+func (s Storage) Input() StorageInput {
+	in := StorageInput{Name: s.Name, Kind: s.Kind}
+	switch s.Kind {
+	case KindSMB:
+		in.Host, in.Username = s.Host, s.Username
+		if s.Port != 0 && s.Port != DefaultSMBPort {
+			in.Port = strconv.Itoa(s.Port)
+		}
+	case KindNFS:
+		in.Host, in.Export = s.Host, s.Export
+		in.UID, in.GID = strconv.Itoa(s.UID), strconv.Itoa(s.GID)
+		if s.Port != 0 {
+			in.Port = strconv.Itoa(s.Port)
+		}
+	default:
+		in.Provider, in.Endpoint, in.Region = s.Provider, s.Endpoint, s.Region
+		in.Bucket, in.AccessKeyID = s.Bucket, s.AccessKeyID
+	}
+	return in
+}
+
+// Normalize trims the input's text. For SMB and NFS it also takes the host
+// and the port out of an address pasted whole, such as
+// smb://nas.local:445/photos or \\nas\photos (the share is the tasks' to
+// choose), or nfs://nas.local/volume1/backup, whose path is the export.
 func (in StorageInput) Normalize() StorageInput {
 	in.Name = strings.TrimSpace(in.Name)
 	if in.Kind == "" {
@@ -150,9 +184,21 @@ func (in StorageInput) Normalize() StorageInput {
 	in.AccessKeyID = strings.TrimSpace(in.AccessKeyID)
 	in.Port = strings.TrimSpace(in.Port)
 	in.Username = strings.TrimSpace(in.Username)
+	in.UID = strings.TrimSpace(in.UID)
+	in.GID = strings.TrimSpace(in.GID)
+	// Trimmed first: an Export of spaces must not shadow the export pasted
+	// into Host as nas.local:/volume1/backup.
+	in.Export = strings.TrimSpace(in.Export)
 	in = in.splitAddress()
+	if in.Export != "" {
+		in.Export = "/" + strings.Trim(in.Export, "/")
+	}
 	// Passwords may begin or end with spaces; keys may not.
-	if in.Kind != KindSMB {
+	switch in.Kind {
+	case KindNFS:
+		in.Secret = ""
+	case KindSMB:
+	default:
 		in.Secret = strings.TrimSpace(in.Secret)
 	}
 	return in
@@ -160,11 +206,21 @@ func (in StorageInput) Normalize() StorageInput {
 
 func (in StorageInput) splitAddress() StorageInput {
 	h := strings.ReplaceAll(strings.TrimSpace(in.Host), `\`, "/")
-	if scheme, rest, ok := strings.Cut(h, "://"); ok && (strings.EqualFold(scheme, "smb") || strings.EqualFold(scheme, "cifs")) {
+	if scheme, rest, ok := strings.Cut(h, "://"); ok && (strings.EqualFold(scheme, "smb") || strings.EqualFold(scheme, "cifs") || strings.EqualFold(scheme, "nfs")) {
 		h = rest
 	}
 	h = strings.TrimLeft(h, "/")
-	host, _, _ := strings.Cut(h, "/")
+	if i := strings.Index(h, ":/"); i > 0 && in.Kind == KindNFS {
+		// The form mount and showmount print: nas.local:/volume1/backup.
+		if in.Export == "" {
+			in.Export = h[i+1:]
+		}
+		h = h[:i]
+	}
+	host, rest, hasPath := strings.Cut(h, "/")
+	if hasPath && in.Kind == KindNFS && in.Export == "" {
+		in.Export = rest // nfs://nas.local/volume1/backup
+	}
 	if name, port, err := net.SplitHostPort(host); err == nil {
 		host = name
 		if in.Port == "" {
@@ -179,17 +235,42 @@ func (in StorageInput) splitAddress() StorageInput {
 	return in
 }
 
-// PortNumber is the input's port, DefaultSMBPort when it is empty, or 0
-// when it is not a port.
+// PortNumber is the input's port: when it is empty, DefaultSMBPort, or
+// 0 for NFS, which then asks the portmapper. It is -1 when it is not a
+// port.
 func (in StorageInput) PortNumber() int {
 	if in.Port == "" {
+		if in.Kind == KindNFS {
+			return 0
+		}
 		return DefaultSMBPort
 	}
 	n, err := strconv.Atoi(in.Port)
 	if err != nil || n < 1 || n > 65535 {
-		return 0
+		return -1
 	}
 	return n
+}
+
+// IDs are the input's NFS user and group ids; ok is false when either is
+// not one.
+func (in StorageInput) IDs() (uid, gid int, ok bool) {
+	u, uerr := parseID(in.UID)
+	g, gerr := parseID(in.GID)
+	return u, g, uerr == nil && gerr == nil
+}
+
+func parseID(s string) (int, error) {
+	n, err := strconv.ParseInt(s, 10, 64)
+	if err != nil || n < 0 || n > MaxID {
+		return 0, strconv.ErrRange
+	}
+	// A 32-bit build keeps an id only when an int holds it: truncating
+	// would name a user the server does not have.
+	if n > int64(^uint(0)>>1) {
+		return 0, strconv.ErrRange
+	}
+	return int(n), nil
 }
 
 // GuestUser is the user name that signs in to an SMB share open to guests,
@@ -210,6 +291,8 @@ func (in StorageInput) Validate(creating bool) error {
 		p = in.checkS3(p, creating)
 	case KindSMB:
 		p = in.checkSMB(p, creating)
+	case KindNFS:
+		p = in.checkNFS(p)
 	default:
 		p = append(p, Problem{FieldKind, CodeInvalid})
 	}
@@ -252,11 +335,41 @@ func (in StorageInput) checkSMB(p Problems, creating bool) Problems {
 	case !validHost(in.Host):
 		p = append(p, Problem{FieldHost, CodeInvalidHost})
 	}
-	if in.PortNumber() == 0 {
+	if in.PortNumber() < 0 {
 		p = append(p, Problem{FieldPort, CodeInvalidPort})
 	}
 	if in.Username == "" {
 		p = append(p, Problem{FieldUsername, CodeRequired})
+	}
+	return p
+}
+
+func (in StorageInput) checkNFS(p Problems) Problems {
+	switch {
+	case in.Host == "":
+		p = append(p, Problem{FieldHost, CodeRequired})
+	case !validHost(in.Host):
+		p = append(p, Problem{FieldHost, CodeInvalidHost})
+	}
+	if in.PortNumber() < 0 {
+		p = append(p, Problem{FieldPort, CodeInvalidPort})
+	}
+	switch {
+	case in.Export == "":
+		p = append(p, Problem{FieldExport, CodeRequired})
+	case hasParent(in.Export) || len(in.Export) > 1024 || strings.ContainsAny(in.Export, "\x00\r\n"):
+		p = append(p, Problem{FieldExport, CodeInvalidPath})
+	}
+	for _, id := range []struct {
+		field Field
+		value string
+	}{{FieldUID, in.UID}, {FieldGID, in.GID}} {
+		switch _, err := parseID(id.value); {
+		case id.value == "":
+			p = append(p, Problem{id.field, CodeRequired})
+		case err != nil:
+			p = append(p, Problem{id.field, CodeInvalidID})
+		}
 	}
 	return p
 }
@@ -378,9 +491,9 @@ func (in TaskInput) Validate(storages []Storage) error {
 	p = checkName(p, in.Name)
 	p = checkLocation(p, FieldSource, in.Source, storages)
 	p = checkLocation(p, FieldDestination, in.Destination, storages)
-	if root := rootOf(in.Source, storages); p.For(FieldSource) == "" && p.For(FieldDestination) == "" &&
-		root == rootOf(in.Destination, storages) {
-		src, dst := in.Source.Path, in.Destination.Path
+	srcRoot, src, srcPort := comparisonPath(in.Source, storages)
+	dstRoot, dst, dstPort := comparisonPath(in.Destination, storages)
+	if p.For(FieldSource) == "" && p.For(FieldDestination) == "" && srcRoot == dstRoot && portsAgree(srcPort, dstPort) {
 		if foldNames(in.Source, storages) {
 			// SMB servers match names regardless of case.
 			src, dst = strings.ToLower(src), strings.ToLower(dst)
@@ -490,10 +603,11 @@ func hasParent(path string) bool {
 // Overlap reports whether a and b name the same place, or one is inside the
 // other, so that a sync of both could delete the other's files.
 func Overlap(a, b Location, storages []Storage) bool {
-	if rootOf(a, storages) != rootOf(b, storages) {
+	ar, as, ap := comparisonPath(a, storages)
+	br, bs, bp := comparisonPath(b, storages)
+	if ar != br || !portsAgree(ap, bp) {
 		return false
 	}
-	as, bs := a.Path, b.Path
 	if foldNames(a, storages) || foldNames(b, storages) {
 		as, bs = strings.ToLower(as), strings.ToLower(bs)
 	}
@@ -508,29 +622,48 @@ func foldNames(l Location, storages []Storage) bool {
 	}
 	for _, s := range storages {
 		if s.ID == l.StorageID {
-			return s.Kind == KindSMB
+			return s.Kind == KindSMB // NFS keeps case, as its servers do
 		}
 	}
 	return false
 }
 
-// rootOf names the place a location's path starts from, so two storages of
-// the same bucket or SMB server compare equal.
-func rootOf(l Location, storages []Storage) string {
+// comparisonPath places a location in the namespace of the place that holds
+// it, with the port the server listens on kept apart: two locations name the
+// same place when their roots are equal and their ports agree (see
+// portsAgree).
+func comparisonPath(l Location, storages []Storage) (root, relative string, port int) {
 	if l.Local() {
-		return "local"
+		return "local", l.Path, 0
 	}
 	for _, s := range storages {
 		if s.ID != l.StorageID {
 			continue
 		}
-		if s.Kind == KindSMB {
-			return "smb\x00" + strings.ToLower(s.Host) + "\x00" + strconv.Itoa(s.Port)
+		switch s.Kind {
+		case KindSMB:
+			return "smb\x00" + strings.ToLower(s.Host), l.Path, s.Port
+		case KindNFS:
+			return "nfs\x00" + canonicalHost(s.Host), path.Join("/", s.Export, l.Path), s.Port
 		}
-		return "s3\x00" + strings.TrimRight(strings.ToLower(s.Endpoint), "/") + "\x00" + s.Bucket
+		return "s3\x00" + strings.TrimRight(strings.ToLower(s.Endpoint), "/") + "\x00" + s.Bucket, l.Path, 0
 	}
-	return "storage\x00" + l.StorageID
+	return "storage\x00" + l.StorageID, l.Path, 0
 }
+
+// canonicalHost is a host written the one way two spellings of it compare:
+// without its case, a trailing dot, or the zero groups of an IPv6 address.
+func canonicalHost(host string) string {
+	host = strings.TrimSuffix(strings.ToLower(host), ".")
+	if addr, err := netip.ParseAddr(strings.Trim(host, "[]")); err == nil {
+		return addr.String()
+	}
+	return host
+}
+
+// portsAgree reports whether two ports name the same service: 0 is a port
+// nobody chose or knows, which any port may be.
+func portsAgree(a, b int) bool { return a == b || a == 0 || b == 0 }
 
 // isAbsolute accepts absolute paths of every platform, so a task's paths
 // validate the same way wherever the tests run.

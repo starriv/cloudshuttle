@@ -76,7 +76,7 @@ func storageColumns(c *ui.Context) int {
 func (a *App) storageCard(c *ui.Context, s domain.Storage) {
 	p := paletteFor(c.Theme())
 	svg, kind := icons.Bucket, providerLabel(s.Provider)
-	if s.Kind == domain.KindSMB {
+	if s.Kind.Server() {
 		svg, kind = icons.Server, kindLabel(s.Kind)
 	}
 	face := card(c).Padding(cardPadY, cardPadX).Gap(gapMedium)
@@ -142,7 +142,7 @@ func (a *App) storageCheckPill(c *ui.Context, s domain.Storage) ui.Element {
 		fg, bg = p.success, p.successSoft
 	default:
 		svg, label = icons.Failed, locales.CheckFailed()
-		tip = locales.CheckFailedAt(formatTime(c, s.Check.At), checkProblem(s.Check))
+		tip = locales.CheckFailedAt(formatTime(c, s.Check.At), checkProblem(s.Kind, s.Check))
 		fg, bg = p.danger, p.dangerSoft
 	}
 	e := ui.Row(c.Key("check-" + s.ID)).Height(21).PaddingX(8).Gap(5).Radius(11).
@@ -162,9 +162,16 @@ func (a *App) storageCheckPill(c *ui.Context, s domain.Storage) ui.Element {
 
 // storageAddress is where a storage is: the bucket at its endpoint, as a
 // path-style URL names it without the scheme (the bucket alone for Amazon
-// S3, which needs no endpoint), or the SMB host, with its port when it is
-// not the usual one.
+// S3, which needs no endpoint), the SMB host, with its port when it is not
+// the usual one, or the NFS export as mount names it, host:/export.
 func storageAddress(s domain.Storage) string {
+	if s.Kind == domain.KindNFS {
+		host := s.Host
+		if s.Port != 0 {
+			host += ":" + strconv.Itoa(s.Port)
+		}
+		return host + ":" + s.Export
+	}
 	if s.Kind != domain.KindSMB {
 		host := s.Endpoint
 		if u, err := url.Parse(s.Endpoint); err == nil && u.Host != "" {
@@ -182,17 +189,14 @@ func storageAddress(s domain.Storage) string {
 }
 
 func storageInput(s domain.Storage) domain.StorageInput {
-	in := domain.StorageInput{Name: s.Name, Kind: s.Kind}
-	if s.Kind == domain.KindSMB {
-		in.Host, in.Username = s.Host, s.Username
-		if s.Port != 0 && s.Port != domain.DefaultSMBPort {
-			in.Port = strconv.Itoa(s.Port)
-		}
-		return in
+	in := s.Input()
+	switch in.Kind {
+	case domain.KindSMB, domain.KindNFS:
+	default:
+		// A kind this version does not know edits as the bucket it looks
+		// like; saving writes the kind the form shows.
+		in.Kind = domain.KindS3
 	}
-	in.Kind = domain.KindS3
-	in.Provider, in.Endpoint, in.Region = s.Provider, s.Endpoint, s.Region
-	in.Bucket, in.AccessKeyID = s.Bucket, s.AccessKeyID
 	return in
 }
 
@@ -222,21 +226,16 @@ func (a *App) checkStorage(s domain.Storage, told bool) {
 			case check.OK:
 				a.toast(locales.StorageTestPassed(s.Name))
 			default:
-				a.toasts = append(a.toasts, ui.Toast{Title: checkProblem(check), Type: "error"})
+				a.toasts = append(a.toasts, ui.Toast{Title: checkProblem(s.Kind, check), Type: "error"})
 			}
 		})
 	}()
 }
 
-// checkProblem says why a test failed.
-func checkProblem(c domain.Check) string {
-	switch c.Problem {
-	case domain.ProblemUnreachable:
-		return locales.ErrorUnreachable()
-	case domain.ProblemAuthFailed:
-		return locales.ErrorAuthFailed()
-	case domain.ProblemShareNotFound:
-		return locales.ErrorShareNotFound()
+// checkProblem says why a test of a storage of kind failed.
+func checkProblem(kind domain.Kind, c domain.Check) string {
+	if text := problemOfCheck(kind, c.Problem); text != "" {
+		return text
 	}
 	return locales.StorageTestFailed(c.Message)
 }
@@ -262,8 +261,11 @@ func (a *App) confirmDeleteStorage(s domain.Storage) {
 }
 
 func deleteStorageMessage(s domain.Storage) string {
-	if s.Kind == domain.KindSMB {
+	switch s.Kind {
+	case domain.KindSMB:
 		return locales.StorageDeleteMessageShare()
+	case domain.KindNFS:
+		return locales.StorageDeleteMessageNFS()
 	}
 	return locales.StorageDeleteMessage()
 }

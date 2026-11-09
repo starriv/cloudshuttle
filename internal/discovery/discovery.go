@@ -1,5 +1,5 @@
-// Package discovery finds the SMB servers of the local network that
-// announce themselves with Bonjour (mDNS and DNS-SD), as NAS and Macs
+// Package discovery finds the SMB and NFS servers of the local network
+// that announce themselves with Bonjour (mDNS and DNS-SD), as NAS and Macs
 // sharing files do. It is a small mDNS client in pure Go: it asks from a
 // port of its own, which the system's responder does not hold, and
 // responders answer it directly (RFC 6762, section 6.7).
@@ -19,15 +19,21 @@ import (
 	"golang.org/x/net/ipv4"
 )
 
-// Service is the DNS-SD type of SMB file sharing.
-const Service = "_smb._tcp.local."
+// The DNS-SD types of SMB and NFS file sharing.
+const (
+	SMB = "_smb._tcp.local."
+	NFS = "_nfs._tcp.local."
+)
 
-// Server is an SMB server that announced itself.
+// Server is a server that announced itself.
 type Server struct {
 	Name     string     // the name it announces, such as "DiskStation"
 	HostName string     // its host name, such as "DiskStation.local"
 	Addr     netip.Addr // its IPv4 address
-	Port     int        // 445 for most
+	Port     int        // 445 for most SMB servers, 2049 for NFS
+	// Path is the folder an NFS server announced in its TXT record, as
+	// path=/volume1/backup; empty when it did not say.
+	Path string
 	// Host is what to connect to: HostName when this computer resolves it
 	// to Addr, which keeps working as the address changes, else Addr.
 	Host string
@@ -35,10 +41,10 @@ type Server struct {
 
 var group = &net.UDPAddr{IP: net.IPv4(224, 0, 0, 251), Port: 5353}
 
-// Browse asks the network for SMB servers for as long as ctx allows, and
-// returns those that answered with an address, by name. The servers of
-// this computer are left out.
-func Browse(ctx context.Context) ([]Server, error) {
+// Browse asks the network for servers of service, SMB or NFS, for as long
+// as ctx allows, and returns those that answered with an address, by name.
+// The servers of this computer are left out.
+func Browse(ctx context.Context, service string) ([]Server, error) {
 	conn, err := net.ListenUDP("udp4", &net.UDPAddr{})
 	if err != nil {
 		return nil, err
@@ -50,7 +56,7 @@ func Browse(ctx context.Context) ([]Server, error) {
 		return nil, errors.New("no network interface can send multicast")
 	}
 
-	r := newResults()
+	r := newResults(service)
 	go func() {
 		<-ctx.Done()
 		conn.SetReadDeadline(time.Now()) // ends the reading below
@@ -72,7 +78,7 @@ func Browse(ctx context.Context) ([]Server, error) {
 				}
 			}
 		}
-		send([]dnsmessage.Question{question(Service, dnsmessage.TypePTR)})
+		send([]dnsmessage.Question{question(service, dnsmessage.TypePTR)})
 		for range 2 {
 			select {
 			case <-ctx.Done():
@@ -143,15 +149,19 @@ func question(name string, t dnsmessage.Type) dnsmessage.Question {
 // each runs, and the addresses of the hosts. The reader adds to it while
 // the sender asks what is missing, each on a goroutine of its own.
 type results struct {
+	service   string
 	mu        sync.Mutex
 	instances map[string]bool // "diskstation._smb._tcp.local."
 	srv       map[string]dnsmessage.SRVResource
 	addrs     map[string]netip.Addr // host name to its IPv4 address
 	names     map[string]string     // instance to its name as announced
+	paths     map[string]string     // instance to the path its TXT record says
 }
 
-func newResults() *results {
+func newResults(service string) *results {
 	return &results{
+		service:   service,
+		paths:     map[string]string{},
 		instances: map[string]bool{},
 		srv:       map[string]dnsmessage.SRVResource{},
 		addrs:     map[string]netip.Addr{},
@@ -166,15 +176,23 @@ func (r *results) add(m dnsmessage.Message) {
 		name := strings.ToLower(rr.Header.Name.String())
 		switch body := rr.Body.(type) {
 		case *dnsmessage.PTRResource:
-			if name == Service {
+			if name == r.service {
 				r.instances[strings.ToLower(body.PTR.String())] = true
 			}
 		case *dnsmessage.SRVResource:
-			if strings.HasSuffix(name, "."+Service) {
+			if strings.HasSuffix(name, "."+r.service) {
 				r.instances[name] = true
 				r.srv[name] = *body
 				full := rr.Header.Name.String()
-				r.names[name] = full[:len(full)-len(Service)-1] // as announced, in its case
+				r.names[name] = full[:len(full)-len(r.service)-1] // as announced, in its case
+			}
+		case *dnsmessage.TXTResource:
+			if strings.HasSuffix(name, "."+r.service) {
+				for _, kv := range body.TXT {
+					if k, v, ok := strings.Cut(kv, "="); ok && strings.EqualFold(k, "path") && strings.HasPrefix(v, "/") {
+						r.paths[name] = v
+					}
+				}
 			}
 		case *dnsmessage.AResource:
 			r.addrs[name] = netip.AddrFrom4(body.A)
@@ -202,28 +220,59 @@ func (r *results) missing() []dnsmessage.Question {
 	return q
 }
 
-// servers lists the instances found whole, leaving out those at local.
+// servers lists the instances found whole, leaving out those at local, and
+// each server once: an SMB server by its address, an NFS server by its
+// address, port and export, of which it may announce several. It walks the
+// instances by name, so a server announced twice always keeps the same one.
 func (r *results) servers(local map[netip.Addr]bool) []Server {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	seen := map[netip.Addr]bool{}
+	type announce struct {
+		addr netip.Addr
+		port int
+		path string
+	}
+	instances := make([]string, 0, len(r.srv))
+	for inst := range r.srv {
+		instances = append(instances, inst)
+	}
+	slices.Sort(instances)
+	seenAddr := map[netip.Addr]bool{}
+	seenExport := map[announce]bool{}
 	var out []Server
-	for inst, srv := range r.srv {
+	for _, inst := range instances {
+		srv := r.srv[inst]
 		host := strings.ToLower(srv.Target.String())
 		addr, ok := r.addrs[host]
-		if !ok || local[addr] || seen[addr] {
+		if !ok || local[addr] {
 			continue
 		}
-		seen[addr] = true
+		path := r.paths[inst]
+		if r.service == NFS {
+			key := announce{addr: addr, port: int(srv.Port), path: path}
+			if seenExport[key] {
+				continue
+			}
+			seenExport[key] = true
+		} else {
+			if seenAddr[addr] {
+				continue
+			}
+			seenAddr[addr] = true
+		}
 		out = append(out, Server{
 			Name:     r.names[inst],
 			HostName: strings.TrimSuffix(srv.Target.String(), "."),
 			Port:     int(srv.Port),
 			Addr:     addr,
+			Path:     path,
 		})
 	}
 	slices.SortFunc(out, func(a, b Server) int {
-		return strings.Compare(strings.ToLower(a.Name), strings.ToLower(b.Name))
+		if c := strings.Compare(strings.ToLower(a.Name), strings.ToLower(b.Name)); c != 0 {
+			return c
+		}
+		return strings.Compare(a.Path, b.Path)
 	})
 	return out
 }

@@ -379,8 +379,18 @@ const selectWidth = 160
 type settingsRow struct {
 	label, hint string
 	control     func(label string)
-	problem     string
-	warning     string
+	// field is a control that takes the focus, as a text field, in place
+	// of control: a click on the row's label focuses it, as a label does
+	// the field it names.
+	field   func(label string) ui.Element
+	problem string
+	warning string
+	// extra adds to the words on the left, under the hint, such as how a
+	// check the row starts went.
+	extra func()
+	// below takes the card's width under the row, for what is too wide to
+	// sit beside the words, such as a list to choose from.
+	below func()
 }
 
 // settingsGroup groups the settings of one subject: its name above, then
@@ -400,8 +410,12 @@ func settingsGroup(c *ui.Context, icon *ui.SVG, title string, rows []settingsRow
 			for _, r := range rows {
 				row := ui.Row(c.Key(r.label)).Gap(18).AlignItems(ui.Center).Padding(rowPadY, rowPadX)
 				row.Children(func() {
+					var labelClicked bool
 					ui.Column(c).Gap(3).Grow(1).MinWidth(0).Children(func() {
-						ui.Text(c, r.label).FontSize(sizeBody).FontWeight(540).TextColor(p.text)
+						name := ui.Text(c.Key("label"), r.label).FontSize(sizeBody).FontWeight(540).TextColor(p.text)
+						if r.field != nil {
+							labelClicked = name.Clicked()
+						}
 						switch {
 						case r.problem != "":
 							ui.Text(c, r.problem).FontSize(sizeSmall).TextColor(p.danger).
@@ -415,9 +429,23 @@ func settingsGroup(c *ui.Context, icon *ui.SVG, title string, rows []settingsRow
 								ui.Text(c, r.warning).FontSize(sizeSmall).Grow(1).MinWidth(0).LineHeight(1.4)
 							})
 						}
+						if r.extra != nil {
+							r.extra()
+						}
 					})
-					r.control(r.label)
+					switch {
+					case r.field != nil:
+						if field := r.field(r.label); labelClicked {
+							field.Focus()
+						}
+					case r.control != nil:
+						r.control(r.label)
+					}
 				})
+				if r.below != nil {
+					ui.Column(c.Key(r.label+"-below")).Gap(8).Padding(0, rowPadX, rowPadY, rowPadX).
+						Children(r.below)
+				}
 			}
 		})
 	})

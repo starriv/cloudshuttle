@@ -51,14 +51,16 @@ func (a *App) loadFolders(opening bool) {
 	b.loading, b.failed, b.notice, b.folders, b.choice = true, "", "", nil, -1
 	a.folderLoads++
 	seq, id, path := a.folderLoads, b.storage.ID, b.path
+	kind, export := b.storage.Kind, b.storage.Export
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), connectionTimeout)
 		defer cancel()
 		folders, err := a.svc.Folders(ctx, id, strings.Join(path, "/"))
 		notice := ""
 		if opening && errors.Is(err, domain.ErrShareNotFound) && len(path) > 0 {
-			// As when the share was renamed on the server since.
-			notice = locales.BrowseShareGone(path[0])
+			// As when the share, or the export, was renamed on the server
+			// since.
+			notice = browseGoneText(kind, export, path[0])
 			path = nil
 			folders, err = a.svc.Folders(ctx, id, "")
 		}
@@ -72,13 +74,23 @@ func (a *App) loadFolders(opening bool) {
 			}
 			b.loading, b.path, b.folders, b.notice = false, path, folders, notice
 			switch {
-			case errors.Is(err, domain.ErrShareNotFound):
-				b.failed = locales.BrowseShareGone(path[0])
+			case errors.Is(err, domain.ErrShareNotFound) && len(path) > 0 &&
+				(b.storage.Kind == domain.KindSMB || b.storage.Kind == domain.KindNFS):
+				b.failed = browseGoneText(b.storage.Kind, b.storage.Export, path[0])
 			case err != nil:
-				b.failed = locales.BrowseFailed(connectionText(err))
+				b.failed = locales.BrowseFailed(connectionText(b.storage.Kind, err))
 			}
 		})
 	}()
+}
+
+// browseGoneText says that the share, or the export, a browser opened no
+// longer exists.
+func browseGoneText(kind domain.Kind, export, share string) string {
+	if kind == domain.KindNFS {
+		return locales.BrowseExportGone(export)
+	}
+	return locales.BrowseShareGone(share)
 }
 
 // open shows the folder name inside the one shown.
@@ -100,9 +112,13 @@ func (a *App) chooseBrowsed(path []string) {
 func (a *App) folderBrowserBody(c *ui.Context) {
 	p := paletteFor(c.Theme())
 	b := a.taskForm.browser
-	// The top: the bucket, or the SMB server, whose folders are shares.
+	// The top: the bucket, the NFS export, or the SMB server, whose
+	// folders are shares.
 	top, shares := b.storage.Name, b.storage.Kind == domain.KindSMB && len(b.path) == 0
-	if b.storage.Kind != domain.KindSMB && b.storage.Bucket != "" {
+	switch {
+	case b.storage.Kind == domain.KindNFS:
+		top = b.storage.Export
+	case b.storage.Kind != domain.KindSMB && b.storage.Bucket != "":
 		top = b.storage.Bucket
 	}
 	ui.Column(c).Gap(12).Children(func() {

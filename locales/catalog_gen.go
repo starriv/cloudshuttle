@@ -2956,11 +2956,11 @@ func (msgs Messages) StoragesAdd() string {
 	return Catalog.Format(msgs.locale, "storagesAdd", nil)
 }
 
-// StoragesEmpty says "No storages yet. Add an S3-compatible bucket, such as Amazon S3 or Cloudflare R2, or an SMB server such as a NAS."
+// StoragesEmpty says "No storages yet. Add an S3-compatible bucket, such as Amazon S3 or Cloudflare R2, or a NAS over SMB or NFS."
 // in the language the app shows.
 func StoragesEmpty() string { return In(i18n.Locale()).StoragesEmpty() }
 
-// StoragesEmpty says "No storages yet. Add an S3-compatible bucket, such as Amazon S3 or Cloudflare R2, or an SMB server such as a NAS."
+// StoragesEmpty says "No storages yet. Add an S3-compatible bucket, such as Amazon S3 or Cloudflare R2, or a NAS over SMB or NFS."
 // in the language of msgs.
 func (msgs Messages) StoragesEmpty() string {
 	return Catalog.Format(msgs.locale, "storagesEmpty", nil)
@@ -3368,11 +3368,11 @@ func (msgs Messages) StorageSecretKeptHint() string {
 	return Catalog.Format(msgs.locale, "storageSecretKeptHint", nil)
 }
 
-// StorageFieldHost says "Server"
+// StorageFieldHost says "Address"
 // in the language the app shows.
 func StorageFieldHost() string { return In(i18n.Locale()).StorageFieldHost() }
 
-// StorageFieldHost says "Server"
+// StorageFieldHost says "Address"
 // in the language of msgs.
 func (msgs Messages) StorageFieldHost() string {
 	return Catalog.Format(msgs.locale, "storageFieldHost", nil)
@@ -3558,6 +3558,426 @@ func StorageSaved() string { return In(i18n.Locale()).StorageSaved() }
 // in the language of msgs.
 func (msgs Messages) StorageSaved() string {
 	return Catalog.Format(msgs.locale, "storageSaved", nil)
+}
+
+// KindNFS says "NFS server"
+// in the language the app shows.
+func KindNFS() string { return In(i18n.Locale()).KindNFS() }
+
+// KindNFS says "NFS server"
+// in the language of msgs.
+func (msgs Messages) KindNFS() string {
+	return Catalog.Format(msgs.locale, "kindNFS", nil)
+}
+
+// StorageGroupStorage says "Storage"
+// in the language the app shows.
+func StorageGroupStorage() string { return In(i18n.Locale()).StorageGroupStorage() }
+
+// StorageGroupStorage says "Storage"
+// in the language of msgs.
+func (msgs Messages) StorageGroupStorage() string {
+	return Catalog.Format(msgs.locale, "storageGroupStorage", nil)
+}
+
+// StorageGroupService says "Service"
+// in the language the app shows.
+func StorageGroupService() string { return In(i18n.Locale()).StorageGroupService() }
+
+// StorageGroupService says "Service"
+// in the language of msgs.
+func (msgs Messages) StorageGroupService() string {
+	return Catalog.Format(msgs.locale, "storageGroupService", nil)
+}
+
+// StorageGroupBucket says "Bucket and key"
+// in the language the app shows.
+func StorageGroupBucket() string { return In(i18n.Locale()).StorageGroupBucket() }
+
+// StorageGroupBucket says "Bucket and key"
+// in the language of msgs.
+func (msgs Messages) StorageGroupBucket() string {
+	return Catalog.Format(msgs.locale, "storageGroupBucket", nil)
+}
+
+// StorageGroupServer says "Server"
+// in the language the app shows.
+func StorageGroupServer() string { return In(i18n.Locale()).StorageGroupServer() }
+
+// StorageGroupServer says "Server"
+// in the language of msgs.
+func (msgs Messages) StorageGroupServer() string {
+	return Catalog.Format(msgs.locale, "storageGroupServer", nil)
+}
+
+// StorageGroupSignIn says "Sign in"
+// in the language the app shows.
+func StorageGroupSignIn() string { return In(i18n.Locale()).StorageGroupSignIn() }
+
+// StorageGroupSignIn says "Sign in"
+// in the language of msgs.
+func (msgs Messages) StorageGroupSignIn() string {
+	return Catalog.Format(msgs.locale, "storageGroupSignIn", nil)
+}
+
+// StorageGroupExport says "Shared folder"
+// in the language the app shows.
+func StorageGroupExport() string { return In(i18n.Locale()).StorageGroupExport() }
+
+// StorageGroupExport says "Shared folder"
+// in the language of msgs.
+func (msgs Messages) StorageGroupExport() string {
+	return Catalog.Format(msgs.locale, "storageGroupExport", nil)
+}
+
+// StorageGroupIdentity says "Identity"
+// in the language the app shows.
+func StorageGroupIdentity() string { return In(i18n.Locale()).StorageGroupIdentity() }
+
+// StorageGroupIdentity says "Identity"
+// in the language of msgs.
+func (msgs Messages) StorageGroupIdentity() string {
+	return Catalog.Format(msgs.locale, "storageGroupIdentity", nil)
+}
+
+// StorageGroupConnection says "Connection"
+// in the language the app shows.
+func StorageGroupConnection() string { return In(i18n.Locale()).StorageGroupConnection() }
+
+// StorageGroupConnection says "Connection"
+// in the language of msgs.
+func (msgs Messages) StorageGroupConnection() string {
+	return Catalog.Format(msgs.locale, "storageGroupConnection", nil)
+}
+
+// StorageNameHint says "Shown in tasks and history."
+// in the language the app shows.
+func StorageNameHint() string { return In(i18n.Locale()).StorageNameHint() }
+
+// StorageNameHint says "Shown in tasks and history."
+// in the language of msgs.
+func (msgs Messages) StorageNameHint() string {
+	return Catalog.Format(msgs.locale, "storageNameHint", nil)
+}
+
+// StorageKindHintS3 says "Amazon S3, Cloudflare R2, MinIO and other S3-compatible buckets."
+// in the language the app shows.
+func StorageKindHintS3() string { return In(i18n.Locale()).StorageKindHintS3() }
+
+// StorageKindHintS3 says "Amazon S3, Cloudflare R2, MinIO and other S3-compatible buckets."
+// in the language of msgs.
+func (msgs Messages) StorageKindHintS3() string {
+	return Catalog.Format(msgs.locale, "storageKindHintS3", nil)
+}
+
+// StorageKindHintSMB says "A shared folder on a Mac, a Windows PC or a NAS. Each task chooses the share."
+// in the language the app shows.
+func StorageKindHintSMB() string { return In(i18n.Locale()).StorageKindHintSMB() }
+
+// StorageKindHintSMB says "A shared folder on a Mac, a Windows PC or a NAS. Each task chooses the share."
+// in the language of msgs.
+func (msgs Messages) StorageKindHintSMB() string {
+	return Catalog.Format(msgs.locale, "storageKindHintSMB", nil)
+}
+
+// StorageKindHintNFS says "A shared folder on a NAS or Linux server, reached with NFS version 3. NFS does not encrypt transfers; use it on a tru…"
+// in the language the app shows.
+func StorageKindHintNFS() string { return In(i18n.Locale()).StorageKindHintNFS() }
+
+// StorageKindHintNFS says "A shared folder on a NAS or Linux server, reached with NFS version 3. NFS does not encrypt transfers; use it on a tru…"
+// in the language of msgs.
+func (msgs Messages) StorageKindHintNFS() string {
+	return Catalog.Format(msgs.locale, "storageKindHintNFS", nil)
+}
+
+// StoragePortHintSMB says "Leave empty for 445."
+// in the language the app shows.
+func StoragePortHintSMB() string { return In(i18n.Locale()).StoragePortHintSMB() }
+
+// StoragePortHintSMB says "Leave empty for 445."
+// in the language of msgs.
+func (msgs Messages) StoragePortHintSMB() string {
+	return Catalog.Format(msgs.locale, "storagePortHintSMB", nil)
+}
+
+// StoragePortHintNFS says "Leave empty to ask the server's portmapper (port 111), as NAS need. Enter a port only for a server that serves both M…"
+// in the language the app shows.
+func StoragePortHintNFS() string { return In(i18n.Locale()).StoragePortHintNFS() }
+
+// StoragePortHintNFS says "Leave empty to ask the server's portmapper (port 111), as NAS need. Enter a port only for a server that serves both M…"
+// in the language of msgs.
+func (msgs Messages) StoragePortHintNFS() string {
+	return Catalog.Format(msgs.locale, "storagePortHintNFS", nil)
+}
+
+// StoragePortAuto says "Auto"
+// in the language the app shows.
+func StoragePortAuto() string { return In(i18n.Locale()).StoragePortAuto() }
+
+// StoragePortAuto says "Auto"
+// in the language of msgs.
+func (msgs Messages) StoragePortAuto() string {
+	return Catalog.Format(msgs.locale, "storagePortAuto", nil)
+}
+
+// StorageFoundHint says "Servers that announce themselves with Bonjour."
+// in the language the app shows.
+func StorageFoundHint() string { return In(i18n.Locale()).StorageFoundHint() }
+
+// StorageFoundHint says "Servers that announce themselves with Bonjour."
+// in the language of msgs.
+func (msgs Messages) StorageFoundHint() string {
+	return Catalog.Format(msgs.locale, "storageFoundHint", nil)
+}
+
+// StorageServersNoneNFS says "No NFS servers found. Most NAS do not announce NFS; enter the address directly."
+// in the language the app shows.
+func StorageServersNoneNFS() string { return In(i18n.Locale()).StorageServersNoneNFS() }
+
+// StorageServersNoneNFS says "No NFS servers found. Most NAS do not announce NFS; enter the address directly."
+// in the language of msgs.
+func (msgs Messages) StorageServersNoneNFS() string {
+	return Catalog.Format(msgs.locale, "storageServersNoneNFS", nil)
+}
+
+// StorageFieldExport says "Shared folder path"
+// in the language the app shows.
+func StorageFieldExport() string { return In(i18n.Locale()).StorageFieldExport() }
+
+// StorageFieldExport says "Shared folder path"
+// in the language of msgs.
+func (msgs Messages) StorageFieldExport() string {
+	return Catalog.Format(msgs.locale, "storageFieldExport", nil)
+}
+
+// StorageExportHint says "A shared folder with NFS permissions on the NAS (an export, in NFS terms), for example /volume1/backup. Its permissio…"
+// in the language the app shows.
+func StorageExportHint() string { return In(i18n.Locale()).StorageExportHint() }
+
+// StorageExportHint says "A shared folder with NFS permissions on the NAS (an export, in NFS terms), for example /volume1/backup. Its permissio…"
+// in the language of msgs.
+func (msgs Messages) StorageExportHint() string {
+	return Catalog.Format(msgs.locale, "storageExportHint", nil)
+}
+
+// StorageListExports says "List shared folders"
+// in the language the app shows.
+func StorageListExports() string { return In(i18n.Locale()).StorageListExports() }
+
+// StorageListExports says "List shared folders"
+// in the language of msgs.
+func (msgs Messages) StorageListExports() string {
+	return Catalog.Format(msgs.locale, "storageListExports", nil)
+}
+
+// StorageListingExports says "Listing shared folders…"
+// in the language the app shows.
+func StorageListingExports() string { return In(i18n.Locale()).StorageListingExports() }
+
+// StorageListingExports says "Listing shared folders…"
+// in the language of msgs.
+func (msgs Messages) StorageListingExports() string {
+	return Catalog.Format(msgs.locale, "storageListingExports", nil)
+}
+
+// StorageExportsNone says "The server shares no folders over NFS."
+// in the language the app shows.
+func StorageExportsNone() string { return In(i18n.Locale()).StorageExportsNone() }
+
+// StorageExportsNone says "The server shares no folders over NFS."
+// in the language of msgs.
+func (msgs Messages) StorageExportsNone() string {
+	return Catalog.Format(msgs.locale, "storageExportsNone", nil)
+}
+
+// StorageExportsHidden says "The server does not list its shared folders. Enter the path directly."
+// in the language the app shows.
+func StorageExportsHidden() string { return In(i18n.Locale()).StorageExportsHidden() }
+
+// StorageExportsHidden says "The server does not list its shared folders. Enter the path directly."
+// in the language of msgs.
+func (msgs Messages) StorageExportsHidden() string {
+	return Catalog.Format(msgs.locale, "storageExportsHidden", nil)
+}
+
+// StorageExportsFailed says "Unable to list shared folders: {error}"
+// in the language the app shows.
+func StorageExportsFailed(error string) string { return In(i18n.Locale()).StorageExportsFailed(error) }
+
+// StorageExportsFailed says "Unable to list shared folders: {error}"
+// in the language of msgs.
+func (msgs Messages) StorageExportsFailed(error string) string {
+	return Catalog.Format(msgs.locale, "storageExportsFailed", map[string]any{"error": error})
+}
+
+// StorageUseExport says "Use shared folder {path}"
+// in the language the app shows.
+func StorageUseExport(path string) string { return In(i18n.Locale()).StorageUseExport(path) }
+
+// StorageUseExport says "Use shared folder {path}"
+// in the language of msgs.
+func (msgs Messages) StorageUseExport(path string) string {
+	return Catalog.Format(msgs.locale, "storageUseExport", map[string]any{"path": path})
+}
+
+// StorageFieldUID says "User ID"
+// in the language the app shows.
+func StorageFieldUID() string { return In(i18n.Locale()).StorageFieldUID() }
+
+// StorageFieldUID says "User ID"
+// in the language of msgs.
+func (msgs Messages) StorageFieldUID() string {
+	return Catalog.Format(msgs.locale, "storageFieldUID", nil)
+}
+
+// StorageFieldGID says "Group ID"
+// in the language the app shows.
+func StorageFieldGID() string { return In(i18n.Locale()).StorageFieldGID() }
+
+// StorageFieldGID says "Group ID"
+// in the language of msgs.
+func (msgs Messages) StorageFieldGID() string {
+	return Catalog.Format(msgs.locale, "storageFieldGID", nil)
+}
+
+// StorageUIDHint says "The server checks permissions by this number and gives it the files it writes. This computer's user is {id}."
+// in the language the app shows.
+func StorageUIDHint(id string) string { return In(i18n.Locale()).StorageUIDHint(id) }
+
+// StorageUIDHint says "The server checks permissions by this number and gives it the files it writes. This computer's user is {id}."
+// in the language of msgs.
+func (msgs Messages) StorageUIDHint(id string) string {
+	return Catalog.Format(msgs.locale, "storageUIDHint", map[string]any{"id": id})
+}
+
+// StorageGIDHint says "This computer's group is {id}."
+// in the language the app shows.
+func StorageGIDHint(id string) string { return In(i18n.Locale()).StorageGIDHint(id) }
+
+// StorageGIDHint says "This computer's group is {id}."
+// in the language of msgs.
+func (msgs Messages) StorageGIDHint(id string) string {
+	return Catalog.Format(msgs.locale, "storageGIDHint", map[string]any{"id": id})
+}
+
+// StorageIDHint says "The number of the account on the server."
+// in the language the app shows.
+func StorageIDHint() string { return In(i18n.Locale()).StorageIDHint() }
+
+// StorageIDHint says "The number of the account on the server."
+// in the language of msgs.
+func (msgs Messages) StorageIDHint() string {
+	return Catalog.Format(msgs.locale, "storageIDHint", nil)
+}
+
+// StorageFieldStatus says "Status"
+// in the language the app shows.
+func StorageFieldStatus() string { return In(i18n.Locale()).StorageFieldStatus() }
+
+// StorageFieldStatus says "Status"
+// in the language of msgs.
+func (msgs Messages) StorageFieldStatus() string {
+	return Catalog.Format(msgs.locale, "storageFieldStatus", nil)
+}
+
+// StorageTestHint says "Not tested yet. Checks that the storage can be reached with these settings."
+// in the language the app shows.
+func StorageTestHint() string { return In(i18n.Locale()).StorageTestHint() }
+
+// StorageTestHint says "Not tested yet. Checks that the storage can be reached with these settings."
+// in the language of msgs.
+func (msgs Messages) StorageTestHint() string {
+	return Catalog.Format(msgs.locale, "storageTestHint", nil)
+}
+
+// StorageDeleteMessageNFS says "Files in the shared folder are not affected."
+// in the language the app shows.
+func StorageDeleteMessageNFS() string { return In(i18n.Locale()).StorageDeleteMessageNFS() }
+
+// StorageDeleteMessageNFS says "Files in the shared folder are not affected."
+// in the language of msgs.
+func (msgs Messages) StorageDeleteMessageNFS() string {
+	return Catalog.Format(msgs.locale, "storageDeleteMessageNFS", nil)
+}
+
+// TaskFieldExportPath says "Path in shared folder"
+// in the language the app shows.
+func TaskFieldExportPath() string { return In(i18n.Locale()).TaskFieldExportPath() }
+
+// TaskFieldExportPath says "Path in shared folder"
+// in the language of msgs.
+func (msgs Messages) TaskFieldExportPath() string {
+	return Catalog.Format(msgs.locale, "taskFieldExportPath", nil)
+}
+
+// TaskFieldExportPathHint says "Leave empty for the top of the shared folder."
+// in the language the app shows.
+func TaskFieldExportPathHint() string { return In(i18n.Locale()).TaskFieldExportPathHint() }
+
+// TaskFieldExportPathHint says "Leave empty for the top of the shared folder."
+// in the language of msgs.
+func (msgs Messages) TaskFieldExportPathHint() string {
+	return Catalog.Format(msgs.locale, "taskFieldExportPathHint", nil)
+}
+
+// ErrorAuthFailedNFS says "The server refused this computer. Allow this computer's address in the shared folder's NFS permissions and check that…"
+// in the language the app shows.
+func ErrorAuthFailedNFS() string { return In(i18n.Locale()).ErrorAuthFailedNFS() }
+
+// ErrorAuthFailedNFS says "The server refused this computer. Allow this computer's address in the shared folder's NFS permissions and check that…"
+// in the language of msgs.
+func (msgs Messages) ErrorAuthFailedNFS() string {
+	return Catalog.Format(msgs.locale, "errorAuthFailedNFS", nil)
+}
+
+// ErrorExportNotFound says "The server has no shared folder with this path."
+// in the language the app shows.
+func ErrorExportNotFound() string { return In(i18n.Locale()).ErrorExportNotFound() }
+
+// ErrorExportNotFound says "The server has no shared folder with this path."
+// in the language of msgs.
+func (msgs Messages) ErrorExportNotFound() string {
+	return Catalog.Format(msgs.locale, "errorExportNotFound", nil)
+}
+
+// ErrorNoNFSv3 says "The server does not offer NFS version 3, which CloudShuttle uses. Turn on NFSv3 in the server's NFS settings."
+// in the language the app shows.
+func ErrorNoNFSv3() string { return In(i18n.Locale()).ErrorNoNFSv3() }
+
+// ErrorNoNFSv3 says "The server does not offer NFS version 3, which CloudShuttle uses. Turn on NFSv3 in the server's NFS settings."
+// in the language of msgs.
+func (msgs Messages) ErrorNoNFSv3() string {
+	return Catalog.Format(msgs.locale, "errorNoNFSv3", nil)
+}
+
+// ErrorNoMount says "The server has no MOUNT service on this port. Leave the port empty so the app asks the server's portmapper where it is."
+// in the language the app shows.
+func ErrorNoMount() string { return In(i18n.Locale()).ErrorNoMount() }
+
+// ErrorNoMount says "The server has no MOUNT service on this port. Leave the port empty so the app asks the server's portmapper where it is."
+// in the language of msgs.
+func (msgs Messages) ErrorNoMount() string {
+	return Catalog.Format(msgs.locale, "errorNoMount", nil)
+}
+
+// ErrorInvalidID says "Enter a number from 0 to 4294967295."
+// in the language the app shows.
+func ErrorInvalidID() string { return In(i18n.Locale()).ErrorInvalidID() }
+
+// ErrorInvalidID says "Enter a number from 0 to 4294967295."
+// in the language of msgs.
+func (msgs Messages) ErrorInvalidID() string {
+	return Catalog.Format(msgs.locale, "errorInvalidID", nil)
+}
+
+// BrowseExportGone says "The shared folder {path} no longer exists on the server and may have been renamed. Check the shared folder in the sto…"
+// in the language the app shows.
+func BrowseExportGone(path string) string { return In(i18n.Locale()).BrowseExportGone(path) }
+
+// BrowseExportGone says "The shared folder {path} no longer exists on the server and may have been renamed. Check the shared folder in the sto…"
+// in the language of msgs.
+func (msgs Messages) BrowseExportGone(path string) string {
+	return Catalog.Format(msgs.locale, "browseExportGone", map[string]any{"path": path})
 }
 
 // ProviderAWS says "Amazon S3"

@@ -145,6 +145,28 @@ INSERT INTO schedule_starts(task_id, started_at)
 	prependGlobalExcludes(".DS_Store"),
 	// 22: and Git's repository folders.
 	prependGlobalExcludes(".git/"),
+	// 23: storages can be NFS exports.
+	addNFS,
+}
+
+// addNFS is step 23: the export of an NFS storage, and the ids it acts as.
+func addNFS(tx *sql.Tx) error {
+	for _, col := range []struct{ name, def string }{
+		{"export", `TEXT NOT NULL DEFAULT ''`},
+		{"uid", `INTEGER NOT NULL DEFAULT 0`},
+		{"gid", `INTEGER NOT NULL DEFAULT 0`},
+	} {
+		has, err := hasColumn(tx, "storages", col.name)
+		if err != nil {
+			return err
+		}
+		if !has {
+			if _, err := tx.Exec(`ALTER TABLE storages ADD COLUMN ` + col.name + ` ` + col.def); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 // prependGlobalExcludes is a step that puts each of patterns the stored
@@ -614,7 +636,7 @@ func backup(db *sql.DB, path string, version int) error {
 func (s *Store) Close() error { return s.db.Close() }
 
 const storageColumns = `id, name, kind, provider, endpoint, region, bucket, access_key_id,
-	host, port, username, checked_at, check_ok, check_problem, check_message, created_at, updated_at`
+	host, port, username, export, uid, gid, checked_at, check_ok, check_problem, check_message, created_at, updated_at`
 
 // Storages returns every storage, by name.
 func (s *Store) Storages(ctx context.Context) ([]domain.Storage, error) {
@@ -647,7 +669,7 @@ func scanStorage(row scanner) (domain.Storage, error) {
 	var st domain.Storage
 	var created, updated, checked int64
 	if err := row.Scan(&st.ID, &st.Name, &st.Kind, &st.Provider, &st.Endpoint, &st.Region, &st.Bucket,
-		&st.AccessKeyID, &st.Host, &st.Port, &st.Username,
+		&st.AccessKeyID, &st.Host, &st.Port, &st.Username, &st.Export, &st.UID, &st.GID,
 		&checked, &st.Check.OK, &st.Check.Problem, &st.Check.Message, &created, &updated); err != nil {
 		return domain.Storage{}, err
 	}
@@ -662,18 +684,18 @@ func (s *Store) PutStorage(ctx context.Context, st domain.Storage) error {
 		st.Kind = domain.KindS3
 	}
 	_, err := s.db.ExecContext(ctx, `
-		INSERT INTO storages (id, name, kind, provider, endpoint, region, bucket, access_key_id,
-			host, port, username, checked_at, check_ok, check_problem, check_message, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO storages (`+storageColumns+`)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (id) DO UPDATE SET
 			name = excluded.name, kind = excluded.kind, provider = excluded.provider,
 			endpoint = excluded.endpoint, region = excluded.region, bucket = excluded.bucket,
 			access_key_id = excluded.access_key_id, host = excluded.host, port = excluded.port,
-			username = excluded.username, checked_at = excluded.checked_at, check_ok = excluded.check_ok,
+			username = excluded.username, export = excluded.export, uid = excluded.uid, gid = excluded.gid,
+			checked_at = excluded.checked_at, check_ok = excluded.check_ok,
 			check_problem = excluded.check_problem, check_message = excluded.check_message,
 			updated_at = excluded.updated_at`,
 		st.ID, st.Name, st.Kind, st.Provider, st.Endpoint, st.Region, st.Bucket, st.AccessKeyID,
-		st.Host, st.Port, st.Username, millis(st.Check.At), st.Check.OK, st.Check.Problem, st.Check.Message,
+		st.Host, st.Port, st.Username, st.Export, st.UID, st.GID, millis(st.Check.At), st.Check.OK, st.Check.Problem, st.Check.Message,
 		millis(st.CreatedAt), millis(st.UpdatedAt))
 	return mapConstraint(err)
 }

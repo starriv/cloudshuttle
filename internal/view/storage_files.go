@@ -140,8 +140,11 @@ func storageFilesError(err error) string {
 func (a *App) storageFilesPage(c *ui.Context, b *storageFiles) {
 	p := paletteFor(c.Theme())
 	root := b.storage.Bucket
-	if b.storage.Kind == domain.KindSMB {
+	switch b.storage.Kind {
+	case domain.KindSMB:
 		root = b.storage.Host
+	case domain.KindNFS:
+		root = b.storage.Export
 	}
 	pageHeader(c, b.storage.Name, "", func() {
 		if accentButton(c, "files-back", icons.Storages, locales.FilesBack(), buttonSoft).Clicked() {

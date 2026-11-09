@@ -1,2 +1,2 @@
 /* macOS 询问是否允许访问本地网络时显示的理由 */
-"NSLocalNetworkUsageDescription" = "云梭需要连接局域网中的 NAS 和其他 SMB 服务器来同步文件。";
+"NSLocalNetworkUsageDescription" = "云梭需要连接局域网中的 SMB 和 NFS 服务器来同步文件。";

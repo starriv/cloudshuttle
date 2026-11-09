@@ -654,7 +654,7 @@
   "modeCopyHint": "Copies new and changed files and overwrites files in the destination that differ. Never deletes files.",
   "modeSyncHint": "Makes the destination identical to the source; files not in the source are deleted from the destination. If a sync would delete most of the destination, it stops for confirmation.",
   "storagesAdd": "Add storage",
-  "storagesEmpty": "No storages yet. Add an S3-compatible bucket, such as Amazon S3 or Cloudflare R2, or an SMB server such as a NAS.",
+  "storagesEmpty": "No storages yet. Add an S3-compatible bucket, such as Amazon S3 or Cloudflare R2, or a NAS over SMB or NFS.",
   "storagesColumnName": "Name",
   "storagesColumnKind": "Type",
   "storagesColumnAddress": "Address",
@@ -747,7 +747,7 @@
   "storageFieldSecret": "Secret access key",
   "storageSecretHint": "Stored in the system keychain, not in the app's database.",
   "storageSecretKeptHint": "Stored in the system keychain. Leave empty to keep the current key.",
-  "storageFieldHost": "Server",
+  "storageFieldHost": "Address",
   "storageHostHint": "Host name or IP address, for example nas.local or 192.168.1.20.",
   "storageServersUnverified": "These servers were discovered by network broadcast and have not been verified. Confirm that the address belongs to your device before signing in.",
   "storageFieldPort": "Port",
@@ -786,6 +786,80 @@
   },
   "storageSave": "Save storage",
   "storageSaved": "Storage saved",
+  "kindNFS": "NFS server",
+  "storageGroupStorage": "Storage",
+  "storageGroupService": "Service",
+  "storageGroupBucket": "Bucket and key",
+  "storageGroupServer": "Server",
+  "storageGroupSignIn": "Sign in",
+  "storageGroupExport": "Shared folder",
+  "storageGroupIdentity": "Identity",
+  "storageGroupConnection": "Connection",
+  "storageNameHint": "Shown in tasks and history.",
+  "storageKindHintS3": "Amazon S3, Cloudflare R2, MinIO and other S3-compatible buckets.",
+  "storageKindHintSMB": "A shared folder on a Mac, a Windows PC or a NAS. Each task chooses the share.",
+  "storageKindHintNFS": "A shared folder on a NAS or Linux server, reached with NFS version 3. NFS does not encrypt transfers; use it on a trusted network.",
+  "storagePortHintSMB": "Leave empty for 445.",
+  "storagePortHintNFS": "Leave empty to ask the server's portmapper (port 111), as NAS need. Enter a port only for a server that serves both MOUNT and NFS on it.",
+  "storagePortAuto": "Auto",
+  "storageFoundHint": "Servers that announce themselves with Bonjour.",
+  "storageServersNoneNFS": "No NFS servers found. Most NAS do not announce NFS; enter the address directly.",
+  "storageFieldExport": "Shared folder path",
+  "storageExportHint": "A shared folder with NFS permissions on the NAS (an export, in NFS terms), for example /volume1/backup. Its permissions must allow this computer's address. Tasks choose folders inside it.",
+  "storageListExports": "List shared folders",
+  "storageListingExports": "Listing shared folders…",
+  "storageExportsNone": "The server shares no folders over NFS.",
+  "storageExportsHidden": "The server does not list its shared folders. Enter the path directly.",
+  "storageExportsFailed": "Unable to list shared folders: {error}",
+  "@storageExportsFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String",
+        "example": "connection refused"
+      }
+    }
+  },
+  "storageUseExport": "Use shared folder {path}",
+  "@storageUseExport": {
+    "placeholders": {
+      "path": {
+        "type": "String",
+        "example": "/volume1/backup"
+      }
+    }
+  },
+  "storageFieldUID": "User ID",
+  "storageFieldGID": "Group ID",
+  "storageUIDHint": "The server checks permissions by this number and gives it the files it writes. This computer's user is {id}.",
+  "@storageUIDHint": {
+    "placeholders": {
+      "id": {
+        "type": "String",
+        "example": "501"
+      }
+    }
+  },
+  "storageGIDHint": "This computer's group is {id}.",
+  "@storageGIDHint": {
+    "placeholders": {
+      "id": {
+        "type": "String",
+        "example": "20"
+      }
+    }
+  },
+  "storageIDHint": "The number of the account on the server.",
+  "storageFieldStatus": "Status",
+  "storageTestHint": "Not tested yet. Checks that the storage can be reached with these settings.",
+  "storageDeleteMessageNFS": "Files in the shared folder are not affected.",
+  "taskFieldExportPath": "Path in shared folder",
+  "taskFieldExportPathHint": "Leave empty for the top of the shared folder.",
+  "errorAuthFailedNFS": "The server refused this computer. Allow this computer's address in the shared folder's NFS permissions and check that the user ID may access it. If the server accepts only privileged ports, allow connections from non-privileged ports.",
+  "errorExportNotFound": "The server has no shared folder with this path.",
+  "errorNoNFSv3": "The server does not offer NFS version 3, which CloudShuttle uses. Turn on NFSv3 in the server's NFS settings.",
+  "errorNoMount": "The server has no MOUNT service on this port. Leave the port empty so the app asks the server's portmapper where it is.",
+  "errorInvalidID": "Enter a number from 0 to 4294967295.",
+  "browseExportGone": "The shared folder {path} no longer exists on the server and may have been renamed. Check the shared folder in the storage's settings.",
   "providerAWS": "Amazon S3",
   "providerCloudflare": "Cloudflare R2",
   "providerAlibaba": "Alibaba Cloud OSS",

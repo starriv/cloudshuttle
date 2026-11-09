@@ -59,8 +59,11 @@ func providerLabel(p domain.Provider) string {
 }
 
 func kindLabel(k domain.Kind) string {
-	if k == domain.KindSMB {
+	switch k {
+	case domain.KindSMB:
 		return locales.KindSMB()
+	case domain.KindNFS:
+		return locales.KindNFS()
 	}
 	return locales.KindS3()
 }
@@ -148,6 +151,8 @@ func problemText(code domain.Code) string {
 		return locales.ErrorInvalidHost()
 	case domain.CodeInvalidPort:
 		return locales.ErrorInvalidPort()
+	case domain.CodeInvalidID:
+		return locales.ErrorInvalidID()
 	case domain.CodeShareRequired:
 		return locales.ErrorShareRequired()
 	case domain.CodeNotAbsolute:

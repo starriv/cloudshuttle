@@ -20,16 +20,25 @@ const (
 	// KindSMB is a shared folder on a computer or NAS of the local
 	// network, reached with SMB.
 	KindSMB Kind = "smb"
+	// KindNFS is a folder a NAS or server exports with NFS, in version 3.
+	KindNFS Kind = "nfs"
 )
 
 // Kinds lists the kinds the app offers, in the order it shows them.
-var Kinds = []Kind{KindS3, KindSMB}
+var Kinds = []Kind{KindS3, KindSMB, KindNFS}
 
 // Valid reports whether k is one of Kinds.
-func (k Kind) Valid() bool { return k == KindS3 || k == KindSMB }
+func (k Kind) Valid() bool { return k == KindS3 || k == KindSMB || k == KindNFS }
+
+// Server reports whether the kind is a server of the local network, found
+// by its host, rather than a service of the internet.
+func (k Kind) Server() bool { return k == KindSMB || k == KindNFS }
 
 // DefaultSMBPort is the port SMB servers listen on.
 const DefaultSMBPort = 445
+
+// MaxID is the largest user or group id NFS carries.
+const MaxID = 1<<32 - 1
 
 // Provider names an S3-compatible service. The values are rclone's s3
 // provider names, so they pass to the engine unchanged.
@@ -67,10 +76,11 @@ func (p Provider) Valid() bool {
 }
 
 // Storage is how to reach where a task's files can be: an S3-compatible
-// bucket, or an SMB server, whose shares and their folders the tasks
-// choose. The fields of the other kind are empty.
+// bucket, an SMB server, whose shares and their folders the tasks choose,
+// or an export of an NFS server. The fields of the other kinds are empty.
 // Its secret, the secret access key or the SMB password, is not part of it:
-// the app keeps it in the system's credential store, under SecretKey.
+// the app keeps it in the system's credential store, under SecretKey. NFS
+// has none: the server trusts the ids the client names.
 type Storage struct {
 	ID   string
 	Name string
@@ -83,10 +93,16 @@ type Storage struct {
 	Bucket      string
 	AccessKeyID string
 
-	// An SMB server.
+	// An SMB or NFS server. An NFS Port of 0 asks the server's
+	// portmapper.
 	Host     string // a host name or an IP address; IPv6 in brackets
 	Port     int
-	Username string
+	Username string // SMB
+
+	// An NFS export: the folder, and the user and group the app acts as.
+	Export string
+	UID    int
+	GID    int
 
 	// Check is how its connection last tested.
 	Check Check
@@ -111,6 +127,10 @@ const (
 	ProblemUnreachable   = "unreachable"
 	ProblemAuthFailed    = "authFailed"
 	ProblemShareNotFound = "shareNotFound"
+	ProblemNoNFSv3       = "noNfsV3"
+	// ProblemNoMount is an NFS server that serves no MOUNT at the port
+	// given: version 3 needs the MOUNT protocol to reach an export.
+	ProblemNoMount = "noMount"
 )
 
 // Checked reports whether the storage's connection was tested as it is.
@@ -126,17 +146,26 @@ func (s Storage) SameConnection(o Storage) bool {
 	return s == o
 }
 
-// SecretKey is the credential store key of the storage's secret.
+// HasSecret reports whether the storage's kind keeps a secret: NFS has
+// none.
+func (s Storage) HasSecret() bool { return s.SecretKey() != "" }
+
+// SecretKey is the credential store key of the storage's secret; it is ""
+// for NFS, which has none.
 func (s Storage) SecretKey() string {
-	if s.Kind == KindSMB {
+	switch s.Kind {
+	case KindSMB:
 		return "storage/" + s.ID + "/password"
+	case KindNFS:
+		return ""
 	}
 	return "storage/" + s.ID + "/secret-access-key"
 }
 
 // Location is one side of a task: a folder on this computer when StorageID
-// is empty, or a path inside a storage: in its bucket, or on its SMB
-// server, where the path begins with the share, as in Documents/Photos.
+// is empty, or a path inside a storage: in its bucket or NFS export, or on
+// its SMB server, where the path begins with the share, as in
+// Documents/Photos.
 type Location struct {
 	StorageID string
 	Path      string
@@ -423,6 +452,13 @@ var (
 	ErrUnreachable   = errors.New("server unreachable")
 	ErrAuthFailed    = errors.New("authentication failed")
 	ErrShareNotFound = errors.New("share not found")
+	// ErrNoNFSv3 is an NFS server that does not offer version 3, the only
+	// one the app speaks; ErrExportsHidden one that does not list its
+	// exports, which are then typed in; ErrNoMount one that serves no
+	// MOUNT at the port given, which version 3 needs to reach an export.
+	ErrNoNFSv3       = errors.New("the server does not offer NFS version 3")
+	ErrExportsHidden = errors.New("the server does not list its exports")
+	ErrNoMount       = errors.New("the server serves no MOUNT at the given port")
 	// ErrFolderNotFound is a folder of a storage that does not exist.
 	ErrFolderNotFound = errors.New("folder not found")
 

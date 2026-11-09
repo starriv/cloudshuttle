@@ -15,7 +15,7 @@ func TestBrowseLive(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	servers, err := Browse(ctx)
+	servers, err := Browse(ctx, SMB)
 	if err != nil {
 		t.Fatal(err)
 	}

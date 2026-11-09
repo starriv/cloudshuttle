@@ -278,13 +278,13 @@ func changeStorage(ctx context.Context, f fs.Fs, loc Location, c StorageChange) 
 			return err
 		}
 		if existing == nil {
-			return putNewSMB(ctx, loc, c.Target, c.Input, c.Modified)
+			return putNew(ctx, f, loc, c.Target, c.Input, c.Modified)
 		}
-		// SMB streams directly into the destination and removes partial
+		// SMB and NFS stream directly into the destination and removes partial
 		// uploads on failure. Stage a sibling so a failed upload cannot
 		// remove the file the user agreed to replace.
 		parent, _ := path.Split(c.Target)
-		temp := parent + ".cloudshuttle-upload-" + domain.NewID()
+		temp := parent + uploadPrefix + domain.NewID()
 		staged, err := f.Put(ctx, c.Input, object.NewStaticObjectInfo(temp, c.Modified, c.Size, true, nil, f))
 		if err != nil {
 			return err
@@ -327,8 +327,8 @@ func changeStorage(ctx context.Context, f fs.Fs, loc Location, c StorageChange) 
 	if err != nil {
 		return err
 	}
-	if loc.SMB != nil {
-		err = putNewSMB(ctx, loc, c.Target, reader, snapshot.Modified)
+	if loc.SMB != nil || loc.NFS != nil {
+		err = putNew(ctx, f, loc, c.Target, reader, snapshot.Modified)
 	} else {
 		copyCtx, config := fs.AddConfig(ctx)
 		config.Metadata = true
@@ -356,6 +356,23 @@ func changeStorage(ctx context.Context, f fs.Fs, loc Location, c StorageChange) 
 		return fmt.Errorf("%w: %w", domain.ErrStoragePartialMove, err)
 	}
 	return nil
+}
+
+// putNew writes a new file on an SMB share or NFS export without replacing
+// one that is there: domain.ErrStorageExists when the name is taken.
+func putNew(ctx context.Context, f fs.Fs, loc Location, name string, in io.Reader, modified time.Time) error {
+	if loc.NFS == nil {
+		return putNewSMB(ctx, loc, name, in, modified)
+	}
+	nf, ok := f.(*nfsFs)
+	if !ok {
+		return errors.New("nfs: unexpected backend")
+	}
+	_, err := nf.putNew(ctx, in, name, modified)
+	if errors.Is(err, errNFSExists) {
+		return domain.ErrStorageExists
+	}
+	return err
 }
 
 // renameSMBCase changes only the case of a name. The server folds case, so

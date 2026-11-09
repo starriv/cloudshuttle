@@ -112,6 +112,7 @@ type App struct {
 	storageTests   int             // counts the forms' connection tests, to keep the latest
 	checking       map[string]bool // the storages being tested, by ID
 	serverSearches int             // counts the forms' searches of the network, likewise
+	exportLists    int             // counts the forms' listings of NFS exports, likewise
 	folderLoads    int             // counts the folder browser's reads, likewise
 	confirm        confirmation
 

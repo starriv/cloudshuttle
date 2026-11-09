@@ -77,9 +77,9 @@ type Options struct {
 	WakeApp func()
 	// Now returns the time; time.Now when nil.
 	Now func() time.Time
-	// Browse searches the network for SMB servers; discovery.Browse when
-	// nil.
-	Browse func(context.Context) ([]discovery.Server, error)
+	// Browse searches the network for servers of a DNS-SD service type,
+	// SMB or NFS; discovery.Browse when nil.
+	Browse func(context.Context, string) ([]discovery.Server, error)
 	// DataDir is where the app keeps its database and logs. No task may
 	// sync into it, or into a folder that holds it.
 	DataDir string
@@ -113,7 +113,7 @@ type Service struct {
 	now        func() time.Time
 	settingsMu sync.RWMutex
 	settings   domain.Settings
-	browse     func(context.Context) ([]discovery.Server, error)
+	browse     func(context.Context, string) ([]discovery.Server, error)
 	dataDir    string
 	backupDir  func() (string, error)
 
@@ -454,14 +454,17 @@ func (s *Service) CreateStorage(ctx context.Context, in domain.StorageInput) (do
 	}
 	now := s.now()
 	st := storageFrom(domain.Storage{ID: domain.NewID(), CreatedAt: now}, in, now)
-	// A share open to guests has no password to keep.
-	if in.Secret != "" {
+	// A share open to guests has no password to keep, and an NFS export
+	// has no secret at all.
+	if in.Secret != "" && st.HasSecret() {
 		if err := s.secrets.Set(st.SecretKey(), in.Secret); err != nil {
 			return domain.Storage{}, fmt.Errorf("keep secret: %w", err)
 		}
 	}
 	if err := s.store.PutStorage(ctx, st); err != nil {
-		_ = s.secrets.Delete(st.SecretKey())
+		if st.HasSecret() {
+			_ = s.secrets.Delete(st.SecretKey())
+		}
 		return domain.Storage{}, nameProblem(err)
 	}
 	s.onChange()
@@ -500,7 +503,7 @@ func (s *Service) UpdateStorage(ctx context.Context, id string, in domain.Storag
 	if err := s.store.PutStorage(ctx, st); err != nil {
 		return domain.Storage{}, nameProblem(err)
 	}
-	if in.Secret != "" {
+	if in.Secret != "" && st.HasSecret() {
 		if err := s.secrets.Set(st.SecretKey(), in.Secret); err != nil {
 			// The secret the storage uses is still the old one, so the row
 			// that names it goes back: a locked keychain leaves the
@@ -511,7 +514,9 @@ func (s *Service) UpdateStorage(ctx context.Context, id string, in domain.Storag
 			return domain.Storage{}, fmt.Errorf("keep secret: %w", err)
 		}
 	}
-	if kindChanged {
+	if kindChanged && old.HasSecret() {
+		// The secret kept for the other kind means nothing to this one.
+		// Only a kind that had one has one to delete.
 		if err := s.secrets.Delete(old.SecretKey()); err != nil {
 			slog.Warn("delete secret", "storage", id, "err", err)
 		}
@@ -527,6 +532,9 @@ func storageFrom(st domain.Storage, in domain.StorageInput, now time.Time) domai
 	switch in.Kind {
 	case domain.KindSMB:
 		st.Host, st.Port, st.Username = in.Host, in.PortNumber(), in.Username
+	case domain.KindNFS:
+		st.Host, st.Port, st.Export = in.Host, in.PortNumber(), in.Export
+		st.UID, st.GID, _ = in.IDs()
 	default:
 		st.Provider, st.Endpoint, st.Region = in.Provider, in.Endpoint, in.Region
 		st.Bucket, st.AccessKeyID = in.Bucket, in.AccessKeyID
@@ -549,8 +557,10 @@ func (s *Service) DeleteStorage(ctx context.Context, id string) error {
 	if err := s.store.DeleteStorage(ctx, id); err != nil {
 		return err
 	}
-	if err := s.secrets.Delete(st.SecretKey()); err != nil {
-		slog.Warn("delete secret", "storage", id, "err", err)
+	if st.HasSecret() {
+		if err := s.secrets.Delete(st.SecretKey()); err != nil {
+			slog.Warn("delete secret", "storage", id, "err", err)
+		}
 	}
 	s.onChange()
 	s.backupIfEnabled()
@@ -587,6 +597,10 @@ func checkOf(at time.Time, err error) domain.Check {
 		c.Problem = domain.ProblemAuthFailed
 	case errors.Is(err, domain.ErrShareNotFound):
 		c.Problem = domain.ProblemShareNotFound
+	case errors.Is(err, domain.ErrNoNFSv3):
+		c.Problem = domain.ProblemNoNFSv3
+	case errors.Is(err, domain.ErrNoMount):
+		c.Problem = domain.ProblemNoMount
 	}
 	if err != nil {
 		c.Message = err.Error()
@@ -643,37 +657,48 @@ func (s *Service) Folders(ctx context.Context, id, path string) ([]string, error
 	return folders, nil
 }
 
-// FoundServer is an SMB server of the local network that announced itself.
+// FoundServer is an SMB or NFS server of the local network that announced
+// itself.
 type FoundServer struct {
 	Name string // as it announces itself, such as "DiskStation"
 	Host string // a host name this computer resolves, or an IPv4 address
 	Port int
+	// Path is the export an NFS server announced, if it did.
+	Path string
 }
 
 // browseFor is how long FindServers listens for answers.
 const browseFor = 3 * time.Second
 
-// FindServers asks the local network for SMB servers, which answer with
-// Bonjour (mDNS), and returns those that did within a few seconds, by
-// name. Servers that do not announce themselves are not found: their
-// address is entered by hand.
-func (s *Service) FindServers(ctx context.Context) ([]FoundServer, error) {
+// FindServers asks the local network for servers of kind, SMB or NFS,
+// which answer with Bonjour (mDNS), and returns those that did within a few
+// seconds, by name. Servers that do not announce themselves are not found:
+// their address is entered by hand.
+func (s *Service) FindServers(ctx context.Context, kind domain.Kind) ([]FoundServer, error) {
 	ctx, cancel := context.WithTimeout(ctx, browseFor)
 	defer cancel()
-	found, err := s.browse(ctx)
+	service := discovery.SMB
+	if kind == domain.KindNFS {
+		service = discovery.NFS
+	}
+	found, err := s.browse(ctx, service)
 	if err != nil {
 		return nil, err
 	}
 	out := make([]FoundServer, len(found))
 	for i, f := range found {
-		out[i] = FoundServer{Name: f.Name, Host: f.Host, Port: f.Port}
+		out[i] = FoundServer{Name: f.Name, Host: f.Host, Port: f.Port, Path: f.Path}
 	}
 	return out, nil
 }
 
 // secretProblem reports a missing secret: a connection without one is
-// bound to fail, unless it is a guest's of an SMB share.
+// bound to fail, unless it is a guest's of an SMB share, or NFS, which has
+// none.
 func secretProblem(in domain.StorageInput, secret string) error {
+	if in.Kind == domain.KindNFS {
+		return nil
+	}
 	if secret == "" && in.Secret == "" && !(in.Kind == domain.KindSMB && in.Guest()) {
 		return domain.Problems{{Field: domain.FieldSecret, Code: domain.CodeRequired}}
 	}
@@ -696,8 +721,12 @@ func (s *Service) inputSecret(ctx context.Context, id string, in domain.StorageI
 	return s.secret(old)
 }
 
-// secret reads the secret kept for st. An SMB share may have none.
+// secret reads the secret kept for st. An SMB share may have none, and
+// an NFS export never has.
 func (s *Service) secret(st domain.Storage) (string, error) {
+	if !st.HasSecret() {
+		return "", nil
+	}
 	secret, err := s.secrets.Get(st.SecretKey())
 	if errors.Is(err, domain.ErrMissingSecret) && st.Kind == domain.KindSMB {
 		return "", nil
@@ -707,6 +736,11 @@ func (s *Service) secret(st domain.Storage) (string, error) {
 
 // remote is how the engine reaches path in st.
 func remote(st domain.Storage, secret, path string) engine.Location {
+	if st.Kind == domain.KindNFS {
+		return engine.Location{Path: path, NFS: &engine.NFS{
+			Host: st.Host, Port: st.Port, Export: st.Export, UID: uint32(st.UID), GID: uint32(st.GID),
+		}}
+	}
 	if st.Kind == domain.KindSMB {
 		return engine.Location{Path: path, SMB: &engine.SMB{
 			Host: st.Host, Port: st.Port, Username: st.Username, Password: secret,
@@ -728,8 +762,48 @@ func connectionError(err error) error {
 		return fmt.Errorf("%w: %w", domain.ErrAuthFailed, err)
 	case errors.Is(err, engine.ErrShareNotFound):
 		return fmt.Errorf("%w: %w", domain.ErrShareNotFound, err)
+	case errors.Is(err, engine.ErrNoNFSv3):
+		return fmt.Errorf("%w: %w", domain.ErrNoNFSv3, err)
+	case errors.Is(err, engine.ErrNoMount):
+		return fmt.Errorf("%w: %w", domain.ErrNoMount, err)
+	case errors.Is(err, engine.ErrExportsHidden):
+		return fmt.Errorf("%w: %w", domain.ErrExportsHidden, err)
 	}
 	return err
+}
+
+// NFSExports lists the folders the NFS server in describes exports, to
+// choose one. A server that keeps the list to itself fails with
+// domain.ErrExportsHidden.
+func (s *Service) NFSExports(ctx context.Context, in domain.StorageInput) ([]string, error) {
+	in = in.Normalize()
+	in.Kind = domain.KindNFS
+	var p domain.Problems
+	for _, problem := range domain.AsProblems(in.Validate(true)) {
+		if problem.Field == domain.FieldHost || problem.Field == domain.FieldPort {
+			p = append(p, problem) // the export is what is being chosen
+		}
+	}
+	if len(p) > 0 {
+		return nil, p
+	}
+	uid, gid, _ := in.IDs()
+	exports, err := engine.NFSExports(ctx, engine.NFS{Host: in.Host, Port: in.PortNumber(), UID: uint32(uid), GID: uint32(gid)})
+	if err != nil {
+		if !errors.Is(err, engine.ErrExportsHidden) {
+			slog.Warn("list exports", "host", in.Host, "err", err)
+		}
+		return nil, connectionError(err)
+	}
+	slices.Sort(exports)
+	return slices.Compact(exports), nil
+}
+
+// LocalIDs are the user and group ids of the person running the app, as an
+// NFS storage acts as by default; ok is false on a system without them.
+func LocalIDs() (uid, gid int, ok bool) {
+	uid, gid = os.Getuid(), os.Getgid()
+	return uid, gid, uid >= 0 && gid >= 0
 }
 
 // Tasks returns every task, by name.

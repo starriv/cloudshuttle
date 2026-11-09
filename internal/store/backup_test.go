@@ -196,6 +196,52 @@ func TestRestoreConfig(t *testing.T) {
 	}
 }
 
+// A backup that holds an NFS storage restores: its export and ids are part
+// of the form an edit starts from, and the portmapper is no invalid port.
+func TestRestoreConfigWithNFS(t *testing.T) {
+	ctx := context.Background()
+	now := time.UnixMilli(time.Now().UnixMilli())
+	for _, c := range []struct {
+		name string
+		port int
+	}{
+		{"the portmapper", 0},
+		{"the port itself", 2049},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			from := openForBackup(t)
+			st := domain.Storage{ID: "n1", Name: "Tank", Kind: domain.KindNFS, Host: "nas.local",
+				Port: c.port, Export: "/volume1/backup", UID: 501, GID: 20, CreatedAt: now, UpdatedAt: now}
+			task := domain.Task{ID: "t1", Name: "Photos", Source: domain.Location{Path: "/Users/me/Pictures"},
+				Destination: domain.Location{StorageID: "n1", Path: "Photos"}, Mode: domain.ModeCopy,
+				CreatedAt: now, UpdatedAt: now}
+			if err := from.PutStorage(ctx, st); err != nil {
+				t.Fatal(err)
+			}
+			if err := from.PutTask(ctx, task); err != nil {
+				t.Fatal(err)
+			}
+			backup := filepath.Join(t.TempDir(), "backup.db")
+			if err := from.BackupConfig(ctx, backup); err != nil {
+				t.Fatal(err)
+			}
+
+			to := openForBackup(t)
+			if err := to.RestoreConfig(ctx, backup); err != nil {
+				t.Fatalf("restore the backup: %v", err)
+			}
+			storages, err := to.Storages(ctx)
+			if err != nil || len(storages) != 1 || storages[0] != st {
+				t.Errorf("storages = %+v, %v; want %+v", storages, err, st)
+			}
+			tasks, err := to.Tasks(ctx)
+			if err != nil || len(tasks) != 1 || !reflect.DeepEqual(tasks[0], task) {
+				t.Errorf("tasks = %+v, %v; want %+v", tasks, err, task)
+			}
+		})
+	}
+}
+
 // A backup of a version before the global exclusion list restores: the
 // list is seeded with the built-in folders, and the switch is on.
 func TestRestoreFromBeforeTheGlobalExclusionList(t *testing.T) {
