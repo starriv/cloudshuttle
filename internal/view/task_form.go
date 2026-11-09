@@ -117,6 +117,7 @@ func (a *App) submitTask(in domain.TaskInput) {
 	}
 	f.saving = true
 	f.collision = nil
+	f.problems = nil
 	f.pending = in
 	id := f.id
 	generation := f.generation
@@ -156,124 +157,179 @@ func (a *App) submitTask(in domain.TaskInput) {
 	}()
 }
 
-func (a *App) destinationQuestion(c *ui.Context) {
-	f := &a.taskForm
-	ui.Text(c, locales.TaskDestinationExists()).FontSize(18).FontWeight(500)
-	ui.Text(c, f.collision.Path)
-	message := locales.TaskDestinationExistsHint()
-	if !f.collision.Directory {
-		message = locales.TaskDestinationFileHint()
-	}
-	ui.Text(c, message)
-	ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-		if ui.Button(c, locales.ButtonCancel()).Clicked() {
-			f.collision = nil
-		}
-		if f.collision != nil && f.collision.Directory {
-			if ui.Button(c, locales.TaskDestinationReuse()).Clicked() {
-				in := f.pending
-				in.DestinationChoice = "reuse"
-				a.submitTask(in)
-			}
-		}
-		if ui.PrimaryButton(c, locales.TaskDestinationUnique()).Clicked() {
-			in := f.pending
-			in.DestinationChoice = "unique"
-			a.submitTask(in)
-		}
-	})
-}
-
-// answerBackground keeps whether the system may run the schedules while
-// the app is closed, as the person answered, and closes the form.
-func (a *App) answerBackground(allow bool) {
-	if err := a.svc.AllowBackground(context.Background(), allow); err != nil {
-		a.toastError(err)
-		return
-	}
-	a.settings = a.svc.Settings()
-	a.settingsForm.background = allow
-	a.taskForm.open = false
-}
-
-// backgroundQuestion asks whether the system may start the app for its
-// schedules: it adds a background item, which the person should know of
-// before it appears.
-func (a *App) backgroundQuestion(c *ui.Context) {
-	t := c.Theme()
-	ui.Text(c, locales.BackgroundAskTitle()).FontSize(18).FontWeight(500)
-	ui.Text(c, locales.BackgroundAskMessage())
-	ui.Text(c, locales.BackgroundAskNote()).FontSize(12).TextColor(t.TextMuted)
-	ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-		if ui.Button(c, locales.BackgroundDecline()).Clicked() {
-			a.answerBackground(false)
-		}
-		if ui.PrimaryButton(c, locales.BackgroundAllow()).Clicked() {
-			a.answerBackground(true)
-		}
-	})
-}
-
+// taskDialog draws the task sheet, or the question or editor that takes its
+// place while the person answers it.
 func (a *App) taskDialog(c *ui.Context) {
 	f := &a.taskForm
-	ui.Modal(c, &f.open, func() {
-		t := c.Theme()
-		ui.Column(c).Width(540).Gap(t.Space(4)).Children(func() {
-			if f.collision != nil {
-				a.destinationQuestion(c)
-				return
-			}
-			if f.browser != nil {
-				a.folderBrowserView(c)
-				return
-			}
-			if f.askBackground {
-				a.backgroundQuestion(c)
-				return
-			}
-			if f.exclude.open {
-				a.excludeEditor(c, f)
-				return
-			}
-			title := locales.TaskDialogNew()
-			if f.id != "" {
-				title = locales.TaskDialogEdit()
-			}
-			ui.Text(c, title).FontSize(18).FontWeight(500)
+	if !f.open {
+		return
+	}
+	_, height := c.Size()
+	opts := sheetOptions{width: 680, bodyMax: height - 232}
+	var body, footer func()
+	switch {
+	case f.collision != nil:
+		opts.width = 520
+		opts.title = locales.TaskDestinationExists()
+		body = func() { a.destinationQuestion(c) }
+		footer = func() { a.destinationQuestionFoot(c) }
+	case f.browser != nil:
+		opts.title = locales.BrowseTitle(f.browser.storage.Name)
+		opts.subtitle = locales.TaskFieldDestination()
+		if f.browser.target == &f.source {
+			opts.subtitle = locales.TaskFieldSource()
+		}
+		body = func() { a.folderBrowserBody(c) }
+		footer = func() { a.folderBrowserFoot(c) }
+	case f.askBackground:
+		opts.width = 560
+		opts.title = locales.BackgroundAskTitle()
+		body = func() { a.backgroundQuestion(c) }
+		footer = func() { a.backgroundQuestionFoot(c) }
+	case f.exclude.open:
+		opts.title = locales.TaskExcludeTitle()
+		opts.subtitle = locales.TaskExcludeHint()
+		body = func() { a.excludeEditorBody(c, f) }
+		footer = func() { a.excludeEditorFoot(c, f) }
+	default:
+		opts.title = locales.TaskDialogNew()
+		if f.id != "" {
+			opts.title = locales.TaskDialogEdit()
+		}
+		opts.subtitle = locales.TaskDialogHint()
+		body = func() { a.taskFormBody(c, f) }
+		footer = func() { a.taskFormFoot(c, f) }
+	}
+	sheet(c, &f.open, opts, body, footer)
+}
 
-			_, height := c.Size()
-			ui.Scroll(c).MaxHeight(height - 210).Children(func() {
-				ui.Form(c, func() {
-					ui.Field(c, locales.TaskFieldName(), func() {
-						ui.TextInput(c, &f.name).AutoFocus()
-					}).Error(problemText(f.problems.For(domain.FieldName)))
-					a.locationInput(c, locales.TaskFieldSource(), &f.source, domain.FieldSource)
-					a.locationInput(c, locales.TaskFieldDestination(), &f.dest, domain.FieldDestination)
-					ui.Field(c, locales.TaskAllowRoot(), func() {
-						ui.Checkbox(c, &f.allowRoot, "").Label(locales.TaskAllowRoot())
-					}).Description(locales.TaskAllowRootHint())
-					hint := locales.ModeCopyHint()
-					if modes[f.mode] == domain.ModeSync {
-						hint = locales.ModeSyncHint()
-					}
-					ui.Field(c, locales.TaskFieldMode(), func() {
-						ui.Segmented(c, &f.mode, locales.ModeCopy(), locales.ModeSync())
-					}).Description(hint)
-					a.trashInput(c, f)
-					a.excludeInput(c, f)
-					a.scheduleInput(c, f)
+// taskFormBody is the form: one card a subject, in the order a person
+// thinks about a task: what it is called, where the files come from and go
+// to, how they are handled, and when it runs.
+func (a *App) taskFormBody(c *ui.Context, f *taskForm) {
+	p := paletteFor(c.Theme())
+	ui.Column(c).Gap(gutter).Children(func() {
+		formGroup(c, icons.Tasks, locales.TaskGroupBasics(), func() {
+			ui.Field(c, locales.TaskFieldName(), func() {
+				ui.TextInput(c, &f.name).AutoFocus()
+			}).Error(problemText(f.problems.For(domain.FieldName)))
+
+			hint := locales.ModeCopyHint()
+			if modes[f.mode] == domain.ModeSync {
+				hint = locales.ModeSyncHint()
+			}
+			ui.Field(c, locales.TaskFieldMode(), func() {
+				// A row lets the control keep the width of its segments.
+				ui.Row(c).Children(func() {
+					ui.Segmented(c, &f.mode, locales.ModeCopy(), locales.ModeSync()).
+						Label(locales.TaskFieldMode())
 				})
-			})
+			}).Description(hint).Error(problemText(f.problems.For(domain.FieldMode)))
+		})
 
-			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-				if ui.Button(c, locales.ButtonCancel()).Disabled(f.saving).Clicked() {
-					f.open = false
-				}
-				if ui.PrimaryButton(c, locales.TaskSave()).Disabled(f.saving).Clicked() {
-					a.saveTask()
-				}
+		formGroup(c, icons.Folder, locales.TaskFieldSource(), func() {
+			a.locationControl(c, locales.TaskFieldSource(), &f.source, domain.FieldSource)
+		})
+
+		formGroup(c, icons.Upload, locales.TaskFieldDestination(), func() {
+			a.locationControl(c, locales.TaskFieldDestination(), &f.dest, domain.FieldDestination)
+			ui.Column(c).Gap(3).Children(func() {
+				ui.Checkbox(c, &f.allowRoot, locales.TaskAllowRoot())
+				ui.Text(c, locales.TaskAllowRootHint()).FontSize(sizeMicro).
+					TextColor(p.muted).LineHeight(1.45)
 			})
 		})
+
+		formGroup(c, icons.Transfer, locales.TaskFieldHow(), func() {
+			ui.Field(c, locales.TaskFieldTrash(), func() {
+				a.trashControl(c, f)
+			}).Description(a.trashHint(f)).Error(problemText(f.problems.For(domain.FieldTrash)))
+
+			ui.Field(c, locales.TaskFieldExclude(), func() {
+				a.excludeInput(c, f)
+			}).Description(a.excludeDescription(f)).Error(a.excludeError(f))
+		})
+
+		formGroup(c, icons.Calendar, locales.TaskFieldSchedule(), func() {
+			a.scheduleField(c, f)
+		})
+	})
+}
+
+// taskFormFoot is the sheet's foot: what the save failed on, if anything,
+// and the buttons that cancel or save it.
+func (a *App) taskFormFoot(c *ui.Context, f *taskForm) {
+	sheetError(c, a.taskFormFootError(f))
+	sheetActions(c, func() {
+		if accentButton(c, "task-cancel", nil, locales.ButtonCancel(), buttonSoft).Disabled(f.saving).Clicked() {
+			f.open = false
+		}
+		if accentButton(c, "task-save", nil, locales.TaskSave(), buttonPrimary).Disabled(f.saving).Clicked() {
+			a.saveTask()
+		}
+	})
+}
+
+// taskFormFootError says why the save did not go through, when a field does
+// not already say it: the form's own problems show under their fields.
+func (a *App) taskFormFootError(f *taskForm) string {
+	for _, problem := range f.problems {
+		switch problem.Field {
+		case domain.FieldName, domain.FieldSource, domain.FieldDestination,
+			domain.FieldSchedule, domain.FieldTrash, domain.FieldExclude, domain.FieldMode:
+		default:
+			return problemText(problem.Code)
+		}
+	}
+	if len(f.problems) > 0 {
+		return locales.TaskFixFields()
+	}
+	return ""
+}
+
+// locationControl is one side of a task: where it is, the path there, and
+// the button that chooses the folder.
+func (a *App) locationControl(c *ui.Context, label string, f *locationField, field domain.Field) {
+	p := paletteFor(c.Theme())
+	options := a.locationOptions()
+	if indexOf(options, f.where) < 0 {
+		f.where = options[0]
+	}
+	local := f.where == options[0]
+	share := false
+	var storage domain.Storage
+	if i := indexOf(options, f.where); i > 0 {
+		storage = a.storages[i-1]
+		share = storage.Kind == domain.KindSMB
+	}
+	placeholder := locales.TaskFieldFolder()
+	desc := ""
+	switch {
+	case share:
+		placeholder, desc = locales.TaskFieldSharePath(), locales.TaskFieldSharePathHint()
+	case !local:
+		placeholder, desc = locales.TaskFieldPrefix(), locales.TaskFieldPrefixHint()
+	}
+	// Two storages: the files go through this computer.
+	if field == domain.FieldDestination && !a.location(a.taskForm.source).Local() && !a.location(a.taskForm.dest).Local() {
+		desc += " " + locales.TaskRelayHint()
+	}
+	ui.Column(c).Gap(6).Children(func() {
+		ui.Select(c, &f.where, options).Label(label).FillWidth()
+		ui.Row(c).Gap(8).Children(func() {
+			ui.TextInput(c, &f.path).Placeholder(placeholder).Label(placeholder).Grow(1).MinWidth(0)
+			if local {
+				if iconButton(c, icons.Folder, locales.TaskChooseFolder(), false).Clicked() {
+					a.chooseFolder(f)
+				}
+			} else if iconButton(c, icons.Folder, locales.TaskBrowse(), false).Clicked() {
+				a.browseFolder(f, storage)
+			}
+		})
+		if desc != "" {
+			ui.Text(c, desc).FontSize(sizeMicro).TextColor(p.muted).LineHeight(1.45)
+		}
+		sheetError(c, problemText(a.taskForm.problems.For(field)))
 	})
 }
 
@@ -299,71 +355,24 @@ func (a *App) taskTrashLabels() []string {
 	return labels
 }
 
-// trashInput chooses how long the task's runs keep what they delete or
+// trashControl chooses how long the task's runs keep what they delete or
 // replace.
-func (a *App) trashInput(c *ui.Context, f *taskForm) {
+func (a *App) trashControl(c *ui.Context, f *taskForm) {
 	labels := a.taskTrashLabels()
 	chosen := labelAt(taskTrashValues, labels, f.trash)
-	hint := locales.TaskTrashHint()
-	if (domain.Task{TrashDays: f.trash}).Trash(a.settings) == 0 {
-		hint = locales.TaskTrashOffHint()
-	}
-	ui.Field(c, locales.TaskFieldTrash(), func() {
-		if ui.Select(c, &chosen, labels).Label(locales.TaskFieldTrash()).Width(220).Changed() {
+	ui.Row(c).Children(func() {
+		if ui.Select(c, &chosen, labels).Label(locales.TaskFieldTrash()).Width(240).Changed() {
 			f.trash = valueAt(taskTrashValues, labels, chosen)
 		}
-	}).Description(hint).Error(problemText(f.problems.For(domain.FieldTrash)))
+	})
 }
 
-func (a *App) locationInput(c *ui.Context, label string, f *locationField, field domain.Field) {
-	options := a.locationOptions()
-	if indexOf(options, f.where) < 0 {
-		f.where = options[0]
+// trashHint says what the trash choice means for the files.
+func (a *App) trashHint(f *taskForm) string {
+	if (domain.Task{TrashDays: f.trash}).Trash(a.settings) == 0 {
+		return locales.TaskTrashOffHint()
 	}
-	local := f.where == options[0]
-	share := false
-	var storage domain.Storage
-	if i := indexOf(options, f.where); i > 0 {
-		storage = a.storages[i-1]
-		share = storage.Kind == domain.KindSMB
-	}
-	desc := ""
-	switch {
-	case share:
-		desc = locales.TaskFieldSharePathHint()
-	case !local:
-		desc = locales.TaskFieldPrefixHint()
-	}
-	// Two storages: the files go through this computer.
-	tf := &a.taskForm
-	if field == domain.FieldDestination && !a.location(tf.source).Local() && !a.location(tf.dest).Local() {
-		desc += " " + locales.TaskRelayHint()
-	}
-	ui.Field(c, label, func() {
-		ui.Column(c).Gap(6).FillWidth().Children(func() {
-			ui.Select(c, &f.where, options).Label(label)
-			ui.Row(c).Gap(6).Children(func() {
-				placeholder := locales.TaskFieldFolder()
-				switch {
-				case share:
-					placeholder = locales.TaskFieldSharePath()
-				case !local:
-					placeholder = locales.TaskFieldPrefix()
-				}
-				ui.TextInput(c, &f.path).Placeholder(placeholder).Label(placeholder).Grow(1).MinWidth(0)
-				switch {
-				case local:
-					if iconButton(c, icons.Folder, locales.TaskChooseFolder(), false).Clicked() {
-						a.chooseFolder(f)
-					}
-				default:
-					if iconButton(c, icons.Folder, locales.TaskBrowse(), false).Clicked() {
-						a.browseFolder(f, storage)
-					}
-				}
-			})
-		})
-	}).Description(desc).Error(problemText(a.taskForm.problems.For(field)))
+	return locales.TaskTrashHint()
 }
 
 // chooseFolder asks for a folder off the main thread, and puts the answer
@@ -379,4 +388,88 @@ func (a *App) chooseFolder(f *locationField) {
 			a.host.Update(func() { f.path = path })
 		}
 	}()
+}
+
+// destinationQuestion asks how to save a task whose destination name is
+// already taken.
+func (a *App) destinationQuestion(c *ui.Context) {
+	p := paletteFor(c.Theme())
+	f := &a.taskForm
+	message := locales.TaskDestinationExistsHint()
+	if !f.collision.Directory {
+		message = locales.TaskDestinationFileHint()
+	}
+	ui.Column(c).Gap(14).Children(func() {
+		ui.Row(c).Gap(12).AlignItems(ui.Start).Children(func() {
+			iconTile(c, icons.Folder, 38, p.warning, p.warningSoft)
+			ui.Column(c).Grow(1).MinWidth(0).Gap(10).Children(func() {
+				ui.Box(c).Radius(9).Background(p.cardAlt).Border(1, p.hairline).Padding(8, 11).
+					Children(func() {
+						ui.Text(c, f.collision.Path).FontSize(sizeSmall).TextColor(p.text).
+							LineHeight(1.4).FontFeatures("tnum")
+					})
+				ui.Text(c, message).FontSize(sizeBody).TextColor(p.muted).LineHeight(1.5)
+			})
+		})
+	})
+}
+
+// destinationQuestionFoot chooses between the two ways to go on.
+func (a *App) destinationQuestionFoot(c *ui.Context) {
+	f := &a.taskForm
+	sheetActions(c, func() {
+		if accentButton(c, "collision-cancel", nil, locales.ButtonCancel(), buttonSoft).Clicked() {
+			f.collision = nil
+		}
+		if f.collision != nil && f.collision.Directory {
+			if accentButton(c, "collision-reuse", nil, locales.TaskDestinationReuse(), buttonSoft).Clicked() {
+				in := f.pending
+				in.DestinationChoice = "reuse"
+				a.submitTask(in)
+			}
+		}
+		if accentButton(c, "collision-unique", nil, locales.TaskDestinationUnique(), buttonPrimary).Clicked() {
+			in := f.pending
+			in.DestinationChoice = "unique"
+			a.submitTask(in)
+		}
+	})
+}
+
+// answerBackground keeps whether the system may run the schedules while
+// the app is closed, as the person answered, and closes the form.
+func (a *App) answerBackground(allow bool) {
+	if err := a.svc.AllowBackground(context.Background(), allow); err != nil {
+		a.toastError(err)
+		return
+	}
+	a.settings = a.svc.Settings()
+	a.settingsForm.background = allow
+	a.taskForm.open = false
+}
+
+// backgroundQuestion asks whether the system may start the app for its
+// schedules: it adds a background item, which the person should know of
+// before it appears.
+func (a *App) backgroundQuestion(c *ui.Context) {
+	p := paletteFor(c.Theme())
+	ui.Row(c).Gap(13).AlignItems(ui.Start).Children(func() {
+		iconTile(c, icons.Bell, 38, p.accent, p.accentSoft)
+		ui.Column(c).Grow(1).MinWidth(0).Gap(10).Children(func() {
+			ui.Text(c, locales.BackgroundAskMessage()).FontSize(sizeBody).TextColor(p.text).LineHeight(1.5)
+			ui.Text(c, locales.BackgroundAskNote()).FontSize(sizeSmall).TextColor(p.muted).LineHeight(1.5)
+		})
+	})
+}
+
+// backgroundQuestionFoot answers it.
+func (a *App) backgroundQuestionFoot(c *ui.Context) {
+	sheetActions(c, func() {
+		if accentButton(c, "background-decline", nil, locales.BackgroundDecline(), buttonSoft).Clicked() {
+			a.answerBackground(false)
+		}
+		if accentButton(c, "background-allow", nil, locales.BackgroundAllow(), buttonPrimary).Clicked() {
+			a.answerBackground(true)
+		}
+	})
 }

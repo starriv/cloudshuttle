@@ -83,6 +83,7 @@ type App struct {
 	shownIcon    domain.AppIcon
 	shownIconSet bool
 	lastRuns     map[string]domain.Run
+	lastRealRuns map[string]domain.Run
 	recent       []domain.Run
 	week         []domain.Run              // the runs of the last seven days
 	running      []service.Active          // the oldest first
@@ -94,6 +95,7 @@ type App struct {
 
 	history       []domain.Run
 	historyList   ui.ListState
+	historyPanel  float32              // the width of the details panel beside the runs
 	historyRow    int                  // the row chosen last, where the keys move from
 	historyChosen ui.Selection[string] // the runs chosen, by ID
 	historyTask   string               // the label chosen in the task filter
@@ -126,7 +128,8 @@ type confirmation struct {
 
 // New makes the window's state and reads the service's data.
 func New(svc *service.Service, host Host) *App {
-	a := &App{svc: svc, host: host, now: time.Now, page: pageOverview, historyRow: -1, checking: map[string]bool{}}
+	a := &App{svc: svc, host: host, now: time.Now, page: pageOverview, historyRow: -1,
+		checking: map[string]bool{}, historyPanel: 300}
 	a.taskList.Key = func(i int) any { return a.tasks[i].ID }
 	a.storageList.Key = func(i int) any { return a.storages[i].ID }
 	a.historyList.Key = func(i int) any { return a.history[i].ID }
@@ -150,6 +153,9 @@ func (a *App) Reload() {
 	}
 	taskErr := err
 	if a.lastRuns, err = a.svc.LastRuns(ctx); err != nil {
+		a.loadErr = err
+	}
+	if a.lastRealRuns, err = a.svc.LastRealRuns(ctx); err != nil {
 		a.loadErr = err
 	}
 	// Read enough for the status menu too, which dedupes by task and lists
@@ -254,7 +260,7 @@ func (a *App) View(c *ui.Context) {
 	}
 	a.toasts = nil
 
-	t := c.Theme()
+	p := appTheme(c)
 	bar := c.TitleBar()
 	vibrant := c.Vibrancy()
 	if vibrant {
@@ -262,39 +268,13 @@ func (a *App) View(c *ui.Context) {
 		c.Root().Background(ui.Transparent)
 	}
 	ui.Row(c).Fill().AlignItems(ui.Stretch).Children(func() {
-		side := ui.Column(c).Width(sidebarWidth).BorderWidth(0, 1, 0, 0).BorderColor(t.Border)
-		if !vibrant {
-			side.Background(t.Surface)
-		}
-		side.Children(func() {
-			// Room for the window controls, which drags the window.
-			ui.Box(c).Height(max(bar.Height, 12)).FillWidth().DragWindow()
-			sidebar := ui.Sidebar(c, &a.page, func() {
-				ui.SidebarItem(c, pageOverview, icons.Overview, locales.NavOverview())
-				ui.SidebarItem(c, pageTasks, icons.Tasks, locales.NavTasks()).Children(func() {
-					if n := len(a.active); n > 0 {
-						ui.Badge(c, formatCount(n))
-					}
-				})
-				ui.SidebarItem(c, pageStorages, icons.Storages, locales.NavStorages())
-				ui.SidebarItem(c, pageHistory, icons.History, locales.NavHistory())
-				ui.SidebarItem(c, pageSettings, icons.Settings, locales.NavSettings())
-			}).Grow(1)
-			if vibrant {
-				sidebar.Background(ui.Transparent)
-			}
-			// The About panel says the rclone a run uses where the system
-			// has one; elsewhere it stays under the overview.
-			if runtime.GOOS != "darwin" {
-				ui.Text(c, locales.RcloneVersion(engine.Version())).
-					TextColor(t.TextMuted).FontSize(11).Padding(t.Space(3)).SingleLine()
-			}
-		})
-		ui.Column(c).Grow(1).MinWidth(0).Background(t.Background).Children(func() {
+		a.sidebar(c, p, bar, vibrant)
+		ui.Column(c).Grow(1).MinWidth(0).Background(p.bg).Children(func() {
 			// Each page comes in from a little below as it fades in, and
 			// the page it replaces fades out: one motion, on navigation.
-			ui.Column(c.Key(a.page)).Grow(1).MinHeight(0).Padding(0, t.Space(pagePadding), t.Space(5), t.Space(pagePadding)).
-				Gap(t.Space(4)).Transition(pageTransition).Children(func() {
+			ui.Column(c.Key(a.page)).Grow(1).MinHeight(0).
+				Padding(0, pagePad, 0, pagePad).Gap(gapMedium).
+				Transition(pageTransition).Children(func() {
 				switch a.page {
 				case pageTasks:
 					a.tasksPage(c)
@@ -308,7 +288,7 @@ func (a *App) View(c *ui.Context) {
 					a.overviewPage(c)
 				}
 				if a.loadErr != nil {
-					ui.Row(c).Gap(8).AlignItems(ui.Center).TextColor(t.Danger).Children(func() {
+					ui.Row(c).Gap(8).AlignItems(ui.Center).TextColor(p.danger).Children(func() {
 						ui.Icon(c, icons.Failed)
 						ui.Text(c, locales.ErrorLoad(a.loadErr.Error())).Grow(1).MinWidth(0)
 					})
@@ -321,25 +301,130 @@ func (a *App) View(c *ui.Context) {
 	a.storageDialog(c)
 	a.restoreDialog(c)
 	a.globalExcludeDialog(c)
-	ok := a.confirm.ok
-	if ok == "" {
-		ok = locales.ButtonDelete()
+	a.confirmDialog(c)
+}
+
+// sidebar is the window's left edge: the app's mark, the pages, and what
+// the app is doing now. It shows the desktop's material where it can.
+func (a *App) sidebar(c *ui.Context, p palette, bar ui.TitleBar, vibrant bool) {
+	items := []struct {
+		page, label string
+		icon        *ui.SVG
+		badge       int
+	}{
+		{pageOverview, locales.NavOverview(), icons.Overview, 0},
+		{pageTasks, locales.NavTasks(), icons.Tasks, len(a.active)},
+		{pageStorages, locales.NavStorages(), icons.Storages, 0},
+		{pageHistory, locales.NavHistory(), icons.History, 0},
+		{pageSettings, locales.NavSettings(), icons.Settings, 0},
 	}
-	if ui.AlertDialog(c, &a.confirm.open, a.confirm.title, a.confirm.message,
-		locales.ButtonCancel(), ok) == 1 {
-		a.confirm.action()
+	buttons := make([]ui.Element, len(items))
+	draw := func(i int) {
+		it := items[i]
+		buttons[i] = a.navItem(c, p, it.page, it.label, it.icon, it.badge)
+	}
+	side := ui.Column(c).Width(sidebarWidth).Role(ui.RoleTree)
+	if !vibrant {
+		side.Background(p.sidebar)
+	}
+	side.Children(func() {
+		// Room for the window controls, which drags the window.
+		ui.Box(c).Height(max(bar.Height, 18)).FillWidth().DragWindow()
+		a.brand(c, p)
+		ui.Column(c).Padding(0, 10, 0, 10).Gap(2).Children(func() {
+			for i := range len(items) - 1 {
+				draw(i)
+			}
+		})
+		ui.Spacer(c)
+		// Settings sits at the foot of the list, clear of the window's
+		// bottom edge and its rounded corner: nothing else goes under it.
+		ui.Column(c).Padding(0, 10, 16, 10).Gap(2).Children(func() {
+			ui.Box(c).Height(1).FillWidth().Background(p.hairline).Margin(0, 6, 10, 6)
+			draw(len(items) - 1)
+			if runtime.GOOS != "darwin" {
+				ui.Text(c, locales.RcloneVersion(engine.Version())).
+					TextColor(p.faint).FontSize(sizeMicro).Padding(6, 6, 0, 6).SingleLine()
+			}
+		})
+	})
+	// Move selection and keyboard focus together while keeping the layout.
+	for i, button := range buttons {
+		next := i
+		switch {
+		case button.Shortcut(0, ui.KeyUp):
+			next = max(i-1, 0)
+		case button.Shortcut(0, ui.KeyDown):
+			next = min(i+1, len(items)-1)
+		case button.Shortcut(0, ui.KeyHome):
+			next = 0
+		case button.Shortcut(0, ui.KeyEnd):
+			next = len(items) - 1
+		default:
+			continue
+		}
+		a.page = items[next].page
+		buttons[next].Focus()
+		break
 	}
 }
 
-const sidebarWidth = 210
+// navItem is one page in the sidebar: its icon, its name, and how many
+// runs are on it, when any.
+func (a *App) navItem(c *ui.Context, p palette, page, label string, icon *ui.SVG, badge int) ui.Element {
+	selected := a.page == page
+	b := ui.ButtonBase(c.Key(page)).Height(34).PaddingX(10).Gap(10).Radius(8).
+		Justify(ui.Start).AlignItems(ui.Center).Role(ui.RoleTreeItem).Label(label).Selected(selected)
+	switch {
+	case selected:
+		b.Background(p.accentSoft)
+	case b.Hovered():
+		b.Background(p.hover)
+	}
+	b.Transition(quickTransition)
+	b.Children(func() {
+		color := p.muted
+		if selected {
+			color = p.accent
+		}
+		ui.Icon(c, icon).Size(16, 16).TextColor(color)
+		ui.Text(c, label).FontSize(sizeBody).FontWeight(540).TextColor(p.text).
+			Grow(1).MinWidth(0).SingleLine().Ellipsis("…")
+		if badge > 0 {
+			pill(c, page, nil, formatCount(badge), p.accent, p.accentSoft)
+		}
+	})
+	if b.Clicked() {
+		a.page = page
+	}
+	return b
+}
+
+// brand is the app's mark and name at the top of the sidebar.
+func (a *App) brand(c *ui.Context, p palette) {
+	ui.Row(c).Height(52).Padding(2, 16).Gap(12).AlignItems(ui.Center).DragWindow().Children(func() {
+		ui.Box(c).Size(30, 30).Radius(9).Center().Background(p.accent).TextColor(p.accentText).
+			Children(func() {
+				ui.Icon(c, icons.Mark).Size(20, 20)
+			})
+		ui.Column(c).Grow(1).MinWidth(0).Gap(0).Children(func() {
+			ui.Text(c, locales.AppName()).FontSize(13.5).FontWeight(640).LetterSpacing(-0.1).
+				TextColor(p.text).SingleLine().Ellipsis("…")
+			if a.updater != nil {
+				ui.Text(c, a.updater.State().Current).FontSize(sizeMicro).TextColor(p.faint).
+					SingleLine().Ellipsis("…")
+			}
+		})
+	})
+}
+
+const sidebarWidth = 232
 
 // pagePadding is the room each page leaves between the content area's sides
 // and its content.
-const pagePadding = 6
+const pagePadding = pagePad
 
-// headerHeight is the height of a page's title bar, which is the window's.
-const headerHeight = 56
-
+// pageTransition moves a page in from a little below as it fades in.
 var pageTransition = ui.ElementTransition{
 	Duration: 220 * time.Millisecond,
 	Position: true,
@@ -352,47 +437,17 @@ var pageTransition = ui.ElementTransition{
 // padding, bleeding into that of the page: the bar shows beside the content,
 // in the margin, rather than over it.
 func pageScroll(c *ui.Context) ui.Element {
-	pad := c.Theme().Space(pagePadding)
-	return ui.Scroll(c).Grow(1).MinHeight(0).MarginX(-pad).PaddingX(pad)
+	return ui.Scroll(c).Grow(1).MinHeight(0).MarginX(-pagePadding).PaddingX(pagePadding)
 }
 
-// header builds a page's title and its main action, in the window's title
-// bar: dragging it moves the window.
-func header(c *ui.Context, title string, action func()) {
-	ui.Row(c).Height(max(c.TitleBar().Height, headerHeight)).AlignItems(ui.Center).Gap(12).DragWindow().Children(func() {
-		ui.Text(c, title).FontSize(22).FontWeight(500).Grow(1).MinWidth(0).SingleLine()
-		if action != nil {
-			action()
-		}
-	})
-}
-
-// empty builds the state of a page with nothing to show: its icon, what to
-// do next, and the button that does it.
-func empty(c *ui.Context, svg *ui.SVG, message string, action func()) {
-	t := c.Theme()
-	ui.Column(c).Grow(1).Center().Gap(12).Padding(24).Children(func() {
-		ui.Column(c).Size(56, 56).Center().Radius(16).Background(t.Surface).TextColor(t.TextMuted).Children(func() {
-			ui.Icon(c, svg).FontSize(26)
-		})
-		ui.Text(c, message).TextColor(t.TextMuted).TextAlign(ui.Center).MaxWidth(420)
-		if action != nil {
-			action()
-		}
-	})
-}
-
+// iconButton is the button of a page's header: a symbol and a word, or the
+// page's main action.
 func iconButton(c *ui.Context, svg *ui.SVG, label string, primary bool) ui.Element {
-	var b ui.Element
+	kind := buttonSoft
 	if primary {
-		b = ui.PrimaryButton(c, "")
-	} else {
-		b = ui.Button(c, "")
+		kind = buttonPrimary
 	}
-	return b.Children(func() {
-		ui.Icon(c, svg)
-		ui.Text(c, label).SingleLine()
-	})
+	return accentButton(c, label, svg, label, kind)
 }
 
 func formatCount(n int) string {

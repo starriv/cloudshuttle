@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/egoist/mygo/ui"
+	"github.com/starriv/cloudshuttle/internal/icons"
 	"github.com/starriv/cloudshuttle/internal/updates"
 	"github.com/starriv/cloudshuttle/locales"
 )
@@ -52,31 +53,32 @@ func (a *App) updatesCard(c *ui.Context) {
 			}},
 		)
 	}
-	settingsCard(c, locales.SettingsUpdatesTitle(), rows)
+	settingsGroup(c, icons.Download, locales.SettingsUpdatesTitle(), rows)
 }
 
 // updateActions are the buttons of the step the update is at.
 func (a *App) updateActions(c *ui.Context, s updates.State) {
-	ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
+	ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
 		switch s.Phase {
 		case updates.PhaseUnavailable:
 			ui.Link(c, locales.UpdatesDownloadPage(), updates.ReleasesURL)
 		case updates.PhaseAvailable, updates.PhaseInstallFailed:
 			ui.Link(c, locales.UpdatesReleaseNotes(), updates.ReleaseURL(s.Version))
-			if ui.PrimaryButton(c, locales.UpdatesInstall()).Clicked() {
+			if accentButton(c, "install-update", icons.Download, locales.UpdatesInstall(), buttonPrimary).Clicked() {
 				a.updater.Install()
 			}
 		case updates.PhaseReady:
 			ui.Link(c, locales.UpdatesReleaseNotes(), updates.ReleaseURL(s.Version))
 			if s.Waiting {
-				if ui.Button(c, locales.UpdatesCancelRestart()).Clicked() {
+				if accentButton(c, "cancel-restart", nil, locales.UpdatesCancelRestart(), buttonSoft).Clicked() {
 					a.updater.CancelRestart()
 				}
-			} else if ui.PrimaryButton(c, locales.UpdatesRestart()).Clicked() {
+			} else if accentButton(c, "restart-update", nil, locales.UpdatesRestart(), buttonPrimary).Clicked() {
 				a.updater.Restart()
 			}
 		default:
-			if ui.Button(c, locales.UpdatesCheck()).Disabled(s.Phase == updates.PhaseChecking).Clicked() {
+			if accentButton(c, "check-updates", icons.Refresh, locales.UpdatesCheck(), buttonSoft).
+				Disabled(s.Phase == updates.PhaseChecking).Clicked() {
 				a.updater.Check()
 			}
 		}

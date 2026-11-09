@@ -5,6 +5,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 	"github.com/starriv/cloudshuttle/internal/domain"
+	"github.com/starriv/cloudshuttle/internal/icons"
 	"github.com/starriv/cloudshuttle/locales"
 )
 
@@ -83,38 +84,46 @@ func (a *App) globalExcludeProblem(f *settingsExcludeForm) string {
 }
 
 // globalExcludeDialog edits the rules every run leaves out: the built-in
-// list at first, and whatever the person makes of it.
+// list at first, and whatever the person makes of it. The rules take the
+// room of the sheet's body, and its foot keeps the way back and the way to
+// keep them at hand however long the list is.
 func (a *App) globalExcludeDialog(c *ui.Context) {
 	f := &a.exclude
-	ui.Modal(c, &f.open, func() {
-		t := c.Theme()
-		ui.Column(c).Width(520).Gap(t.Space(4)).Children(func() {
-			ui.Text(c, locales.SettingsExcludeDialogTitle()).FontSize(18).FontWeight(500)
-			ui.Text(c, locales.SettingsExcludeDialogHint()).TextColor(t.TextMuted)
-			lineErr := a.globalExcludeProblem(f)
+	if !f.open {
+		return
+	}
+	p := paletteFor(c.Theme())
+	sheet(c, &f.open, sheetOptions{
+		width: 640,
+		title: locales.SettingsExcludeDialogTitle(),
+	}, func() {
+		ui.Column(c).Gap(14).Padding(2, 0, 2, 0).Children(func() {
+			ui.Text(c, locales.SettingsExcludeDialogHint()).FontSize(sizeSmall).TextColor(p.muted).
+				LineHeight(1.55)
 			ui.Field(c, locales.SettingsExcludeRules(), func() {
-				ui.TextArea(c, &f.text).Label(locales.SettingsExcludeRules()).Height(300).FillWidth()
-			}).Error(lineErr)
-			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-				if ui.Button(c, locales.SettingsExcludeRestoreDefaults()).Clicked() {
-					f.text = strings.Join(domain.DevDependencyExcludes, "\n")
-					f.checked = ""
+				ui.TextArea(c, &f.text).Height(300).FillWidth()
+			}).Error(a.globalExcludeProblem(f))
+		})
+	}, func() {
+		if accentButton(c, "exclude-defaults", icons.Refresh, locales.SettingsExcludeRestoreDefaults(), buttonSoft).
+			Clicked() {
+			f.text = strings.Join(domain.DevDependencyExcludes, "\n")
+			f.checked = ""
+		}
+		sheetActions(c, func() {
+			if accentButton(c, "exclude-cancel", nil, locales.ButtonCancel(), buttonSoft).Clicked() {
+				f.text, f.open = f.before, false
+			}
+			if accentButton(c, "exclude-done", nil, locales.SettingsExcludeDone(), buttonPrimary).Clicked() {
+				// An invalid rule keeps the editor open, with the line
+				// marked: saving would only bring the page's error back.
+				if a.globalExcludeProblem(f) == "" {
+					lines := domain.Exclude{Patterns: strings.Split(f.text, "\n")}.Normalize().Patterns
+					a.settingsForm.globalExclude = strings.Join(lines, "\n")
+					a.settingsForm.problems = withoutField(a.settingsForm.problems, domain.FieldGlobalExclude)
+					f.open = false
 				}
-				ui.Spacer(c)
-				if ui.Button(c, locales.ButtonCancel()).Clicked() {
-					f.text, f.open = f.before, false
-				}
-				if ui.PrimaryButton(c, locales.SettingsExcludeDone()).Clicked() {
-					// An invalid rule keeps the editor open, with the line
-					// marked: saving would only bring the page's error back.
-					if a.globalExcludeProblem(f) == "" {
-						lines := domain.Exclude{Patterns: strings.Split(f.text, "\n")}.Normalize().Patterns
-						a.settingsForm.globalExclude = strings.Join(lines, "\n")
-						a.settingsForm.problems = withoutField(a.settingsForm.problems, domain.FieldGlobalExclude)
-						f.open = false
-					}
-				}
-			})
+			}
 		})
 	})
 }

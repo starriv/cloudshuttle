@@ -1249,5 +1249,109 @@
   "taskDestinationFileHint": "A file already uses this name. Create a separate numbered folder.",
   "taskDestinationReuse": "Use existing folder",
   "taskDestinationUnique": "Create numbered folder",
-  "runProblemDestinationChanged": "The destination name became occupied before the first transfer. No files were changed. Edit and save the task to choose an existing or numbered folder."
+  "runProblemDestinationChanged": "The destination name became occupied before the first transfer. No files were changed. Edit and save the task to choose an existing or numbered folder.",
+
+  "overviewSubtitleNeutral": "Backup activity and task status.",
+  "overviewNoBackupFailures": "No backup failures recorded",
+  "taskFixFields": "Check the highlighted fields and try again.",
+  "overviewSubtitleAll": "Everything is backed up.",
+  "overviewSubtitleFailing": "{count, plural, one {# task needs attention.} other {# tasks need attention.}}",
+  "@overviewSubtitleFailing": {
+    "description": "How many tasks failed their last run, when the overview says what to do.",
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "2"
+      }
+    }
+  },
+  "overviewSubtitleRunning": "A transfer is running.",
+  "overviewAttentionTitle": "{count, plural, one {# task failed its last run} other {# tasks failed their last run}}",
+  "@overviewAttentionTitle": {
+    "description": "How many tasks failed their last run.",
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "2"
+      }
+    }
+  },
+  "overviewAttentionBody": "See what went wrong in the history, then run the task again.",
+  "overviewAttentionAction": "See failed runs",
+  "overviewActivitySubtitle": "The last seven days of runs, day by day.",
+  "overviewViewAll": "View all",
+  "overviewRunningTitle": "Running now",
+  "overviewRunningSubtitle": "The transfer in progress.",
+  "overviewRecentSubtitle": "The latest results, newest first.",
+  "overviewNoRunning": "No transfer is running.",
+  "sidebarAllGood": "Up to date",
+  "sidebarAttention": "{count, plural, one {# needs attention} other {# need attention}}",
+  "@sidebarAttention": {
+    "description": "How many tasks failed their last run, in the sidebar.",
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "2"
+      }
+    }
+  },
+  "sidebarTransferring": "{count, plural, one {# transfer running} other {# transfers running}}",
+  "@sidebarTransferring": {
+    "description": "How many transfers are running, in the sidebar.",
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "1"
+      }
+    }
+  },
+  "tasksSubtitle": "Folders copied and synced, by hand or on a schedule.",
+  "storagesSubtitle": "Where tasks can send files.",
+  "historySubtitle": "Every run, its result and its log.",
+  "settingsSubtitle": "How CloudShuttle behaves.",
+  "welcomeTitle": "Back up without thinking about it",
+  "welcomeBody": "Add a storage for where your files go, then a task that copies or syncs a folder to it, by hand or on a schedule.",
+  "welcomeAction": "Add a storage",
+  "overviewReadyTitle": "Ready to back up",
+  "overviewReadyBody": "Your storages are set up. Add a task to start again.",
+  "overviewReadyAction": "Add a task",
+  "activityRuns": "{runs, plural, one {# run} other {# runs}}",
+  "@activityRuns": {
+    "description": "How many runs the activity chart shows.",
+    "placeholders": {
+      "runs": {
+        "type": "int",
+        "example": "14"
+      }
+    }
+  },
+  "activityFailed": "{failed, plural, one {# failed} other {# failed}}",
+  "@activityFailed": {
+    "description": "How many of the activity chart's runs failed.",
+    "placeholders": {
+      "failed": {
+        "type": "int",
+        "example": "1"
+      }
+    }
+  },
+  "overviewSubtitleWelcome": "Add a storage and a task to start backing up.",
+  "taskDialogHint": "Name the task, choose where its files go, and when it runs.",
+  "taskFieldHow": "How",
+  "tasksEmptyTitle": "Set up your first task",
+  "storagesEmptyTitle": "Add where your files go",
+  "historyEmptyTitle": "Nothing here yet",
+  "historyNoMatchTitle": "No matches",
+  "historyDetailNoneTitle": "No run selected",
+  "sidebarIdle": "No tasks yet",
+  "taskGroupBasics": "Basics",
+  "taskOpen": "Edit {name}",
+  "@taskOpen": {
+    "placeholders": {
+      "name": {
+        "type": "String",
+        "example": "Documents"
+      }
+    }
+  }
 }

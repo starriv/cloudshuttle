@@ -934,12 +934,21 @@ func (s *Store) RunLog(ctx context.Context, id string) (string, error) {
 
 // LastRuns returns the latest finished run of each task, by task ID.
 func (s *Store) LastRuns(ctx context.Context) (map[string]domain.Run, error) {
+	return s.lastRuns(ctx, false)
+}
+
+// LastRealRuns returns each task's latest finished run excluding previews.
+func (s *Store) LastRealRuns(ctx context.Context) (map[string]domain.Run, error) {
+	return s.lastRuns(ctx, true)
+}
+
+func (s *Store) lastRuns(ctx context.Context, realOnly bool) (map[string]domain.Run, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT task_id, status, started_at, finished_at, deletes, bytes, transfers FROM runs AS r
-		WHERE status != ? AND started_at = (
-			SELECT MAX(started_at) FROM runs WHERE task_id = r.task_id AND status != ?)
+		WHERE status != ? AND (NOT ? OR dry_run = 0) AND started_at = (
+			SELECT MAX(started_at) FROM runs WHERE task_id = r.task_id AND status != ? AND (NOT ? OR dry_run = 0))
 		ORDER BY started_at, id`,
-		domain.StatusRunning, domain.StatusRunning)
+		domain.StatusRunning, realOnly, domain.StatusRunning, realOnly)
 	if err != nil {
 		return nil, err
 	}

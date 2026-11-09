@@ -13,6 +13,23 @@ import (
 	"github.com/starriv/cloudshuttle/locales"
 )
 
+// compactDateTime writes t in a short form, for a column of a table where
+// the room is tight: the date without the year when it is this year, and
+// the time.
+func compactDateTime(c *ui.Context, t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	locale := c.Region().FormatLocale(c.Locale())
+	skeleton := "MMMd"
+	if t.Year() != c.Now().Year() {
+		skeleton = "yMMMd"
+	}
+	date := i18n.FormatDate(locale, t, i18n.DateOptions{Skeleton: skeleton})
+	clock := i18n.FormatDate(locale, t, i18n.DateOptions{Time: i18n.ShortStyle})
+	return date + " " + clock
+}
+
 // formatTime writes t in the window's language with the user's regional
 // formats: date and time, short.
 func formatTime(c *ui.Context, t time.Time) string {

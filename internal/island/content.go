@@ -39,7 +39,7 @@ func (i *Island) rightWing(c *ui.Context) {
 	if n := len(i.runs); n > 1 {
 		text = locales.IslandMore(n - 1)
 	}
-	ui.Text(c, text).FontSize(12).FontWeight(500).FontFeatures("tnum").SingleLine()
+	ui.Text(c, text).FontSize(12).FontWeight(600).FontFeatures("tnum").SingleLine()
 }
 
 // body builds what the open pill adds under the bar: the run starting or in
@@ -53,9 +53,13 @@ func (i *Island) body(c *ui.Context) {
 		}
 		run := i.runs[0]
 		p := run.Progress
-		ui.Text(c, run.Run.TaskName).FontSize(14).FontWeight(500).SingleLine().Ellipsis("…")
+		ui.Row(c).Gap(7).AlignItems(ui.Center).Children(func() {
+			ui.Box(c).Size(6, 6).Radius(3).Background(blue)
+			ui.Text(c, run.Run.TaskName).FontSize(14).FontWeight(600).SingleLine().Ellipsis("…").Grow(1).MinWidth(0)
+			ui.Text(c, percent(p)).FontSize(11).FontWeight(600).FontFeatures("tnum").TextColor(muted)
+		})
 		bar(c, p)
-		ui.Text(c, detail(p)).FontSize(11).FontFeatures("tnum").TextColor(muted).SingleLine()
+		ui.Text(c, detail(p)).FontSize(11).FontFeatures("tnum").TextColor(faint).SingleLine()
 	})
 }
 
@@ -67,24 +71,25 @@ func (i *Island) ended(c *ui.Context, r domain.Run) {
 	case domain.StatusCanceled:
 		title = locales.IslandStopped(r.TaskName)
 	}
-	ui.Text(c, title).FontSize(14).FontWeight(500).SingleLine().Ellipsis("…")
+	ui.Text(c, title).FontSize(14).FontWeight(600).SingleLine().Ellipsis("…")
 	sub := locales.Transferred(int(r.Stats.Transfers), format.Bytes(r.Stats.Bytes))
 	if r.Status == domain.StatusFailed && r.Message != "" {
 		sub = r.Message
 	}
-	ui.Text(c, sub).FontSize(11).TextColor(muted).SingleLine().Ellipsis("…")
+	ui.Text(c, sub).FontSize(11).TextColor(faint).SingleLine().Ellipsis("…")
 }
 
 // bar is a thin track filling as the run goes on, gliding between updates.
 func bar(c *ui.Context, p engine.Progress) {
-	box := ui.Box(c).Height(4).FillWidth().Radius(2).Background(track).ClipX()
+	box := ui.Box(c).Height(5).FillWidth().Radius(2.5).Background(track).ClipX()
 	fill := float32(0)
 	if p.TotalBytes > 0 {
 		fill = float32(p.Bytes) / float32(p.TotalBytes)
 	}
 	shown := box.AnimateTo("fill", fill, ui.Smooth)
 	box.Children(func() {
-		ui.Box(c).HeightPercent(100).WidthPercent(shown * 100).Radius(2).Background(blue)
+		ui.Box(c).HeightPercent(100).WidthPercent(shown*100).Radius(2.5).
+			Gradient(blue, ui.RGB(151, 200, 255), 90)
 	})
 }
 

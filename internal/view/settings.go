@@ -234,100 +234,138 @@ func (a *App) saveSettings() {
 }
 
 func (a *App) settingsPage(c *ui.Context) {
-	t := c.Theme()
-	header(c, locales.NavSettings(), nil)
+	p := paletteFor(c.Theme())
+	pageHeader(c, locales.NavSettings(), locales.SettingsSubtitle(), nil)
 	f := &a.settingsForm
 	if !f.loaded {
 		a.loadSettingsForm()
 		f.loaded = true
 	}
-	pageScroll(c).Children(func() {
-		ui.Column(c).Gap(t.Space(5)).Padding(0, 0, t.Space(2), 0).Children(func() {
-			if text := problemText(f.problems.For(domain.FieldSettings)); text != "" {
-				result(c, text, true)
-			}
-			a.appearanceCard(c)
-			a.updatesCard(c)
-			settingsCard(c, locales.SettingsTransferTitle(), []settingsRow{
-				{label: locales.SettingsTransfers(), hint: locales.SettingsTransfersHint(), control: func(label string) {
-					ui.Select(c, &f.transfers, numberLabels(transferValues)).Label(label).Width(selectWidth)
-				}},
-				{label: locales.SettingsCheckers(), hint: locales.SettingsCheckersHint(), control: func(label string) {
-					ui.Select(c, &f.checkers, numberLabels(checkerValues)).Label(label).Width(selectWidth)
-				}},
-				{label: locales.SettingsRetries(), hint: locales.SettingsRetriesHint(), control: func(label string) {
-					ui.Select(c, &f.retries, numberLabels(retryValues)).Label(label).Width(selectWidth)
-				}},
-				{label: locales.SettingsBandwidth(), hint: locales.SettingsBandwidthHint(), control: func(label string) {
-					ui.Select(c, &f.bandwidth, bandwidthLabels()).Label(label).Width(selectWidth)
-				}},
-			})
-			settingsCard(c, locales.SettingsTrashTitle(), []settingsRow{
-				{label: locales.SettingsTrash(), hint: locales.SettingsTrashHint(), control: func(label string) {
-					ui.Select(c, &f.trash, trashLabels()).Label(label).Width(selectWidth)
-				}},
-			})
-			count := excludeRuleCount(f.globalExclude)
-			hint := locales.SettingsExcludeRulesHint(count)
-			if !f.excludeEnabled {
-				hint = locales.SettingsExcludeRulesOff(count)
-			}
-			rules := settingsRow{
-				label: locales.SettingsExcludeRules(),
-				hint:  hint,
-				control: func(string) {
-					if ui.Button(c, locales.SettingsExcludeEdit()).Clicked() {
-						a.openGlobalExcludeEditor()
+	ui.Column(c).Grow(1).MinHeight(0).Children(func() {
+		pageScroll(c).Children(func() {
+			ui.Column(c).Gap(gutter).Padding(0, 0, pageBottom, 0).Children(func() {
+				if text := problemText(f.problems.For(domain.FieldSettings)); text != "" {
+					sheetError(c, text)
+				}
+				ui.Column(c).Gap(22).Children(func() {
+					a.appearanceCard(c)
+					a.updatesCard(c)
+					a.settingsTransfers(c)
+					a.settingsTrash(c)
+					a.settingsExclude(c)
+					a.settingsNotify(c)
+					a.settingsHistory(c)
+					if a.svc.SystemScheduler() {
+						a.scheduleCard(c)
 					}
-				},
-			}
-			if code := f.problems.For(domain.FieldGlobalExclude); code != "" {
-				rules.problem = problemText(code)
-				if code == domain.CodeInvalid {
-					rules.problem = locales.SettingsExcludeFailed()
-				}
-			}
-			settingsCard(c, locales.SettingsExcludeTitle(), []settingsRow{
-				{label: locales.SettingsExcludeEnabled(), hint: locales.SettingsExcludeEnabledHint(), control: func(label string) {
-					ui.Checkbox(c, &f.excludeEnabled, "").Label(label)
-				}},
-				rules,
-			})
-			settingsCard(c, locales.SettingsNotifyTitle(), []settingsRow{
-				{label: locales.SettingsNotifyFailed(), hint: "", control: func(label string) {
-					ui.Checkbox(c, &f.notifyFailed, "").Label(label)
-				}},
-				{label: locales.SettingsNotifySkipped(), hint: "", control: func(label string) {
-					ui.Checkbox(c, &f.notifySkipped, "").Label(label)
-				}},
-				{label: locales.SettingsNotifyStale(), hint: locales.SettingsNotifyStaleHint(), control: func(label string) {
-					ui.Checkbox(c, &f.notifyStale, "").Label(label)
-				}},
-				{label: locales.SettingsStaleDays(), hint: "", control: func(label string) {
-					ui.Select(c, &f.staleDays, staleLabels()).Label(label).Width(selectWidth)
-				}},
-			})
-			settingsCard(c, locales.SettingsHistoryTitle(), []settingsRow{
-				{label: locales.SettingsRetention(), hint: locales.SettingsRetentionHint(), control: func(label string) {
-					ui.Select(c, &f.retention, retentionLabels()).Label(label).Width(selectWidth)
-				}},
-			})
-			if a.svc.SystemScheduler() {
-				a.scheduleCard(c)
-			}
-			if runtime.GOOS == "darwin" {
-				// iCloud Drive exists on macOS alone, so the item would
-				// only offer a backup that can never be written elsewhere.
-				a.backupCard(c)
-			}
-			ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, locales.SettingsApplied()).Grow(1).MinWidth(0).
-					TextColor(t.TextMuted).FontSize(12)
-				if ui.PrimaryButton(c, locales.SettingsSave()).Disabled(f.saving).Clicked() {
-					a.saveSettings()
-				}
+					if runtime.GOOS == "darwin" {
+						// iCloud Drive exists on macOS alone, so the item would
+						// only offer a backup that can never be written elsewhere.
+						a.backupCard(c)
+					}
+				})
 			})
 		})
+		// The page's one save, a card of its own at the foot so it is always
+		// at hand.
+		ui.Row(c).Height(56).Margin(10, 0, pageBottom, 0).PaddingX(rowPadX).Radius(cardRadius).
+			Background(p.card).Border(1, p.hairline).AlignItems(ui.Center).Gap(12).Children(func() {
+			ui.Text(c, locales.SettingsApplied()).FontSize(sizeMicro).TextColor(p.muted).
+				Grow(1).MinWidth(0).SingleLine().Ellipsis("…")
+			if accentButton(c, "save-settings", nil, locales.SettingsSave(), buttonPrimary).
+				Disabled(f.saving).Clicked() {
+				a.saveSettings()
+			}
+		})
+	})
+}
+
+// settingsTransfers groups what a run's transfer takes from the settings.
+func (a *App) settingsTransfers(c *ui.Context) {
+	f := &a.settingsForm
+	settingsGroup(c, icons.Transfer, locales.SettingsTransferTitle(), []settingsRow{
+		{label: locales.SettingsTransfers(), hint: locales.SettingsTransfersHint(), control: func(label string) {
+			ui.Select(c, &f.transfers, numberLabels(transferValues)).Label(label).Width(selectWidth)
+		}},
+		{label: locales.SettingsCheckers(), hint: locales.SettingsCheckersHint(), control: func(label string) {
+			ui.Select(c, &f.checkers, numberLabels(checkerValues)).Label(label).Width(selectWidth)
+		}},
+		{label: locales.SettingsRetries(), hint: locales.SettingsRetriesHint(), control: func(label string) {
+			ui.Select(c, &f.retries, numberLabels(retryValues)).Label(label).Width(selectWidth)
+		}},
+		{label: locales.SettingsBandwidth(), hint: locales.SettingsBandwidthHint(), control: func(label string) {
+			ui.Select(c, &f.bandwidth, bandwidthLabels()).Label(label).Width(selectWidth)
+		}},
+	})
+}
+
+// settingsTrash groups how long what a run deletes or replaces is kept.
+func (a *App) settingsTrash(c *ui.Context) {
+	f := &a.settingsForm
+	settingsGroup(c, icons.Archive, locales.SettingsTrashTitle(), []settingsRow{
+		{label: locales.SettingsTrash(), hint: locales.SettingsTrashHint(), control: func(label string) {
+			ui.Select(c, &f.trash, trashLabels()).Label(label).Width(selectWidth)
+		}},
+	})
+}
+
+// settingsExclude groups the rules every run leaves out.
+func (a *App) settingsExclude(c *ui.Context) {
+	f := &a.settingsForm
+	count := excludeRuleCount(f.globalExclude)
+	hint := locales.SettingsExcludeRulesHint(count)
+	if !f.excludeEnabled {
+		hint = locales.SettingsExcludeRulesOff(count)
+	}
+	rules := settingsRow{
+		label: locales.SettingsExcludeRules(),
+		hint:  hint,
+		control: func(string) {
+			if accentButton(c, "edit-excludes", nil, locales.SettingsExcludeEdit(), buttonSoft).Clicked() {
+				a.openGlobalExcludeEditor()
+			}
+		},
+	}
+	if code := f.problems.For(domain.FieldGlobalExclude); code != "" {
+		rules.problem = problemText(code)
+		if code == domain.CodeInvalid {
+			rules.problem = locales.SettingsExcludeFailed()
+		}
+	}
+	settingsGroup(c, icons.Filter, locales.SettingsExcludeTitle(), []settingsRow{
+		{label: locales.SettingsExcludeEnabled(), hint: locales.SettingsExcludeEnabledHint(), control: func(label string) {
+			ui.Checkbox(c, &f.excludeEnabled, "").Label(label)
+		}},
+		rules,
+	})
+}
+
+// settingsNotify groups what the app tells the person about.
+func (a *App) settingsNotify(c *ui.Context) {
+	f := &a.settingsForm
+	settingsGroup(c, icons.Bell, locales.SettingsNotifyTitle(), []settingsRow{
+		{label: locales.SettingsNotifyFailed(), control: func(label string) {
+			ui.Checkbox(c, &f.notifyFailed, "").Label(label)
+		}},
+		{label: locales.SettingsNotifySkipped(), control: func(label string) {
+			ui.Checkbox(c, &f.notifySkipped, "").Label(label)
+		}},
+		{label: locales.SettingsNotifyStale(), hint: locales.SettingsNotifyStaleHint(), control: func(label string) {
+			ui.Checkbox(c, &f.notifyStale, "").Label(label)
+		}},
+		{label: locales.SettingsStaleDays(), control: func(label string) {
+			ui.Select(c, &f.staleDays, staleLabels()).Label(label).Width(selectWidth)
+		}},
+	})
+}
+
+// settingsHistory groups how much of the history the app keeps.
+func (a *App) settingsHistory(c *ui.Context) {
+	f := &a.settingsForm
+	settingsGroup(c, icons.History, locales.SettingsHistoryTitle(), []settingsRow{
+		{label: locales.SettingsRetention(), hint: locales.SettingsRetentionHint(), control: func(label string) {
+			ui.Select(c, &f.retention, retentionLabels()).Label(label).Width(selectWidth)
+		}},
 	})
 }
 
@@ -345,32 +383,36 @@ type settingsRow struct {
 	warning     string
 }
 
-// settingsCard groups the settings of one subject: its title above, then a
-// card of rows, each with its words on the left and its control on the
+// settingsGroup groups the settings of one subject: its name above, then
+// a card of rows, each with its words on the left and its control on the
 // right, parted by hairlines.
-func settingsCard(c *ui.Context, title string, rows []settingsRow) {
-	t := c.Theme()
-	ui.Column(c).Gap(8).Children(func() {
-		ui.Text(c, title).FontSize(16).FontWeight(500)
-		ui.Column(c).Radius(12).Border(1, t.Border).Background(t.Surface).Children(func() {
-			for i, r := range rows {
-				row := ui.Row(c.Key(r.label)).Gap(16).AlignItems(ui.Center).Padding(12, 16)
-				if i > 0 {
-					row.BorderWidth(1, 0, 0, 0).BorderColor(t.Border)
-				}
+func settingsGroup(c *ui.Context, icon *ui.SVG, title string, rows []settingsRow) {
+	p := paletteFor(c.Theme())
+	ui.Column(c).Gap(7).Children(func() {
+		ui.Row(c).Gap(6).AlignItems(ui.Center).Padding(0, 4).Children(func() {
+			if icon != nil {
+				ui.Icon(c, icon).Size(13, 13).TextColor(p.muted)
+			}
+			ui.Text(c, title).FontSize(sizeSmall).FontWeight(620).LetterSpacing(0.3).
+				TextColor(p.muted)
+		})
+		card(c).Children(func() {
+			for _, r := range rows {
+				row := ui.Row(c.Key(r.label)).Gap(18).AlignItems(ui.Center).Padding(rowPadY, rowPadX)
 				row.Children(func() {
-					ui.Column(c).Gap(2).Grow(1).MinWidth(0).Children(func() {
-						ui.Text(c, r.label)
+					ui.Column(c).Gap(3).Grow(1).MinWidth(0).Children(func() {
+						ui.Text(c, r.label).FontSize(sizeBody).FontWeight(540).TextColor(p.text)
 						switch {
 						case r.problem != "":
-							ui.Text(c, r.problem).FontSize(12).TextColor(t.Danger)
+							ui.Text(c, r.problem).FontSize(sizeSmall).TextColor(p.danger).
+								LineHeight(1.4)
 						case r.hint != "":
-							ui.Text(c, r.hint).FontSize(12).TextColor(t.TextMuted)
+							ui.Text(c, r.hint).FontSize(sizeSmall).TextColor(p.muted).LineHeight(1.45)
 						}
 						if r.warning != "" {
-							ui.Row(c).Gap(6).AlignItems(ui.Center).TextColor(t.Warning).Children(func() {
-								ui.Icon(c, icons.Warning)
-								ui.Text(c, r.warning).FontSize(12).Grow(1).MinWidth(0)
+							ui.Row(c).Gap(6).AlignItems(ui.Center).TextColor(p.warning).Children(func() {
+								ui.Icon(c, icons.Warning).Size(13, 13)
+								ui.Text(c, r.warning).FontSize(sizeSmall).Grow(1).MinWidth(0).LineHeight(1.4)
 							})
 						}
 					})
@@ -398,7 +440,7 @@ func (a *App) scheduleCard(c *ui.Context) {
 			ui.Checkbox(c, &f.background, "").Label(label)
 		})
 	}
-	settingsCard(c, locales.SettingsScheduleTitle(), []settingsRow{row})
+	settingsGroup(c, icons.Calendar, locales.SettingsScheduleTitle(), []settingsRow{row})
 }
 
 // appearanceCard lets the person choose the window's look, and on macOS
@@ -429,7 +471,7 @@ func (a *App) appearanceCard(c *ui.Context) {
 			},
 		})
 	}
-	settingsCard(c, locales.SettingsAppearanceTitle(), rows)
+	settingsGroup(c, icons.Sun, locales.SettingsAppearanceTitle(), rows)
 }
 
 // appIconLabels names the placements in the order of domain.AppIcon.

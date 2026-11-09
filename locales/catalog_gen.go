@@ -4647,3 +4647,439 @@ func RunProblemDestinationChanged() string { return In(i18n.Locale()).RunProblem
 func (msgs Messages) RunProblemDestinationChanged() string {
 	return Catalog.Format(msgs.locale, "runProblemDestinationChanged", nil)
 }
+
+// OverviewSubtitleNeutral says "Backup activity and task status."
+// in the language the app shows.
+func OverviewSubtitleNeutral() string { return In(i18n.Locale()).OverviewSubtitleNeutral() }
+
+// OverviewSubtitleNeutral says "Backup activity and task status."
+// in the language of msgs.
+func (msgs Messages) OverviewSubtitleNeutral() string {
+	return Catalog.Format(msgs.locale, "overviewSubtitleNeutral", nil)
+}
+
+// OverviewNoBackupFailures says "No backup failures recorded"
+// in the language the app shows.
+func OverviewNoBackupFailures() string { return In(i18n.Locale()).OverviewNoBackupFailures() }
+
+// OverviewNoBackupFailures says "No backup failures recorded"
+// in the language of msgs.
+func (msgs Messages) OverviewNoBackupFailures() string {
+	return Catalog.Format(msgs.locale, "overviewNoBackupFailures", nil)
+}
+
+// TaskFixFields says "Check the highlighted fields and try again."
+// in the language the app shows.
+func TaskFixFields() string { return In(i18n.Locale()).TaskFixFields() }
+
+// TaskFixFields says "Check the highlighted fields and try again."
+// in the language of msgs.
+func (msgs Messages) TaskFixFields() string {
+	return Catalog.Format(msgs.locale, "taskFixFields", nil)
+}
+
+// OverviewSubtitleAll says "Everything is backed up."
+// in the language the app shows.
+func OverviewSubtitleAll() string { return In(i18n.Locale()).OverviewSubtitleAll() }
+
+// OverviewSubtitleAll says "Everything is backed up."
+// in the language of msgs.
+func (msgs Messages) OverviewSubtitleAll() string {
+	return Catalog.Format(msgs.locale, "overviewSubtitleAll", nil)
+}
+
+// OverviewSubtitleFailing says "{count, plural, one {# task needs attention.} other {# tasks need attention.}}"
+// in the language the app shows.
+//
+// How many tasks failed their last run, when the overview says what to do.
+func OverviewSubtitleFailing(count int) string {
+	return In(i18n.Locale()).OverviewSubtitleFailing(count)
+}
+
+// OverviewSubtitleFailing says "{count, plural, one {# task needs attention.} other {# tasks need attention.}}"
+// in the language of msgs.
+//
+// How many tasks failed their last run, when the overview says what to do.
+func (msgs Messages) OverviewSubtitleFailing(count int) string {
+	return Catalog.Format(msgs.locale, "overviewSubtitleFailing", map[string]any{"count": count})
+}
+
+// OverviewSubtitleRunning says "A transfer is running."
+// in the language the app shows.
+func OverviewSubtitleRunning() string { return In(i18n.Locale()).OverviewSubtitleRunning() }
+
+// OverviewSubtitleRunning says "A transfer is running."
+// in the language of msgs.
+func (msgs Messages) OverviewSubtitleRunning() string {
+	return Catalog.Format(msgs.locale, "overviewSubtitleRunning", nil)
+}
+
+// OverviewAttentionTitle says "{count, plural, one {# task failed its last run} other {# tasks failed their last run}}"
+// in the language the app shows.
+//
+// How many tasks failed their last run.
+func OverviewAttentionTitle(count int) string { return In(i18n.Locale()).OverviewAttentionTitle(count) }
+
+// OverviewAttentionTitle says "{count, plural, one {# task failed its last run} other {# tasks failed their last run}}"
+// in the language of msgs.
+//
+// How many tasks failed their last run.
+func (msgs Messages) OverviewAttentionTitle(count int) string {
+	return Catalog.Format(msgs.locale, "overviewAttentionTitle", map[string]any{"count": count})
+}
+
+// OverviewAttentionBody says "See what went wrong in the history, then run the task again."
+// in the language the app shows.
+func OverviewAttentionBody() string { return In(i18n.Locale()).OverviewAttentionBody() }
+
+// OverviewAttentionBody says "See what went wrong in the history, then run the task again."
+// in the language of msgs.
+func (msgs Messages) OverviewAttentionBody() string {
+	return Catalog.Format(msgs.locale, "overviewAttentionBody", nil)
+}
+
+// OverviewAttentionAction says "See failed runs"
+// in the language the app shows.
+func OverviewAttentionAction() string { return In(i18n.Locale()).OverviewAttentionAction() }
+
+// OverviewAttentionAction says "See failed runs"
+// in the language of msgs.
+func (msgs Messages) OverviewAttentionAction() string {
+	return Catalog.Format(msgs.locale, "overviewAttentionAction", nil)
+}
+
+// OverviewActivitySubtitle says "The last seven days of runs, day by day."
+// in the language the app shows.
+func OverviewActivitySubtitle() string { return In(i18n.Locale()).OverviewActivitySubtitle() }
+
+// OverviewActivitySubtitle says "The last seven days of runs, day by day."
+// in the language of msgs.
+func (msgs Messages) OverviewActivitySubtitle() string {
+	return Catalog.Format(msgs.locale, "overviewActivitySubtitle", nil)
+}
+
+// OverviewViewAll says "View all"
+// in the language the app shows.
+func OverviewViewAll() string { return In(i18n.Locale()).OverviewViewAll() }
+
+// OverviewViewAll says "View all"
+// in the language of msgs.
+func (msgs Messages) OverviewViewAll() string {
+	return Catalog.Format(msgs.locale, "overviewViewAll", nil)
+}
+
+// OverviewRunningTitle says "Running now"
+// in the language the app shows.
+func OverviewRunningTitle() string { return In(i18n.Locale()).OverviewRunningTitle() }
+
+// OverviewRunningTitle says "Running now"
+// in the language of msgs.
+func (msgs Messages) OverviewRunningTitle() string {
+	return Catalog.Format(msgs.locale, "overviewRunningTitle", nil)
+}
+
+// OverviewRunningSubtitle says "The transfer in progress."
+// in the language the app shows.
+func OverviewRunningSubtitle() string { return In(i18n.Locale()).OverviewRunningSubtitle() }
+
+// OverviewRunningSubtitle says "The transfer in progress."
+// in the language of msgs.
+func (msgs Messages) OverviewRunningSubtitle() string {
+	return Catalog.Format(msgs.locale, "overviewRunningSubtitle", nil)
+}
+
+// OverviewRecentSubtitle says "The latest results, newest first."
+// in the language the app shows.
+func OverviewRecentSubtitle() string { return In(i18n.Locale()).OverviewRecentSubtitle() }
+
+// OverviewRecentSubtitle says "The latest results, newest first."
+// in the language of msgs.
+func (msgs Messages) OverviewRecentSubtitle() string {
+	return Catalog.Format(msgs.locale, "overviewRecentSubtitle", nil)
+}
+
+// OverviewNoRunning says "No transfer is running."
+// in the language the app shows.
+func OverviewNoRunning() string { return In(i18n.Locale()).OverviewNoRunning() }
+
+// OverviewNoRunning says "No transfer is running."
+// in the language of msgs.
+func (msgs Messages) OverviewNoRunning() string {
+	return Catalog.Format(msgs.locale, "overviewNoRunning", nil)
+}
+
+// SidebarAllGood says "Up to date"
+// in the language the app shows.
+func SidebarAllGood() string { return In(i18n.Locale()).SidebarAllGood() }
+
+// SidebarAllGood says "Up to date"
+// in the language of msgs.
+func (msgs Messages) SidebarAllGood() string {
+	return Catalog.Format(msgs.locale, "sidebarAllGood", nil)
+}
+
+// SidebarAttention says "{count, plural, one {# needs attention} other {# need attention}}"
+// in the language the app shows.
+//
+// How many tasks failed their last run, in the sidebar.
+func SidebarAttention(count int) string { return In(i18n.Locale()).SidebarAttention(count) }
+
+// SidebarAttention says "{count, plural, one {# needs attention} other {# need attention}}"
+// in the language of msgs.
+//
+// How many tasks failed their last run, in the sidebar.
+func (msgs Messages) SidebarAttention(count int) string {
+	return Catalog.Format(msgs.locale, "sidebarAttention", map[string]any{"count": count})
+}
+
+// SidebarTransferring says "{count, plural, one {# transfer running} other {# transfers running}}"
+// in the language the app shows.
+//
+// How many transfers are running, in the sidebar.
+func SidebarTransferring(count int) string { return In(i18n.Locale()).SidebarTransferring(count) }
+
+// SidebarTransferring says "{count, plural, one {# transfer running} other {# transfers running}}"
+// in the language of msgs.
+//
+// How many transfers are running, in the sidebar.
+func (msgs Messages) SidebarTransferring(count int) string {
+	return Catalog.Format(msgs.locale, "sidebarTransferring", map[string]any{"count": count})
+}
+
+// TasksSubtitle says "Folders copied and synced, by hand or on a schedule."
+// in the language the app shows.
+func TasksSubtitle() string { return In(i18n.Locale()).TasksSubtitle() }
+
+// TasksSubtitle says "Folders copied and synced, by hand or on a schedule."
+// in the language of msgs.
+func (msgs Messages) TasksSubtitle() string {
+	return Catalog.Format(msgs.locale, "tasksSubtitle", nil)
+}
+
+// StoragesSubtitle says "Where tasks can send files."
+// in the language the app shows.
+func StoragesSubtitle() string { return In(i18n.Locale()).StoragesSubtitle() }
+
+// StoragesSubtitle says "Where tasks can send files."
+// in the language of msgs.
+func (msgs Messages) StoragesSubtitle() string {
+	return Catalog.Format(msgs.locale, "storagesSubtitle", nil)
+}
+
+// HistorySubtitle says "Every run, its result and its log."
+// in the language the app shows.
+func HistorySubtitle() string { return In(i18n.Locale()).HistorySubtitle() }
+
+// HistorySubtitle says "Every run, its result and its log."
+// in the language of msgs.
+func (msgs Messages) HistorySubtitle() string {
+	return Catalog.Format(msgs.locale, "historySubtitle", nil)
+}
+
+// SettingsSubtitle says "How CloudShuttle behaves."
+// in the language the app shows.
+func SettingsSubtitle() string { return In(i18n.Locale()).SettingsSubtitle() }
+
+// SettingsSubtitle says "How CloudShuttle behaves."
+// in the language of msgs.
+func (msgs Messages) SettingsSubtitle() string {
+	return Catalog.Format(msgs.locale, "settingsSubtitle", nil)
+}
+
+// WelcomeTitle says "Back up without thinking about it"
+// in the language the app shows.
+func WelcomeTitle() string { return In(i18n.Locale()).WelcomeTitle() }
+
+// WelcomeTitle says "Back up without thinking about it"
+// in the language of msgs.
+func (msgs Messages) WelcomeTitle() string {
+	return Catalog.Format(msgs.locale, "welcomeTitle", nil)
+}
+
+// WelcomeBody says "Add a storage for where your files go, then a task that copies or syncs a folder to it, by hand or on a schedule."
+// in the language the app shows.
+func WelcomeBody() string { return In(i18n.Locale()).WelcomeBody() }
+
+// WelcomeBody says "Add a storage for where your files go, then a task that copies or syncs a folder to it, by hand or on a schedule."
+// in the language of msgs.
+func (msgs Messages) WelcomeBody() string {
+	return Catalog.Format(msgs.locale, "welcomeBody", nil)
+}
+
+// WelcomeAction says "Add a storage"
+// in the language the app shows.
+func WelcomeAction() string { return In(i18n.Locale()).WelcomeAction() }
+
+// WelcomeAction says "Add a storage"
+// in the language of msgs.
+func (msgs Messages) WelcomeAction() string {
+	return Catalog.Format(msgs.locale, "welcomeAction", nil)
+}
+
+// OverviewReadyTitle says "Ready to back up"
+// in the language the app shows.
+func OverviewReadyTitle() string { return In(i18n.Locale()).OverviewReadyTitle() }
+
+// OverviewReadyTitle says "Ready to back up"
+// in the language of msgs.
+func (msgs Messages) OverviewReadyTitle() string {
+	return Catalog.Format(msgs.locale, "overviewReadyTitle", nil)
+}
+
+// OverviewReadyBody says "Your storages are set up. Add a task to start again."
+// in the language the app shows.
+func OverviewReadyBody() string { return In(i18n.Locale()).OverviewReadyBody() }
+
+// OverviewReadyBody says "Your storages are set up. Add a task to start again."
+// in the language of msgs.
+func (msgs Messages) OverviewReadyBody() string {
+	return Catalog.Format(msgs.locale, "overviewReadyBody", nil)
+}
+
+// OverviewReadyAction says "Add a task"
+// in the language the app shows.
+func OverviewReadyAction() string { return In(i18n.Locale()).OverviewReadyAction() }
+
+// OverviewReadyAction says "Add a task"
+// in the language of msgs.
+func (msgs Messages) OverviewReadyAction() string {
+	return Catalog.Format(msgs.locale, "overviewReadyAction", nil)
+}
+
+// ActivityRuns says "{runs, plural, one {# run} other {# runs}}"
+// in the language the app shows.
+//
+// How many runs the activity chart shows.
+func ActivityRuns(runs int) string { return In(i18n.Locale()).ActivityRuns(runs) }
+
+// ActivityRuns says "{runs, plural, one {# run} other {# runs}}"
+// in the language of msgs.
+//
+// How many runs the activity chart shows.
+func (msgs Messages) ActivityRuns(runs int) string {
+	return Catalog.Format(msgs.locale, "activityRuns", map[string]any{"runs": runs})
+}
+
+// ActivityFailed says "{failed, plural, one {# failed} other {# failed}}"
+// in the language the app shows.
+//
+// How many of the activity chart's runs failed.
+func ActivityFailed(failed int) string { return In(i18n.Locale()).ActivityFailed(failed) }
+
+// ActivityFailed says "{failed, plural, one {# failed} other {# failed}}"
+// in the language of msgs.
+//
+// How many of the activity chart's runs failed.
+func (msgs Messages) ActivityFailed(failed int) string {
+	return Catalog.Format(msgs.locale, "activityFailed", map[string]any{"failed": failed})
+}
+
+// OverviewSubtitleWelcome says "Add a storage and a task to start backing up."
+// in the language the app shows.
+func OverviewSubtitleWelcome() string { return In(i18n.Locale()).OverviewSubtitleWelcome() }
+
+// OverviewSubtitleWelcome says "Add a storage and a task to start backing up."
+// in the language of msgs.
+func (msgs Messages) OverviewSubtitleWelcome() string {
+	return Catalog.Format(msgs.locale, "overviewSubtitleWelcome", nil)
+}
+
+// TaskDialogHint says "Name the task, choose where its files go, and when it runs."
+// in the language the app shows.
+func TaskDialogHint() string { return In(i18n.Locale()).TaskDialogHint() }
+
+// TaskDialogHint says "Name the task, choose where its files go, and when it runs."
+// in the language of msgs.
+func (msgs Messages) TaskDialogHint() string {
+	return Catalog.Format(msgs.locale, "taskDialogHint", nil)
+}
+
+// TaskFieldHow says "How"
+// in the language the app shows.
+func TaskFieldHow() string { return In(i18n.Locale()).TaskFieldHow() }
+
+// TaskFieldHow says "How"
+// in the language of msgs.
+func (msgs Messages) TaskFieldHow() string {
+	return Catalog.Format(msgs.locale, "taskFieldHow", nil)
+}
+
+// TasksEmptyTitle says "Set up your first task"
+// in the language the app shows.
+func TasksEmptyTitle() string { return In(i18n.Locale()).TasksEmptyTitle() }
+
+// TasksEmptyTitle says "Set up your first task"
+// in the language of msgs.
+func (msgs Messages) TasksEmptyTitle() string {
+	return Catalog.Format(msgs.locale, "tasksEmptyTitle", nil)
+}
+
+// StoragesEmptyTitle says "Add where your files go"
+// in the language the app shows.
+func StoragesEmptyTitle() string { return In(i18n.Locale()).StoragesEmptyTitle() }
+
+// StoragesEmptyTitle says "Add where your files go"
+// in the language of msgs.
+func (msgs Messages) StoragesEmptyTitle() string {
+	return Catalog.Format(msgs.locale, "storagesEmptyTitle", nil)
+}
+
+// HistoryEmptyTitle says "Nothing here yet"
+// in the language the app shows.
+func HistoryEmptyTitle() string { return In(i18n.Locale()).HistoryEmptyTitle() }
+
+// HistoryEmptyTitle says "Nothing here yet"
+// in the language of msgs.
+func (msgs Messages) HistoryEmptyTitle() string {
+	return Catalog.Format(msgs.locale, "historyEmptyTitle", nil)
+}
+
+// HistoryNoMatchTitle says "No matches"
+// in the language the app shows.
+func HistoryNoMatchTitle() string { return In(i18n.Locale()).HistoryNoMatchTitle() }
+
+// HistoryNoMatchTitle says "No matches"
+// in the language of msgs.
+func (msgs Messages) HistoryNoMatchTitle() string {
+	return Catalog.Format(msgs.locale, "historyNoMatchTitle", nil)
+}
+
+// HistoryDetailNoneTitle says "No run selected"
+// in the language the app shows.
+func HistoryDetailNoneTitle() string { return In(i18n.Locale()).HistoryDetailNoneTitle() }
+
+// HistoryDetailNoneTitle says "No run selected"
+// in the language of msgs.
+func (msgs Messages) HistoryDetailNoneTitle() string {
+	return Catalog.Format(msgs.locale, "historyDetailNoneTitle", nil)
+}
+
+// SidebarIdle says "No tasks yet"
+// in the language the app shows.
+func SidebarIdle() string { return In(i18n.Locale()).SidebarIdle() }
+
+// SidebarIdle says "No tasks yet"
+// in the language of msgs.
+func (msgs Messages) SidebarIdle() string {
+	return Catalog.Format(msgs.locale, "sidebarIdle", nil)
+}
+
+// TaskGroupBasics says "Basics"
+// in the language the app shows.
+func TaskGroupBasics() string { return In(i18n.Locale()).TaskGroupBasics() }
+
+// TaskGroupBasics says "Basics"
+// in the language of msgs.
+func (msgs Messages) TaskGroupBasics() string {
+	return Catalog.Format(msgs.locale, "taskGroupBasics", nil)
+}
+
+// TaskOpen says "Edit {name}"
+// in the language the app shows.
+func TaskOpen(name string) string { return In(i18n.Locale()).TaskOpen(name) }
+
+// TaskOpen says "Edit {name}"
+// in the language of msgs.
+func (msgs Messages) TaskOpen(name string) string {
+	return Catalog.Format(msgs.locale, "taskOpen", map[string]any{"name": name})
+}

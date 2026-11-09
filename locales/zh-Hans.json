@@ -517,5 +517,55 @@
   "taskDestinationFileHint": "此名称已被文件占用，请新建编号文件夹。",
   "taskDestinationReuse": "使用现有文件夹（允许覆盖）",
   "taskDestinationUnique": "新建编号文件夹",
-  "runProblemDestinationChanged": "首次传输前，目标名称已被占用。本次未修改文件。请编辑并保存任务，确认使用现有文件夹或新建编号文件夹。"
+  "runProblemDestinationChanged": "首次传输前，目标名称已被占用。本次未修改文件。请编辑并保存任务，确认使用现有文件夹或新建编号文件夹。",
+
+  "overviewSubtitleNeutral": "备份活动和任务状态。",
+  "overviewNoBackupFailures": "没有备份失败记录",
+  "taskFixFields": "请检查标出的字段后重试。",
+  "overviewSubtitleAll": "所有备份都已就绪。",
+  "overviewSubtitleFailing": "有 {count} 个任务需要处理。",
+  "overviewSubtitleRunning": "正在传输一个任务。",
+  "overviewAttentionTitle": "{count} 个任务上次运行失败",
+  "overviewAttentionBody": "在历史中查看原因，然后重新运行任务。",
+  "overviewAttentionAction": "查看失败的运行",
+  "overviewActivitySubtitle": "最近七天的运行情况。",
+  "overviewViewAll": "查看全部",
+  "overviewRunningTitle": "正在运行",
+  "overviewRunningSubtitle": "当前正在传输的任务。",
+  "overviewRecentSubtitle": "最新的运行结果。",
+  "overviewNoRunning": "没有正在传输的任务。",
+  "sidebarAllGood": "一切正常",
+  "sidebarAttention": "{count} 个需要处理",
+  "sidebarTransferring": "{count} 个正在传输",
+  "tasksSubtitle": "手动或按计划复制、同步文件夹。",
+  "storagesSubtitle": "任务可以把文件发送到这些地方。",
+  "historySubtitle": "每一次运行、结果和日志。",
+  "settingsSubtitle": "云梭的行为和偏好。",
+  "welcomeTitle": "无需操心，自动备份",
+  "welcomeBody": "先添加一个存储，决定文件去哪里；再添加一个任务，把手动或按计划将文件夹复制或同步过去。",
+  "welcomeAction": "添加存储",
+  "overviewReadyTitle": "可以开始备份了",
+  "overviewReadyBody": "存储已经就绪，添加一个任务就能开始。",
+  "overviewReadyAction": "添加任务",
+  "activityRuns": "{runs} 次运行",
+  "activityFailed": "{failed} 次失败",
+  "overviewSubtitleWelcome": "添加存储和任务，开始备份。",
+  "taskDialogHint": "为任务命名，选择文件去向和运行时间。",
+  "taskFieldHow": "方式",
+  "tasksEmptyTitle": "设置第一个任务",
+  "storagesEmptyTitle": "添加文件的去处",
+  "historyEmptyTitle": "还没有内容",
+  "historyNoMatchTitle": "没有匹配项",
+  "historyDetailNoneTitle": "未选择运行",
+  "sidebarIdle": "还没有任务",
+  "taskGroupBasics": "基本信息",
+  "taskOpen": "编辑 {name}",
+  "@taskOpen": {
+    "placeholders": {
+      "name": {
+        "type": "String",
+        "example": "Documents"
+      }
+    }
+  }
 }

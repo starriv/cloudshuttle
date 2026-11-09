@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"reflect"
 	"runtime"
-	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -145,15 +144,37 @@ func (h *harness) waitFor(what string, cond func() bool) {
 
 func (h *harness) click(label string) {
 	h.t.Helper()
-	if h.app.taskForm.open && slices.Contains([]string{locales.RepeatDaily(), locales.RepeatWeekly(), locales.RepeatMonthly(), locales.RepeatHourly()}, label) {
-		h.tt.Scroll(650, 400, 0, 1000)
+	// A form scrolls: a control farther down than the sheet shows is
+	// brought into view the way a person brings it, by scrolling.
+	h.reveal(label)
+	err := h.tt.Click(label)
+	for i := 0; i < 8 && err != nil && strings.Contains(err.Error(), "outside the window"); i++ {
+		h.tt.Scroll(650, 420, 0, 220)
 		h.tt.Frame()
+		err = h.tt.Click(label)
 	}
-	if err := h.tt.Click(label); err != nil {
+	if err != nil {
 		h.t.Fatalf("click %q: %v; texts %q", label, err, h.tt.Texts())
 	}
 	if label == locales.TaskSave() {
 		h.waitFor("task save", func() bool { return !h.app.taskForm.saving })
+	}
+}
+
+// reveal scrolls the sheet until the element showing label is laid out in
+// view: an element below or above the scrolling body has no size to click.
+func (h *harness) reveal(label string) {
+	for i := 0; i < 24; i++ {
+		r, ok := h.tt.Find(label)
+		if !ok || (r.W > 0 && r.H > 0) {
+			return
+		}
+		if r.Y+r.H/2 < 300 {
+			h.tt.Scroll(650, 420, 0, -220)
+		} else {
+			h.tt.Scroll(650, 420, 0, 220)
+		}
+		h.tt.Frame()
 	}
 }
 
@@ -173,7 +194,7 @@ func (h *harness) expect(text string) {
 
 func TestEmptyStatesSayWhatToDo(t *testing.T) {
 	h := newHarness(t)
-	h.expect(locales.OverviewNoRuns())
+	h.expect(locales.WelcomeTitle())
 	h.click(locales.NavTasks())
 	h.expect(locales.TasksEmpty())
 	h.click(locales.NavStorages())
@@ -310,7 +331,11 @@ func TestFindServersFillsTheForm(t *testing.T) {
 	}}
 	h.click(locales.NavStorages())
 	h.click(locales.StoragesAdd())
-	h.click(locales.KindSMB()) // starts a search
+	h.click(locales.KindSMB())
+	if h.app.storageForm.searching || h.app.storageForm.searched {
+		t.Fatal("switching storage kind started discovery")
+	}
+	h.click(locales.StorageFindServers())
 	h.waitFor("the search", func() bool { return h.app.storageForm.searched })
 	h.expect(locales.StorageServersUnverified())
 	h.click("DiskStation")
@@ -1046,4 +1071,41 @@ func TestATaskExcludesFiles(t *testing.T) {
 	h.app.openTaskForm(&tasks[0])
 	h.settle()
 	h.expect(locales.TaskExcludeRulesAndLarger(5, "1 GB"))
+}
+
+func TestClickingATaskOpensItsEditor(t *testing.T) {
+	h := newHarness(t)
+	h.newTask("Editable")
+	h.click(locales.TaskSave())
+	h.settle()
+
+	// The task opens its editor, while the button beside it still runs it.
+	h.click("Editable")
+	if !h.app.taskForm.open || h.app.taskForm.id == "" {
+		t.Fatalf("the task did not open its editor: open=%v id=%q", h.app.taskForm.open, h.app.taskForm.id)
+	}
+	h.app.taskForm.open = false
+	h.settle()
+	h.click(locales.TaskRun())
+	h.waitFor("the run", func() bool { return len(h.svc.Active()) == 0 })
+	if h.app.taskForm.open {
+		t.Fatal("the run button opened the editor")
+	}
+}
+
+func TestSidebarArrowKeysMoveSelectionAndFocus(t *testing.T) {
+	h := newHarness(t)
+	h.click(locales.NavTasks())
+	h.tt.Key(0, ui.KeyDown)
+	if h.app.page != pageStorages || !h.tt.Focused(locales.NavStorages()) {
+		t.Fatalf("down did not choose and focus Storages: %s", h.app.page)
+	}
+	h.tt.Key(0, ui.KeyEnd)
+	if h.app.page != pageSettings || !h.tt.Focused(locales.NavSettings()) {
+		t.Fatalf("end did not choose and focus Settings: %s", h.app.page)
+	}
+	h.tt.Key(0, ui.KeyUp)
+	if h.app.page != pageHistory || !h.tt.Focused(locales.NavHistory()) {
+		t.Fatalf("up did not choose and focus History: %s", h.app.page)
+	}
 }

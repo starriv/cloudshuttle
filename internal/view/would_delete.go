@@ -6,6 +6,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 	"github.com/starriv/cloudshuttle/internal/domain"
+	"github.com/starriv/cloudshuttle/internal/icons"
 	"github.com/starriv/cloudshuttle/locales"
 )
 
@@ -41,7 +42,7 @@ func (a *App) loadRunDeletes(id string) {
 // wouldDelete lists the files a stopped sync would have deleted, so that a
 // person looks them over before running it anyway.
 func (a *App) wouldDelete(c *ui.Context, r domain.Run) {
-	t := c.Theme()
+	p := paletteFor(c.Theme())
 	if a.runDeletes.run != r.ID {
 		a.loadRunDeletes(r.ID)
 	}
@@ -49,33 +50,38 @@ func (a *App) wouldDelete(c *ui.Context, r domain.Run) {
 	if d.missing {
 		return
 	}
-	ui.Field(c, locales.HistoryWouldDelete(), func() {
-		ui.Column(c).Gap(6).MinWidth(0).FillWidth().Children(func() {
-			if d.failed != "" {
-				result(c, d.failed, true)
-				return
-			}
-			paths := d.deletes.Paths
-			line := func(path string) {
-				ui.Text(c, path).Font("monospace").FontSize(12).Selectable().SingleLine().Ellipsis("…").
-					Padding(1, t.Space(2)).FillWidth()
-			}
-			if len(paths) <= wouldDeleteLines {
-				ui.Column(c).PaddingY(2).FillWidth().Border(1, t.Border).Radius(t.Radius).Children(func() {
-					for _, p := range paths {
-						line(p)
-					}
-				})
-			} else {
+	ui.Column(c).Gap(7).Children(func() {
+		detailLabel(c, locales.HistoryWouldDelete())
+		if d.failed != "" {
+			result(c, d.failed, true)
+			return
+		}
+		paths := d.deletes.Paths
+		line := func(path string) {
+			ui.Text(c, path).Font("monospace").FontSize(sizeSmall).TextColor(p.text).
+				Selectable().SingleLine().Ellipsis("…").Padding(1, 10).FillWidth()
+		}
+		if len(paths) <= wouldDeleteLines {
+			well := ui.Column(c).FillWidth().PaddingY(4).Radius(10).
+				Background(p.cardAlt).Border(1, p.hairline)
+			well.Children(func() {
+				for _, path := range paths {
+					line(path)
+				}
+			})
+		} else {
+			well := ui.Column(c).FillWidth().Clip().Radius(10).
+				Background(p.cardAlt).Border(1, p.hairline).PaddingY(4)
+			well.Children(func() {
 				ui.List(c, &d.list, len(paths), func(i int) { line(paths[i]) }).
-					Label(locales.HistoryWouldDelete()).FillWidth().Height(160).
-					Border(1, t.Border).Radius(t.Radius)
-			}
-			if more := d.deletes.Total - len(paths); more > 0 {
-				ui.Text(c, locales.HistoryWouldDeleteMore(more)).TextColor(t.TextMuted)
-			}
-			a.runAnywayButton(c, r)
-		})
+					FillWidth().Height(160).ScrollbarInsets(3, 4, 3).
+					Label(locales.HistoryWouldDelete())
+			})
+		}
+		if more := d.deletes.Total - len(paths); more > 0 {
+			ui.Text(c, locales.HistoryWouldDeleteMore(more)).FontSize(sizeMicro).TextColor(p.muted)
+		}
+		a.runAnywayButton(c, r)
 	})
 }
 
@@ -89,7 +95,8 @@ func (a *App) runAnywayButton(c *ui.Context, r domain.Run) {
 		}
 		_, running := a.active[task.ID]
 		ui.Row(c).Children(func() {
-			if ui.Button(c, locales.TaskRunAnyway()).Disabled(running).Clicked() {
+			if accentButton(c, "run-anyway", icons.Run, locales.TaskRunAnyway(), buttonSoft).
+				Disabled(running).Clicked() {
 				a.confirmRunAnyway(task)
 			}
 		})

@@ -172,14 +172,17 @@ func main() {
 	mygo.App.WhenReady(func() {
 		win := mygo.NewWindow(mygo.WindowOptions{
 			Title:  locales.AppName(),
-			Width:  1080,
-			Height: 700,
+			Width:  1200,
+			Height: 780,
 			// Low enough for a small laptop, high enough for the task
 			// dialog and the global exclusion editor, whose buttons are
 			// below the fields.
-			MinWidth:  900,
-			MinHeight: 640,
+			MinWidth:  940,
+			MinHeight: 660,
 			StateKey:  "main",
+			// The window paints its own background; this is what shows
+			// before the first frame, so it does not flash white.
+			BackgroundColor: "light-dark(#f4f5f7, #121316)",
 			// The view draws the title bar; the sidebar shows the
 			// desktop's material through it, as Finder's and Mail's do.
 			TitleBarStyle: mygo.TitleBarHidden,

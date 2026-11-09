@@ -6,6 +6,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 	"github.com/starriv/cloudshuttle/internal/domain"
+	"github.com/starriv/cloudshuttle/internal/icons"
 	"github.com/starriv/cloudshuttle/internal/store"
 	"github.com/starriv/cloudshuttle/locales"
 )
@@ -62,7 +63,7 @@ func (a *App) backupCard(c *ui.Context) {
 			a.restoreForm = restoreForm{open: true}
 		}
 	}})
-	settingsCard(c, locales.SettingsBackupTitle(), rows)
+	settingsGroup(c, icons.Shield, locales.SettingsBackupTitle(), rows)
 }
 
 func backupPasswordText(code domain.Code) string {
@@ -80,40 +81,46 @@ func backupPasswordText(code domain.Code) string {
 // the password on purpose.
 func (a *App) restoreDialog(c *ui.Context) {
 	f := &a.restoreForm
-	ui.Modal(c, &f.open, func() {
-		t := c.Theme()
-		ui.Column(c).Width(480).Gap(t.Space(4)).Children(func() {
-			ui.Text(c, locales.RestoreTitle()).FontSize(18).FontWeight(500)
-			ui.Text(c, locales.RestoreMessage()).TextColor(t.TextMuted)
-			ui.Form(c, func() {
-				ui.Field(c, locales.RestoreFile(), func() {
-					ui.Row(c).Gap(6).FillWidth().Children(func() {
-						ui.TextInput(c, &f.path).Placeholder(BackupFileHint()).Grow(1).MinWidth(0).
-							Label(locales.RestoreFile())
-						if ui.Button(c, locales.RestoreChoose()).Clicked() {
-							a.chooseBackup()
-						}
-					})
+	if !f.open {
+		return
+	}
+	p := paletteFor(c.Theme())
+	sheet(c, &f.open, sheetOptions{
+		width: 520,
+		title: locales.RestoreTitle(),
+	}, func() {
+		ui.Column(c).Gap(16).Padding(2, 0, 2, 0).Children(func() {
+			ui.Text(c, locales.RestoreMessage()).FontSize(sizeSmall).TextColor(p.muted).LineHeight(1.55)
+			ui.Field(c, locales.RestoreFile(), func() {
+				ui.Row(c).Gap(8).FillWidth().Children(func() {
+					ui.TextInput(c, &f.path).Placeholder(BackupFileHint()).Grow(1).MinWidth(0)
+					if accentButton(c, "restore-choose", nil, locales.RestoreChoose(), buttonSoft).
+						Disabled(f.busy).Clicked() {
+						a.chooseBackup()
+					}
 				})
-				ui.Field(c, locales.RestorePassword(), func() {
-					ui.TextInput(c, &f.password).Password().AutoFocus()
-				}).Description(locales.RestorePasswordHint())
 			})
+			ui.Field(c, locales.RestorePassword(), func() {
+				ui.TextInput(c, &f.password).Password().AutoFocus()
+			}).Description(locales.RestorePasswordHint())
 			if f.problem != "" {
 				result(c, f.problem, true)
 			}
-			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-				if ui.Button(c, locales.ButtonCancel()).Disabled(f.busy).Clicked() {
-					f.open = false
-				}
-				label := locales.RestoreButton()
-				if f.busy {
-					label = locales.RestoreBusy()
-				}
-				if ui.PrimaryButton(c, label).Disabled(f.busy || f.path == "").Clicked() {
-					a.restore()
-				}
-			})
+		})
+	}, func() {
+		sheetActions(c, func() {
+			if accentButton(c, "restore-cancel", nil, locales.ButtonCancel(), buttonSoft).
+				Disabled(f.busy).Clicked() {
+				f.open = false
+			}
+			label := locales.RestoreButton()
+			if f.busy {
+				label = locales.RestoreBusy()
+			}
+			if accentButton(c, "restore-go", nil, label, buttonPrimary).
+				Disabled(f.busy || f.path == "").Clicked() {
+				a.restore()
+			}
 		})
 	})
 }

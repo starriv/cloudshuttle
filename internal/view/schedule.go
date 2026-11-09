@@ -88,34 +88,50 @@ func dayLabels() []string {
 	return out
 }
 
-// scheduleInput is the task form's schedule: how often, then when, and
+// scheduleField is the task form's schedule: how often, then when, and
 // what that means, in the person's words.
-func (a *App) scheduleInput(c *ui.Context, f *taskForm) {
+func (a *App) scheduleField(c *ui.Context, f *taskForm) {
+	p := paletteFor(c.Theme())
 	sf := &f.schedule
-	problem := f.problems.For(domain.FieldSchedule)
 	s := sf.schedule()
-	ui.Field(c, locales.TaskFieldSchedule(), func() {
-		ui.Column(c).Gap(8).FillWidth().Children(func() {
+	ui.Column(c).Gap(10).FillWidth().Children(func() {
+		// The column stretches its children; a row lets the control keep
+		// the width of its segments.
+		ui.Row(c).Children(func() {
 			ui.Segmented(c, &sf.repeat, repeatLabels()...).Label(locales.TaskFieldSchedule())
-			if !s.On() {
-				return
-			}
+		})
+		if s.On() {
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Wrap().Children(func() {
 				switch s.Repeat {
 				case domain.RepeatHourly:
-					ui.Select(c, &sf.every, everyLabels()).Label(locales.ScheduleEvery())
+					ui.Row(c).Children(func() {
+						ui.Select(c, &sf.every, everyLabels()).Label(locales.ScheduleEvery())
+					})
 				case domain.RepeatWeekly:
 					a.weekdayToggles(c, sf)
 				case domain.RepeatMonthly:
-					ui.Select(c, &sf.day, dayLabels()).Label(locales.ScheduleDay())
+					ui.Row(c).Children(func() {
+						ui.Select(c, &sf.day, dayLabels()).Label(locales.ScheduleDay())
+					})
 				}
 				if s.Repeat != domain.RepeatHourly {
-					ui.TimeInput(c, &sf.at).Label(locales.ScheduleTime())
+					ui.Row(c).Children(func() {
+						ui.TimeInput(c, &sf.at).Label(locales.ScheduleTime())
+					})
 				}
 			})
-			a.blockedNote(c)
-		})
-	}).Description(a.scheduleDescription(c, s)).Error(problemText(problem))
+		}
+		// What the schedule means, a line at a time, so the dialog keeps
+		// its height as the times change.
+		for _, line := range strings.Split(a.scheduleDescription(c, s), "\n") {
+			if line == "" {
+				continue
+			}
+			ui.Text(c, line).FontSize(sizeMicro).TextColor(p.muted).LineHeight(1.45)
+		}
+		a.blockedNote(c)
+		sheetError(c, problemText(f.problems.For(domain.FieldSchedule)))
+	})
 }
 
 // weekdayToggles are the days of a weekly schedule, from the first day of
@@ -168,13 +184,13 @@ func (a *App) blockedNote(c *ui.Context) {
 	if b, _ := a.svc.Background(); b != service.BackgroundBlocked {
 		return
 	}
-	t := c.Theme()
-	ui.Row(c).Gap(8).AlignItems(ui.Center).FillWidth().Children(func() {
-		ui.Row(c).Gap(6).AlignItems(ui.Center).Grow(1).MinWidth(0).TextColor(t.Warning).Children(func() {
-			ui.Icon(c, icons.Warning)
-			ui.Text(c, locales.ScheduleBlocked()).FontSize(12).Grow(1).MinWidth(0)
-		})
-		if ui.Button(c, locales.ScheduleOpenSettings()).Clicked() {
+	p := paletteFor(c.Theme())
+	ui.Row(c).Gap(10).AlignItems(ui.Center).FillWidth().Radius(10).Padding(8, 10).
+		Background(p.warningSoft).Border(1, p.warning.Alpha(0.2)).Children(func() {
+		ui.Icon(c, icons.Warning).Size(14, 14).TextColor(p.warning)
+		ui.Text(c, locales.ScheduleBlocked()).FontSize(sizeSmall).TextColor(p.text).
+			Grow(1).MinWidth(0).LineHeight(1.4)
+		if accentButton(c, "blocked-settings", nil, locales.ScheduleOpenSettings(), buttonSoft).Clicked() {
 			a.host.OpenBackgroundSettings()
 		}
 	})

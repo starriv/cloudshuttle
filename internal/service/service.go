@@ -986,6 +986,11 @@ func (s *Service) LastRuns(ctx context.Context) (map[string]domain.Run, error) {
 	return s.store.LastRuns(ctx)
 }
 
+// LastRealRuns returns each task's latest finished transfer without previews.
+func (s *Service) LastRealRuns(ctx context.Context) (map[string]domain.Run, error) {
+	return s.store.LastRealRuns(ctx)
+}
+
 // Active returns the runs in progress, the oldest first.
 func (s *Service) Active() []Active {
 	s.mu.Lock()

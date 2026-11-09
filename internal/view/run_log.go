@@ -7,6 +7,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 	"github.com/starriv/cloudshuttle/internal/domain"
+	"github.com/starriv/cloudshuttle/internal/icons"
 	"github.com/starriv/cloudshuttle/locales"
 )
 
@@ -64,38 +65,54 @@ func (a *App) refreshRunLog() {
 	}
 }
 
+// runLogSection is the log of the run, in a quiet well a step into the
+// details panel: the lines as they were written, the end in view while the
+// run goes on, and a copy for the whole of it.
 func (a *App) runLogSection(c *ui.Context, r domain.Run) {
-	t := c.Theme()
+	p := paletteFor(c.Theme())
 	if a.runLog.run != r.ID {
 		a.loadRunLog(r.ID)
 	}
 	l := &a.runLog
-	ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-		ui.Text(c, locales.HistoryLog()).FontWeight(500).Grow(1)
-		if len(l.lines) > 0 && ui.Button(c, locales.HistoryLogCopy()).Clicked() {
-			c.WriteClipboard(strings.Join(l.lines, "\n") + "\n")
-			a.toast(locales.HistoryLogCopied())
+	ui.Column(c).Gap(7).Children(func() {
+		ui.Row(c).AlignItems(ui.Center).Gap(8).Children(func() {
+			ui.Text(c, locales.HistoryLog()).FontSize(sizeSmall).FontWeight(620).
+				LetterSpacing(0.2).TextColor(p.muted).Grow(1)
+			if len(l.lines) > 0 {
+				if accentButton(c, "copy-log", icons.Copy, locales.HistoryLogCopy(), buttonGhost).Clicked() {
+					c.WriteClipboard(strings.Join(l.lines, "\n") + "\n")
+					a.toast(locales.HistoryLogCopied())
+				}
+			}
+		})
+		switch {
+		case l.failed != "":
+			result(c, l.failed, true)
+		case l.missing:
+			detailWell(c).Children(func() {
+				ui.Text(c, locales.HistoryLogNone()).FontSize(sizeSmall).TextColor(p.muted).LineHeight(1.45)
+			})
+		default:
+			well := ui.Column(c).FillWidth().Clip().Radius(10).
+				Background(p.cardAlt).Border(1, p.hairline).PaddingY(5)
+			well.Children(func() {
+				ui.List(c, &l.list, len(l.lines), func(i int) {
+					line := l.lines[i]
+					text := ui.Text(c, line).Font("monospace").FontSize(11.5).Selectable().
+						Padding(1, 10).FillWidth()
+					// The level is in the line as a word; the color only
+					// helps it stand out.
+					switch {
+					case strings.Contains(line, " ERROR "):
+						text.TextColor(p.danger)
+					case strings.Contains(line, " WARN "):
+						text.TextColor(p.warning)
+					default:
+						text.TextColor(p.text)
+					}
+				}).FillWidth().Height(runLogHeight).ScrollbarInsets(3, 4, 3).
+					Label(locales.HistoryLog())
+			})
 		}
 	})
-	switch {
-	case l.failed != "":
-		result(c, l.failed, true)
-	case l.missing:
-		ui.Text(c, locales.HistoryLogNone()).TextColor(t.TextMuted)
-	default:
-		ui.List(c, &l.list, len(l.lines), func(i int) {
-			line := l.lines[i]
-			text := ui.Text(c, line).Font("monospace").FontSize(12).Selectable().
-				Padding(1, t.Space(2)).FillWidth()
-			// The level is in the line as a word; the color only helps it
-			// stand out.
-			switch {
-			case strings.Contains(line, " ERROR "):
-				text.TextColor(t.Danger)
-			case strings.Contains(line, " WARN "):
-				text.TextColor(t.Warning)
-			}
-		}).Label(locales.HistoryLog()).FillWidth().Height(runLogHeight).
-			Border(1, t.Border).Radius(t.Radius)
-	}
 }

@@ -139,7 +139,8 @@ func (i *Island) View(c *ui.Context) {
 		h := pill.AnimateTo("h", height, pillSpring)
 		radius := min(h/2, 10+(h-g.BarHeight)/3)
 		pill.Size(w, h).Opacity(pill.AnimateTo("o", opacity, ui.Smooth)).
-			Radius(0, 0, radius, radius).Children(func() {
+			Radius(0, 0, radius, radius).
+			Border(0.5, ui.RGBA(255, 255, 255, 0.08)).Children(func() {
 			if m == hidden && len(i.runs) == 0 && i.finished == nil {
 				return
 			}
@@ -154,9 +155,10 @@ func (i *Island) View(c *ui.Context) {
 // The pill is black whatever the theme, so its colors are its own.
 var (
 	white = ui.RGB(255, 255, 255)
-	muted = ui.RGBA(255, 255, 255, 0.6)
-	track = ui.RGBA(255, 255, 255, 0.18)
-	green = ui.RGB(48, 209, 88)  // systemGreen, dark
-	red   = ui.RGB(255, 69, 58)  // systemRed, dark
-	blue  = ui.RGB(10, 132, 255) // systemBlue, dark
+	muted = ui.RGBA(255, 255, 255, 0.62)
+	faint = ui.RGBA(255, 255, 255, 0.4)
+	track = ui.RGBA(255, 255, 255, 0.16)
+	green = ui.RGB(74, 222, 128)
+	red   = ui.RGB(255, 115, 115)
+	blue  = ui.RGB(92, 165, 255) // the app's accent, lightened for black
 )

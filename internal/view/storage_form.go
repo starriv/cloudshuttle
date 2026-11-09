@@ -37,8 +37,7 @@ type storageForm struct {
 	searched     bool                  // a search of the network has finished
 	servers      []service.FoundServer // what it found
 	searchFailed string                // why it failed, if it did
-	serverList   ui.ListState
-	serverChoice int // the row of the server the form is filled in with, or -1
+	serverChoice int                   // the row of the server the form is filled in with, or -1
 }
 
 func providerOptions() []string {
@@ -228,116 +227,145 @@ func connectionText(err error) string {
 	return locales.StorageTestFailed(err.Error())
 }
 
+// storageProblem is what the foot of the sheet says about a save that did
+// not go through, when the fields cannot say it alone.
+func (f *storageForm) storageProblem() string {
+	if len(f.problems) == 0 {
+		return ""
+	}
+	return problemText(f.problems[0].Code)
+}
+
+// storageDialog adds or edits a storage, as a sheet: its name and kind, the
+// fields of that kind, a connection test and the buttons that keep it.
 func (a *App) storageDialog(c *ui.Context) {
 	f := &a.storageForm
-	ui.Modal(c, &f.open, func() {
-		t := c.Theme()
-		ui.Column(c).Width(520).Gap(t.Space(4)).Children(func() {
-			title := locales.StorageDialogNew()
-			if f.id != "" {
-				title = locales.StorageDialogEdit()
+	if !f.open {
+		return
+	}
+	title := locales.StorageDialogNew()
+	if f.id != "" {
+		title = locales.StorageDialogEdit()
+	}
+	sheet(c, &f.open, sheetOptions{
+		width:    560,
+		title:    title,
+		subtitle: locales.StoragesSubtitle(),
+	}, func() {
+		a.storageFormBody(c, f)
+	}, func() {
+		sheetError(c, f.storageProblem())
+		sheetActions(c, func() {
+			if accentButton(c, "storage-cancel", nil, locales.ButtonCancel(), buttonSoft).
+				Disabled(f.saving).Clicked() {
+				f.open = false
 			}
-			ui.Text(c, title).FontSize(18).FontWeight(500)
-
-			ui.Form(c, func() {
-				ui.Field(c, locales.StorageFieldKind(), func() {
-					// The field stretches its child; a row lets the control
-					// keep the width of its segments.
-					ui.Row(c).Children(func() {
-						kind := ui.Segmented(c, &f.kind, locales.KindS3(), locales.KindSMB()).
-							Label(locales.StorageFieldKind())
-						if kind.Changed() {
-							if f.id == "" && f.nameAuto {
-								f.giveName(a.defaultStorageName(a.storageFormInput().Normalize()))
-							}
-							// The first time a share is chosen, look for its server.
-							if domain.Kinds[f.kind] == domain.KindSMB && !f.searched && !f.searching {
-								a.findServers()
-							}
-						}
-						reserveLabels(c, storageLabels()...)
-					})
-				})
-				ui.Field(c, locales.StorageFieldName(), func() {
-					// Once the person edits the name, the form stops
-					// changing it.
-					if f.nameAuto && f.in.Name != f.autoName {
-						f.nameAuto = false
-					}
-					name := ui.TextInput(c, &f.in.Name).AutoFocus()
-					if f.id == "" {
-						// What the name becomes when it is left empty.
-						name.Placeholder(a.defaultStorageName(a.storageFormInput().Normalize()))
-					}
-				}).Error(problemText(f.problems.For(domain.FieldName)))
-				// Keyed by kind, so the fields of one kind keep none of the
-				// state of those that were in their place, such as a
-				// placeholder.
-				kind := domain.Kinds[f.kind]
-				ui.Column(c).Key(kind).Gap(t.Space(3)).Children(func() {
-					if kind == domain.KindSMB {
-						a.smbFields(c, f)
-					} else {
-						a.s3Fields(c, f)
-					}
-				})
-			})
-
-			if f.testResult != "" {
-				result(c, f.testResult, f.testFailed)
+			if accentButton(c, "storage-save", nil, locales.StorageSave(), buttonPrimary).
+				Disabled(f.saving).Clicked() {
+				a.saveStorage()
 			}
-
-			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-				label := locales.StorageTest()
-				if f.testing {
-					label = locales.StorageTesting()
-				}
-				if iconButton(c, icons.Test, label, false).Disabled(f.testing || f.saving).Clicked() {
-					a.testConnection()
-				}
-				ui.Spacer(c)
-				if ui.Button(c, locales.ButtonCancel()).Disabled(f.saving).Clicked() {
-					f.open = false
-				}
-				if ui.PrimaryButton(c, locales.StorageSave()).Disabled(f.saving).Clicked() {
-					a.saveStorage()
-				}
-			})
 		})
 	})
 }
 
+// storageFormBody is what the storage sheet holds, which scrolls under its
+// head: what the storage is, then the fields its kind needs.
+func (a *App) storageFormBody(c *ui.Context, f *storageForm) {
+	ui.Column(c).Gap(16).Padding(2, 0, 2, 0).Children(func() {
+		ui.Row(c).Gap(14).AlignItems(ui.Start).Children(func() {
+			ui.Field(c, locales.StorageFieldName(), func() {
+				// Once the person edits the name, the form stops changing it.
+				if f.nameAuto && f.in.Name != f.autoName {
+					f.nameAuto = false
+				}
+				name := ui.TextInput(c, &f.in.Name).AutoFocus()
+				if f.id == "" {
+					// What the name becomes when it is left empty.
+					name.Placeholder(a.defaultStorageName(a.storageFormInput().Normalize()))
+				}
+			}).Grow(1).MinWidth(0).Error(problemText(f.problems.For(domain.FieldName)))
+			ui.Field(c, locales.StorageFieldKind(), func() {
+				// The field stretches its child; a row lets the control keep
+				// the width of its segments.
+				ui.Row(c).Children(func() {
+					kind := ui.Segmented(c, &f.kind, locales.KindS3(), locales.KindSMB()).
+						Label(locales.StorageFieldKind())
+					if kind.Changed() {
+						if f.id == "" && f.nameAuto {
+							f.giveName(a.defaultStorageName(a.storageFormInput().Normalize()))
+						}
+					}
+				})
+			}).Width(220).MinWidth(0)
+		})
+		// Keyed by kind, so the fields of one kind keep none of the state of
+		// those that were in their place, such as a placeholder.
+		kind := domain.Kinds[f.kind]
+		ui.Column(c).Key(kind).Gap(16).Children(func() {
+			if kind == domain.KindSMB {
+				a.smbFields(c, f)
+			} else {
+				a.s3Fields(c, f)
+			}
+		})
+		ui.Column(c).Gap(10).Children(func() {
+			ui.Row(c).Gap(10).AlignItems(ui.Center).MinHeight(30).Children(func() {
+				if accentButton(c, "storage-test", icons.Test, locales.StorageTest(), buttonSoft).
+					Disabled(f.testing || f.saving).Clicked() {
+					a.testConnection()
+				}
+				if f.testing {
+					ui.Row(c).Gap(8).AlignItems(ui.Center).TextColor(paletteFor(c.Theme()).muted).Children(func() {
+						ui.Spinner(c).Label(locales.StorageTesting())
+						ui.Text(c, locales.StorageTesting()).FontSize(sizeSmall).SingleLine().Ellipsis("…")
+					})
+				}
+			})
+			if !f.testing && f.testResult != "" {
+				result(c, f.testResult, f.testFailed)
+			}
+		})
+	})
+}
+
+// s3Fields are the fields of an S3-compatible bucket: its provider and
+// endpoint, then where in it and with what key a run signs in.
 func (a *App) s3Fields(c *ui.Context, f *storageForm) {
 	secretHint := locales.StorageSecretHint()
 	if f.id != "" {
 		secretHint = locales.StorageSecretKeptHint()
 	}
-	ui.Field(c, locales.StorageFieldProvider(), func() {
-		if ui.Select(c, &f.provider, providerOptions()).Changed() && f.id == "" && f.nameAuto {
-			f.giveName(a.defaultStorageName(a.storageFormInput().Normalize()))
-		}
-	}).Error(problemText(f.problems.For(domain.FieldProvider)))
+	ui.Row(c).Gap(14).AlignItems(ui.Start).Children(func() {
+		ui.Field(c, locales.StorageFieldProvider(), func() {
+			if ui.Select(c, &f.provider, providerOptions()).Changed() && f.id == "" && f.nameAuto {
+				f.giveName(a.defaultStorageName(a.storageFormInput().Normalize()))
+			}
+		}).Grow(1).MinWidth(0).Error(problemText(f.problems.For(domain.FieldProvider)))
+		ui.Field(c, locales.StorageFieldRegion(), func() {
+			ui.TextInput(c, &f.in.Region)
+		}).Grow(1).MinWidth(0).Description(locales.StorageRegionHint())
+	})
 	ui.Field(c, locales.StorageFieldEndpoint(), func() {
 		ui.TextInput(c, &f.in.Endpoint).Placeholder("https://")
-	}).Description(locales.StorageEndpointHint()).
-		Error(problemText(f.problems.For(domain.FieldEndpoint)))
+	}).Description(locales.StorageEndpointHint()).Error(problemText(f.problems.For(domain.FieldEndpoint)))
 	if plaintextEndpoint(f.in.Endpoint) {
 		warning(c, locales.StoragePlaintextWarning())
 	}
-	ui.Field(c, locales.StorageFieldRegion(), func() {
-		ui.TextInput(c, &f.in.Region)
-	}).Description(locales.StorageRegionHint())
-	ui.Field(c, locales.StorageFieldBucket(), func() {
-		ui.TextInput(c, &f.in.Bucket)
-	}).Error(problemText(f.problems.For(domain.FieldBucket)))
-	ui.Field(c, locales.StorageFieldAccessKeyId(), func() {
-		ui.TextInput(c, &f.in.AccessKeyID)
-	}).Error(problemText(f.problems.For(domain.FieldAccessKeyID)))
+	ui.Row(c).Gap(14).AlignItems(ui.Start).Children(func() {
+		ui.Field(c, locales.StorageFieldBucket(), func() {
+			ui.TextInput(c, &f.in.Bucket)
+		}).Grow(1).MinWidth(0).Error(problemText(f.problems.For(domain.FieldBucket)))
+		ui.Field(c, locales.StorageFieldAccessKeyId(), func() {
+			ui.TextInput(c, &f.in.AccessKeyID)
+		}).Grow(1).MinWidth(0).Error(problemText(f.problems.For(domain.FieldAccessKeyID)))
+	})
 	ui.Field(c, locales.StorageFieldSecret(), func() {
 		ui.TextInput(c, &f.in.Secret).Password()
 	}).Description(secretHint).Error(problemText(f.problems.For(domain.FieldSecret)))
 }
 
+// smbFields are the fields of an SMB server: where it is, then what a run
+// signs in with.
 func (a *App) smbFields(c *ui.Context, f *storageForm) {
 	passwordHint := locales.StoragePasswordHint()
 	if f.id != "" {
@@ -348,24 +376,27 @@ func (a *App) smbFields(c *ui.Context, f *storageForm) {
 		hostError = problemText(f.problems.For(domain.FieldPort))
 	}
 	ui.Field(c, locales.StorageFieldHost(), func() {
-		ui.Row(c).Gap(6).FillWidth().Children(func() {
+		ui.Row(c).Gap(8).FillWidth().Children(func() {
 			host := ui.TextInput(c, &f.in.Host).Placeholder("nas.local").
-				Label(locales.StorageFieldHost()).Grow(1).MinWidth(0)
+				Grow(1).MinWidth(0)
 			if host.Changed() && f.id == "" && f.nameAuto {
 				f.giveName(a.defaultStorageName(a.storageFormInput().Normalize()))
 			}
 			ui.TextInput(c, &f.in.Port).Placeholder(strconv.Itoa(domain.DefaultSMBPort)).
-				Label(locales.StorageFieldPort()).Width(72)
+				Label(locales.StorageFieldPort()).Width(84)
 		})
 	}).Description(locales.StorageHostHint()).Error(hostError)
 	a.foundServers(c, f)
-	ui.Field(c, locales.StorageFieldUsername(), func() {
-		ui.TextInput(c, &f.in.Username)
-	}).Description(locales.StorageUsernameHint()).
-		Error(problemText(f.problems.For(domain.FieldUsername)))
-	ui.Field(c, locales.StorageFieldPassword(), func() {
-		ui.TextInput(c, &f.in.Secret).Password()
-	}).Description(passwordHint).Error(problemText(f.problems.For(domain.FieldSecret)))
+	ui.Row(c).Gap(14).AlignItems(ui.Start).Children(func() {
+		ui.Field(c, locales.StorageFieldUsername(), func() {
+			ui.TextInput(c, &f.in.Username)
+		}).Grow(1).MinWidth(0).Description(locales.StorageUsernameHint()).
+			Error(problemText(f.problems.For(domain.FieldUsername)))
+		ui.Field(c, locales.StorageFieldPassword(), func() {
+			ui.TextInput(c, &f.in.Secret).Password()
+		}).Grow(1).MinWidth(0).Description(passwordHint).
+			Error(problemText(f.problems.For(domain.FieldSecret)))
+	})
 }
 
 // defaultStorageName is the name a new storage gets when the person leaves
@@ -406,90 +437,74 @@ func plaintextEndpoint(endpoint string) bool {
 	return strings.HasPrefix(strings.ToLower(strings.TrimSpace(endpoint)), "http://")
 }
 
-// warning shows something the person should know but that does not stop them.
+// warning shows something the person should know but that does not stop
+// them, as a soft banner of the page's warning color.
 func warning(c *ui.Context, text string) {
-	t := c.Theme()
-	ui.Row(c).Gap(8).AlignItems(ui.Start).TextColor(t.Warning).Children(func() {
-		ui.Icon(c, icons.Warning)
-		ui.Text(c, text).Grow(1).MinWidth(0)
+	p := paletteFor(c.Theme())
+	ui.Row(c).Radius(rowRadius).Padding(10, 12).Gap(9).AlignItems(ui.Start).
+		Background(p.warningSoft).Children(func() {
+		ui.Icon(c, icons.Warning).Size(14, 14).TextColor(p.warning)
+		ui.Text(c, text).FontSize(sizeSmall).TextColor(p.warning).Grow(1).MinWidth(0).LineHeight(1.45)
 	})
 }
 
 // result shows how a check went, with an icon as well as the color.
 func result(c *ui.Context, text string, failed bool) {
-	t := c.Theme()
-	color, svg := t.Success, icons.Success
+	p := paletteFor(c.Theme())
+	color, svg := p.success, icons.Success
 	if failed {
-		color, svg = t.Danger, icons.Failed
+		color, svg = p.danger, icons.Failed
 	}
 	ui.Row(c).Gap(8).AlignItems(ui.Start).TextColor(color).Children(func() {
-		ui.Icon(c, svg)
-		ui.Text(c, text).Grow(1).MinWidth(0).Selectable()
+		ui.Icon(c, svg).Size(14, 14)
+		ui.Text(c, text).FontSize(sizeSmall).Grow(1).MinWidth(0).LineHeight(1.45).Selectable()
 	})
 }
 
-// storageLabels are the labels of the fields of both kinds.
-func storageLabels() []string {
-	return []string{
-		locales.StorageFieldProvider(), locales.StorageFieldEndpoint(), locales.StorageFieldRegion(),
-		locales.StorageFieldBucket(), locales.StorageFieldAccessKeyId(), locales.StorageFieldSecret(),
-		locales.StorageFieldHost(), locales.StorageFieldUsername(), locales.StorageFieldPassword(),
-		locales.StorageFieldFound(),
-	}
-}
-
-// reserveLabels makes the label column of the Form it is in as wide as
-// labels too, though no field shows them, so the controls stay in place as
-// the fields change: a Form sizes the column to its widest label. The
-// fields are invisible, which keeps them out of drawing, the pointer, the
-// focus and assistive technology, in a box that takes no room.
-func reserveLabels(c *ui.Context, labels ...string) {
-	ui.Box(c).Width(0).Height(0).Invisible().Children(func() {
-		for _, label := range labels {
-			ui.Field(c, label, func() {})
-		}
-	})
-}
-
-// serverRows is how many servers the list shows before it scrolls: the
-// dialog does not scroll, so the list stays short.
+// serverRows is how many servers the discovered list shows before it
+// scrolls: the sheet's body may scroll, but the list stays short.
 const (
 	serverRows      = 3
-	serverRowHeight = 32
+	serverRowHeight = 44
 )
 
 // foundServers lists the servers a search of the network found, to fill
 // the server in with one, and says what to do when it found none.
 func (a *App) foundServers(c *ui.Context, f *storageForm) {
-	t := c.Theme()
-	ui.Field(c, locales.StorageFieldFound(), func() {
-		if len(f.servers) > 0 {
-			a.serverList(c, f)
-			ui.Text(c, locales.StorageServersUnverified()).TextColor(t.TextMuted).FontSize(11)
-		}
-		ui.Row(c).Gap(8).AlignItems(ui.Center).FillWidth().Children(func() {
+	p := paletteFor(c.Theme())
+	ui.Column(c).Gap(8).Children(func() {
+		ui.Row(c).Gap(8).AlignItems(ui.Center).MinHeight(28).Children(func() {
+			ui.Text(c, locales.StorageFieldFound()).FontSize(sizeSmall).FontWeight(600).
+				LetterSpacing(0.2).TextColor(p.muted).Grow(1).MinWidth(0).
+				SingleLine().Ellipsis("…")
 			switch {
 			case f.searching:
-				ui.Row(c).Gap(8).AlignItems(ui.Center).MinHeight(28).TextColor(t.TextMuted).Children(func() {
+				ui.Row(c).Gap(7).AlignItems(ui.Center).TextColor(p.muted).Children(func() {
 					ui.Spinner(c).Label(locales.StorageFindingServers())
-					ui.Text(c, locales.StorageFindingServers())
+					ui.Text(c, locales.StorageFindingServers()).FontSize(sizeSmall).SingleLine()
 				})
 			case !f.searched:
-				if iconButton(c, icons.Refresh, locales.StorageFindServers(), false).Clicked() {
+				if accentButton(c, "storage-find", icons.Refresh, locales.StorageFindServers(), buttonSoft).Clicked() {
 					a.findServers()
 				}
 			default:
-				if iconButton(c, icons.Refresh, locales.StorageFindAgain(), false).Clicked() {
+				if accentButton(c, "storage-find-again", icons.Refresh, locales.StorageFindAgain(), buttonSoft).Clicked() {
 					a.findServers()
 				}
 			}
 		})
+		if len(f.servers) > 0 {
+			a.serverList(c, f)
+			ui.Text(c, locales.StorageServersUnverified()).FontSize(sizeMicro).TextColor(p.faint).
+				LineHeight(1.45)
+		}
 		if f.searched && !f.searching {
 			switch {
 			case f.searchFailed != "":
 				result(c, f.searchFailed, true)
 			case len(f.servers) == 0:
-				ui.Text(c, locales.StorageServersNone()).TextColor(t.TextMuted)
+				ui.Text(c, locales.StorageServersNone()).FontSize(sizeSmall).TextColor(p.muted).
+					LineHeight(1.45)
 			}
 		}
 	})
@@ -498,36 +513,56 @@ func (a *App) foundServers(c *ui.Context, f *storageForm) {
 // serverList shows the servers found, one a row: choosing one fills the
 // form in with it. The row of the server the form holds shows as chosen.
 func (a *App) serverList(c *ui.Context, f *storageForm) {
-	t := c.Theme()
+	p := paletteFor(c.Theme())
 	f.serverChoice = -1
 	for i, s := range f.servers {
 		if strings.EqualFold(s.Host, f.in.Host) {
 			f.serverChoice = i
 		}
 	}
-	f.serverList.Selected = &f.serverChoice
-	f.serverList.Key = func(i int) any { return f.servers[i].Host }
 	n := len(f.servers)
-	list := ui.List(c, &f.serverList, n, func(i int) {
-		s := f.servers[i]
-		address := s.Host
-		if s.Port != domain.DefaultSMBPort {
-			address += ":" + strconv.Itoa(s.Port)
-		}
-		ui.Row(c).Gap(8).AlignItems(ui.Center).Height(serverRowHeight).Padding(0, t.Space(2.5)).Children(func() {
-			ui.Icon(c, icons.Server)
-			// A long name gives way; the address shows whole.
-			ui.Text(c, s.Name).SingleLine().Ellipsis("…").MinWidth(0).Grow(1)
-			addr := ui.Text(c, address).SingleLine().Shrink(0)
-			if i != f.serverChoice {
-				// The chosen row's own color reads on its accent.
-				addr.TextColor(t.TextMuted)
+	ui.Scroll(c).Height(float32(min(n, serverRows)*serverRowHeight+2)).FillWidth().
+		ScrollbarInsets(2, 4, 2).
+		Border(1, p.line).Radius(rowRadius).Clip().Children(func() {
+		ui.Column(c).Gap(2).Padding(3, 3).Children(func() {
+			for i, s := range f.servers {
+				address := s.Host
+				if s.Port != domain.DefaultSMBPort {
+					address += ":" + strconv.Itoa(s.Port)
+				}
+				chosen := i == f.serverChoice
+				row := ui.ButtonBase(c.Key(s.Host)).Height(serverRowHeight - 4).PaddingX(8).Gap(10).
+					Radius(8).AlignItems(ui.Center).Label(locales.StorageUseServer(s.Name, s.Host))
+				row.Transition(quickTransition)
+				switch {
+				case chosen:
+					row.Background(p.accentSoft)
+				case row.Pressed():
+					row.Background(p.press)
+				case row.Hovered():
+					row.Background(p.hover)
+				}
+				row.Children(func() {
+					tile := p.accentSoft
+					if chosen {
+						tile = p.card
+					}
+					iconTile(c, icons.Server, 26, p.accent, tile)
+					ui.Column(c).Grow(1).MinWidth(0).Gap(2).Children(func() {
+						// A long name gives way; the address shows whole.
+						ui.Text(c, s.Name).FontSize(sizeSmall).FontWeight(560).TextColor(p.text).
+							SingleLine().Ellipsis("…")
+						ui.Text(c, address).FontSize(sizeMicro).TextColor(p.muted).
+							FontFeatures("tnum").SingleLine()
+					})
+					if chosen {
+						ui.Icon(c, icons.Check).Size(14, 14).TextColor(p.accent)
+					}
+				})
+				if row.Clicked() {
+					a.useServer(s)
+				}
 			}
 		})
-	}).Label(locales.StorageFieldFound()).FillWidth().
-		Height(float32(min(n, serverRows)*serverRowHeight+2)).
-		Border(1, t.Border).Radius(t.Radius)
-	if list.Changed() && f.serverChoice >= 0 && f.serverChoice < n {
-		a.useServer(f.servers[f.serverChoice])
-	}
+	})
 }

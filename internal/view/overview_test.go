@@ -1,11 +1,13 @@
 package view
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
 
 	"github.com/starriv/cloudshuttle/internal/domain"
+	"github.com/starriv/cloudshuttle/locales"
 )
 
 func TestWeekStartIsMidnightSixDaysBeforeToday(t *testing.T) {
@@ -86,5 +88,61 @@ func TestRecentGroupsStopAtTheRowsTheOverviewShows(t *testing.T) {
 	}
 	if got := (&App{recent: runs}).recentGroups(); len(got) != recentRuns {
 		t.Fatalf("groups = %d, want %d", len(got), recentRuns)
+	}
+}
+
+func TestOverviewHealthUsesLatestRealRun(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		real    domain.Status
+		preview bool
+	}{
+		{name: "never run"},
+		{name: "preview only", preview: true},
+		{name: "canceled then preview", real: domain.StatusCanceled, preview: true},
+		{name: "failure then preview", real: domain.StatusFailed, preview: true},
+		{name: "real success", real: domain.StatusSuccess},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newHarness(t)
+			ctx := context.Background()
+			task, err := h.svc.CreateTask(ctx, domain.TaskInput{
+				Name: "Backup", Mode: domain.ModeCopy, AllowRoot: true,
+				Source: domain.Location{Path: t.TempDir()}, Destination: domain.Location{Path: t.TempDir()},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			now := time.Now()
+			addRun := func(id string, status domain.Status, dry bool, started time.Time) {
+				run := domain.Run{ID: id, TaskID: task.ID, TaskName: task.Name, Mode: task.Mode, Trigger: domain.TriggerManual,
+					Status: status, DryRun: dry, StartedAt: started, FinishedAt: started.Add(time.Second)}
+				if err := h.db.InsertRun(ctx, run); err != nil {
+					t.Fatal(err)
+				}
+				if err := h.db.FinishRun(ctx, run); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if tc.real != "" {
+				addRun("real", tc.real, false, now.Add(-time.Minute))
+			}
+			if tc.preview {
+				addRun("preview", domain.StatusSuccess, true, now.Add(-time.Second))
+			}
+			h.app.Reload()
+			h.settle()
+			switch tc.real {
+			case domain.StatusSuccess:
+				h.expect(locales.OverviewSubtitleAll())
+			case domain.StatusFailed:
+				h.expect(locales.OverviewSubtitleFailing(1))
+			default:
+				h.expect(locales.OverviewSubtitleNeutral())
+			}
+			if tc.real != domain.StatusSuccess && h.tt.HasText(locales.OverviewAllSucceeded()) {
+				t.Fatal("overview claimed all backups succeeded")
+			}
+		})
 	}
 }

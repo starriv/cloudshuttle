@@ -15,71 +15,140 @@ import (
 // connectionTimeout bounds a connection test.
 const connectionTimeout = 20 * time.Second
 
+// storageCardGap is the room between the storage cards of the page.
+const storageCardGap = gutter
+
+// storageMinCard is how narrow a storage card may be before the grid drops a
+// column: two at the window's usual width.
+const storageMinCard = 320
+
 func (a *App) storagesPage(c *ui.Context) {
-	header(c, locales.NavStorages(), func() {
-		if iconButton(c, icons.Add, locales.StoragesAdd(), true).Clicked() {
+	pageHeader(c, locales.NavStorages(), locales.StoragesSubtitle(), func() {
+		if accentButton(c, "storages-add", icons.Add, locales.StoragesAdd(), buttonPrimary).Clicked() {
 			a.openStorageForm(nil)
 		}
 	})
 	if len(a.storages) == 0 {
-		empty(c, icons.Storages, locales.StoragesEmpty(), nil)
-		return
-	}
-
-	t := c.Theme()
-	cols := []ui.TableColumn{
-		{Title: locales.StoragesColumnName(), ID: "name", MinWidth: 100},
-		{Title: locales.StoragesColumnKind(), ID: "kind", Width: 170},
-		{Title: locales.StoragesColumnAddress(), ID: "address", MinWidth: 100},
-		{Title: locales.StoragesColumnStatus(), ID: "status", Width: 120},
-		{Title: "", ID: "actions", Width: 140, Fixed: true, Align: ui.End},
-	}
-	a.storageList.Label = func(i int) string { return a.storages[i].Name }
-	ui.Table(c, &a.storageList, cols, len(a.storages), func(row, col int) {
-		s := a.storages[row]
-		switch col {
-		case 0:
-			ui.Text(c, s.Name).SingleLine()
-		case 1:
-			svg, label := icons.Bucket, providerLabel(s.Provider)
-			if s.Kind == domain.KindSMB {
-				svg, label = icons.Server, kindLabel(s.Kind)
-			}
-			ui.Row(c).Gap(6).AlignItems(ui.Center).MinWidth(0).Children(func() {
-				ui.Icon(c, svg).TextColor(t.TextMuted)
-				ui.Text(c, label).SingleLine().Ellipsis("…")
-			})
-		case 2:
-			ui.Row(c).Gap(6).AlignItems(ui.Center).MinWidth(0).Children(func() {
-				ui.Text(c, storageAddress(s)).SingleLine().Ellipsis("…").TextColor(t.TextMuted).MinWidth(0)
-				if plaintextEndpoint(s.Endpoint) {
-					ui.Icon(c, icons.Warning).TextColor(t.Warning).Tooltip(locales.StoragePlaintextWarning())
-				}
-			})
-		case 3:
-			a.storageStatus(c, s)
-		case 4:
-			a.storageActions(c, s)
-		}
-	}).Grow(1)
-}
-
-func (a *App) storageActions(c *ui.Context, s domain.Storage) {
-	ui.Row(c).Gap(6).Justify(ui.End).Children(func() {
-		if iconButton(c, icons.Test, locales.StorageTestShort(), false).Tooltip(locales.StorageTest()).Clicked() {
-			a.testStorage(s)
-		}
-		ui.Button(c, "").Label(locales.StorageActions(s.Name)).Children(func() {
-			ui.Icon(c, icons.More)
-		}).Menu(func(m *ui.Menu) {
-			if m.Item(locales.StorageEdit()).Chosen() {
-				a.openStorageForm(&s)
-			}
-			if m.Item(locales.StorageDelete()).Chosen() {
-				a.confirmDeleteStorage(s)
+		emptyPage(c, icons.Storages, locales.StoragesEmptyTitle(), locales.StoragesEmpty(), func() {
+			if accentButton(c, "storages-empty-add", icons.Add, locales.StoragesAdd(), buttonPrimary).Clicked() {
+				a.openStorageForm(nil)
 			}
 		})
+		return
+	}
+	pageScroll(c).Children(func() {
+		ui.Column(c).Gap(storageCardGap).Padding(0, 0, pageBottom, 0).Children(func() {
+			a.storagesGrid(c)
+		})
 	})
+}
+
+// storagesGrid puts the storages in columns of cards, as many as the window
+// has room for: two at its usual width, one at its narrowest.
+func (a *App) storagesGrid(c *ui.Context) {
+	cols := storageColumns(c)
+	tracks := make([]ui.Track, cols)
+	for i := range tracks {
+		tracks[i] = ui.Fr(1)
+	}
+	ui.Grid(c).ColumnTracks(tracks...).GapX(storageCardGap).GapY(storageCardGap).Children(func() {
+		for _, s := range a.storages {
+			a.storageCard(c, s)
+		}
+	})
+}
+
+// storageColumns is how many cards fit in a row at the window's width.
+func storageColumns(c *ui.Context) int {
+	w, _ := c.Size()
+	room := w - sidebarWidth - 2*pagePad
+	cols := int((room + storageCardGap) / (storageMinCard + storageCardGap))
+	return min(4, max(1, cols))
+}
+
+// storageCard is one storage as a card: what it is and where it points, how
+// its last connection test went, and what can be done with it. The card
+// lifts as the pointer is on it.
+func (a *App) storageCard(c *ui.Context, s domain.Storage) {
+	p := paletteFor(c.Theme())
+	svg, kind := icons.Bucket, providerLabel(s.Provider)
+	if s.Kind == domain.KindSMB {
+		svg, kind = icons.Server, kindLabel(s.Kind)
+	}
+	face := card(c).Padding(cardPadY, cardPadX).Gap(gapMedium)
+	lift(face)
+	face.Children(func() {
+		ui.Row(c).Gap(12).AlignItems(ui.Center).MinWidth(0).Children(func() {
+			iconTile(c, svg, 38, p.accent, p.accentSoft)
+			ui.Column(c).Grow(1).MinWidth(0).Gap(3).Children(func() {
+				ui.Text(c, s.Name).FontSize(15).FontWeight(600).LetterSpacing(-0.1).TextColor(p.text).
+					SingleLine().Ellipsis("…")
+				ui.Row(c).Gap(5).AlignItems(ui.Center).MinWidth(0).Children(func() {
+					ui.Text(c, storageAddress(s)).FontSize(sizeSmall).TextColor(p.muted).
+						FontFeatures("tnum").SingleLine().Ellipsis("…").MinWidth(0).
+						Tooltip(storageAddress(s))
+					if plaintextEndpoint(s.Endpoint) {
+						ui.Icon(c, icons.Warning).Size(13, 13).TextColor(p.warning).
+							Tooltip(locales.StoragePlaintextWarning())
+					}
+				})
+			})
+			a.storageCheckPill(c, s)
+		})
+		ui.Row(c).Gap(8).AlignItems(ui.Center).MinWidth(0).Children(func() {
+			ui.Text(c, kind).FontSize(sizeMicro).FontWeight(600).LetterSpacing(0.3).
+				TextColor(p.muted).SingleLine().Ellipsis("…").MinWidth(0).Grow(1)
+			if accentButton(c, "storage-test-"+s.ID, icons.Test, locales.StorageTestShort(), buttonSoft).
+				Disabled(a.checking[s.ID]).Clicked() {
+				a.testStorage(s)
+			}
+			iconAction(c, "storage-more-"+s.ID, icons.More, locales.StorageActions(s.Name)).
+				Menu(func(m *ui.Menu) {
+					if m.Item(locales.StorageEdit()).Chosen() {
+						a.openStorageForm(&s)
+					}
+					if m.Item(locales.StorageDelete()).Chosen() {
+						a.confirmDeleteStorage(s)
+					}
+				})
+		})
+	})
+}
+
+// storageCheckPill shows how a storage last tested as a pill of the page's
+// look, its icon turning while a test runs, with what a test found in its
+// tooltip.
+func (a *App) storageCheckPill(c *ui.Context, s domain.Storage) ui.Element {
+	p := paletteFor(c.Theme())
+	checking := a.checking[s.ID]
+	svg, label, tip := icons.Untested, locales.CheckNone(), locales.CheckNoneHint()
+	fg, bg := p.muted, p.neutralSoft
+	switch {
+	case checking:
+		svg, label, tip = icons.Running, locales.StorageTesting(), ""
+		fg, bg = p.accent, p.accentSoft
+	case !s.Check.Checked():
+	case s.Check.OK:
+		svg, label, tip = icons.Success, locales.CheckOK(), locales.CheckOKAt(formatTime(c, s.Check.At))
+		fg, bg = p.success, p.successSoft
+	default:
+		svg, label = icons.Failed, locales.CheckFailed()
+		tip = locales.CheckFailedAt(formatTime(c, s.Check.At), checkProblem(s.Check))
+		fg, bg = p.danger, p.dangerSoft
+	}
+	e := ui.Row(c.Key("check-" + s.ID)).Height(21).PaddingX(8).Gap(5).Radius(11).
+		AlignItems(ui.Center).Background(bg).TextColor(fg).Shrink(0)
+	e.Children(func() {
+		icon := ui.Icon(c, svg).Size(12, 12)
+		if checking {
+			icon.Rotate(icon.Loop("spin", time.Second, ui.Linear) * 360)
+		}
+		ui.Text(c, label).FontSize(sizeMicro).FontWeight(560).SingleLine()
+	})
+	if tip != "" {
+		e.Tooltip(tip)
+	}
+	return e
 }
 
 // storageAddress is where a storage is: the bucket at its endpoint, as a
@@ -125,7 +194,7 @@ func (a *App) testStorage(s domain.Storage) {
 }
 
 // checkStorage tests a saved storage off the main thread; the service
-// records how it went, which the status column shows. told toasts it too.
+// records how it went, which the card shows. told toasts it too.
 func (a *App) checkStorage(s domain.Storage, told bool) {
 	if a.checking[s.ID] {
 		return
@@ -148,33 +217,6 @@ func (a *App) checkStorage(s domain.Storage, told bool) {
 			}
 		})
 	}()
-}
-
-// storageStatus shows how a storage last tested, with an icon and a word.
-func (a *App) storageStatus(c *ui.Context, s domain.Storage) {
-	t := c.Theme()
-	svg, label, color, tip := icons.Untested, locales.CheckNone(), t.TextMuted, locales.CheckNoneHint()
-	switch {
-	case a.checking[s.ID]:
-		svg, label, color, tip = icons.Running, locales.StorageTesting(), t.Accent, ""
-	case !s.Check.Checked():
-	case s.Check.OK:
-		svg, label, color = icons.Success, locales.CheckOK(), t.Success
-		tip = locales.CheckOKAt(formatTime(c, s.Check.At))
-	default:
-		svg, label, color = icons.Failed, locales.CheckFailed(), t.Danger
-		tip = locales.CheckFailedAt(formatTime(c, s.Check.At), checkProblem(s.Check))
-	}
-	row := ui.Row(c).Gap(6).AlignItems(ui.Center).MinWidth(0).TextColor(color).Children(func() {
-		icon := ui.Icon(c, svg)
-		if a.checking[s.ID] {
-			icon.Rotate(icon.Loop("spin", time.Second, ui.Linear) * 360)
-		}
-		ui.Text(c, label).SingleLine().Ellipsis("…")
-	})
-	if tip != "" {
-		row.Tooltip(tip)
-	}
 }
 
 // checkProblem says why a test failed.

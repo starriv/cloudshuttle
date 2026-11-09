@@ -7,6 +7,7 @@ import (
 	"github.com/egoist/mygo/ui"
 	"github.com/starriv/cloudshuttle/internal/domain"
 	"github.com/starriv/cloudshuttle/internal/format"
+	"github.com/starriv/cloudshuttle/internal/icons"
 	"github.com/starriv/cloudshuttle/locales"
 )
 
@@ -106,31 +107,38 @@ func excludeSummary(e domain.Exclude) string {
 // excludeInput is the task form's line for what the task leaves out: a
 // summary, and a button that opens the editor.
 func (a *App) excludeInput(c *ui.Context, f *taskForm) {
-	t := c.Theme()
+	p := paletteFor(c.Theme())
 	e := f.exclude.exclude()
-	err := ""
+	ui.Row(c).Gap(8).FillWidth().AlignItems(ui.Center).Children(func() {
+		ui.Text(c, excludeSummary(e)).TextColor(p.muted).FontSize(sizeSmall).Grow(1).MinWidth(0).
+			SingleLine().Ellipsis("…")
+		if accentButton(c, "exclude-edit", nil, locales.TaskExcludeEdit(), buttonSoft).Clicked() {
+			f.exclude.open, f.exclude.before = true, f.exclude.excludeDraft.clone()
+		}
+	})
+}
+
+// excludeDescription says the global rules apply as well, so the form does
+// not understate what a run leaves out.
+func (a *App) excludeDescription(f *taskForm) string {
+	if n := len(a.settings.GlobalExcludes); a.settings.ExcludeEnabled && n > 0 {
+		return locales.TaskExcludeGlobalHint(n)
+	}
+	return ""
+}
+
+// excludeError says why the field cannot be saved.
+func (a *App) excludeError(f *taskForm) string {
+	e := f.exclude.exclude()
 	switch {
 	case f.problems.For(domain.FieldExclude) != "" || a.invalidExcludeLine(&f.exclude) > 0:
-		err = locales.TaskExcludeFailed()
+		return locales.TaskExcludeFailed()
 	case e.Validate() != "":
-		err = problemText(e.Validate())
+		return problemText(e.Validate())
 	case f.exclude.unreadable:
-		err = locales.TaskExcludeUnreadable()
+		return locales.TaskExcludeUnreadable()
 	}
-	// The summary counts the task's own rules; the description says the
-	// global ones apply as well, so the form does not understate a run.
-	desc := ""
-	if n := len(a.settings.GlobalExcludes); a.settings.ExcludeEnabled && n > 0 {
-		desc = locales.TaskExcludeGlobalHint(n)
-	}
-	ui.Field(c, locales.TaskFieldExclude(), func() {
-		ui.Row(c).Gap(8).FillWidth().AlignItems(ui.Center).Children(func() {
-			ui.Text(c, excludeSummary(e)).TextColor(t.TextMuted).Grow(1).MinWidth(0)
-			if ui.Button(c, locales.TaskExcludeEdit()).Clicked() {
-				f.exclude.open, f.exclude.before = true, f.exclude.excludeDraft.clone()
-			}
-		})
-	}).Description(desc).Error(err)
+	return ""
 }
 
 // invalidExcludeLine is the first line of the field's other rules that is
@@ -149,26 +157,27 @@ func (a *App) invalidExcludeLine(f *excludeField) int {
 	return f.invalid
 }
 
-// excludeEditor edits what the task leaves out, in place of the form.
-func (a *App) excludeEditor(c *ui.Context, f *taskForm) {
-	t := c.Theme()
+// excludeEditorBody edits what the task leaves out: the common presets as
+// chips, other rules one a line, and a limit on the files' size.
+func (a *App) excludeEditorBody(c *ui.Context, f *taskForm) {
+	p := paletteFor(c.Theme())
 	x := &f.exclude
-	ui.Text(c, locales.TaskExcludeTitle()).FontSize(18).FontWeight(500)
-	ui.Text(c, locales.TaskExcludeHint()).TextColor(t.TextMuted)
 	if x.unreadable {
-		ui.Text(c, locales.TaskExcludeUnreadable()).FontSize(12).TextColor(t.Danger)
+		ui.Row(c).Gap(7).AlignItems(ui.Center).Children(func() {
+			ui.Icon(c, icons.Warning).Size(13, 13).TextColor(p.danger)
+			ui.Text(c, locales.TaskExcludeUnreadable()).FontSize(sizeSmall).TextColor(p.danger).
+				Grow(1).MinWidth(0).LineHeight(1.45)
+		})
 	}
-	if n := len(a.settings.GlobalExcludes); a.settings.ExcludeEnabled && n > 0 {
-		ui.Text(c, locales.TaskExcludeGlobalHint(n)).FontSize(12).TextColor(t.TextMuted)
-	}
-	ui.Form(c, func() {
-		ui.Field(c, locales.TaskExcludeCommon(), func() {
-			ui.Column(c).Gap(6).Children(func() {
-				for i, p := range domain.ExcludePresets {
-					ui.Checkbox(c, &x.presets[i], p)
+	ui.Column(c).Gap(20).Children(func() {
+		fieldGroup(c, locales.TaskExcludeCommon(), func() {
+			ui.Row(c).Gap(8).Wrap().Children(func() {
+				for i, pattern := range domain.ExcludePresets {
+					a.excludeChip(c, &x.presets[i], pattern, i)
 				}
 			})
 		})
+
 		lineErr := ""
 		if line := a.invalidExcludeLine(x); line > 0 {
 			lineErr = locales.TaskExcludeInvalidLine(line)
@@ -178,20 +187,53 @@ func (a *App) excludeEditor(c *ui.Context, f *taskForm) {
 		ui.Field(c, locales.TaskExcludePatterns(), func() {
 			ui.TextArea(c, &x.custom).Label(locales.TaskExcludePatterns()).Height(120).FillWidth()
 		}).Description(locales.TaskExcludePatternsHint()).Error(lineErr)
+
 		ui.Field(c, locales.TaskExcludeLarge(), func() {
 			values, labels := maxSizeOptions(x.maxSize)
 			chosen := labels[slices.Index(values, x.maxSize)]
-			ui.Select(c, &chosen, labels).Label(locales.TaskExcludeLarge()).Width(220)
+			ui.Row(c).Children(func() {
+				ui.Select(c, &chosen, labels).Label(locales.TaskExcludeLarge()).Width(260)
+			})
 			if i := slices.Index(labels, chosen); i >= 0 {
 				x.maxSize = values[i]
 			}
 		})
 	})
-	ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-		if ui.Button(c, locales.ButtonCancel()).Clicked() {
+}
+
+// excludeChip is one of the common patterns, a chip that toggles it.
+func (a *App) excludeChip(c *ui.Context, on *bool, pattern string, key int) ui.Element {
+	p := paletteFor(c.Theme())
+	chip := ui.CheckboxBase(c.Key(key), on).Height(28).PaddingX(10).Gap(6).Radius(14).
+		AlignItems(ui.Center).Label(pattern)
+	chip.Transition(quickTransition)
+	fg, bg, border := p.muted, p.cardAlt, p.hairline
+	if *on {
+		fg, bg, border = p.accent, p.accentSoft, p.accentEdge
+	}
+	chip.TextColor(fg)
+	if chip.Hovered() {
+		bg = p.hover.Over(p.card)
+	}
+	chip.Background(bg).Border(1, border)
+	chip.Children(func() {
+		if *on {
+			ui.Icon(c, icons.Check).Size(12, 12)
+		}
+		ui.Text(c, pattern).FontSize(sizeSmall).FontWeight(540).SingleLine()
+	})
+	return chip
+}
+
+// excludeEditorFoot goes back to the form, or keeps the rules the editor
+// shows when they are valid.
+func (a *App) excludeEditorFoot(c *ui.Context, f *taskForm) {
+	x := &f.exclude
+	sheetActions(c, func() {
+		if accentButton(c, "exclude-cancel", nil, locales.ButtonCancel(), buttonSoft).Clicked() {
 			x.open, x.excludeDraft = false, x.before
 		}
-		if ui.PrimaryButton(c, locales.TaskExcludeDone()).Clicked() {
+		if accentButton(c, "exclude-done", nil, locales.TaskExcludeDone(), buttonPrimary).Clicked() {
 			if a.invalidExcludeLine(x) == 0 && x.exclude().Validate() == "" {
 				x.open, x.unreadable = false, false
 			}

@@ -95,92 +95,126 @@ func (a *App) chooseBrowsed(path []string) {
 	a.taskForm.browser = nil
 }
 
-func (a *App) folderBrowserView(c *ui.Context) {
+// folderBrowserBody is the sheet's body while a folder is chosen: where in
+// the storage the person is, then the folders there.
+func (a *App) folderBrowserBody(c *ui.Context) {
+	p := paletteFor(c.Theme())
 	b := a.taskForm.browser
-	t := c.Theme()
-	ui.Text(c, locales.BrowseTitle(b.storage.Name)).FontSize(18).FontWeight(500)
-
 	// The top: the bucket, or the SMB server, whose folders are shares.
 	top, shares := b.storage.Name, b.storage.Kind == domain.KindSMB && len(b.path) == 0
 	if b.storage.Kind != domain.KindSMB && b.storage.Bucket != "" {
 		top = b.storage.Bucket
 	}
-	// At the top, the path would only repeat the title.
-	if len(b.path) > 0 {
-		crumbs := append([]string{top}, b.path...)
-		b.crumb = len(crumbs) - 1
-		if ui.Breadcrumbs(c, crumbs, &b.crumb).Label(locales.BrowsePath()).Changed() && b.crumb < len(b.path) {
-			b.path = b.path[:b.crumb]
-			a.loadFolders(false)
+	ui.Column(c).Gap(12).Children(func() {
+		// At the top, the path would only repeat the title.
+		if len(b.path) > 0 {
+			crumbs := append([]string{top}, b.path...)
+			b.crumb = len(crumbs) - 1
+			if ui.Breadcrumbs(c, crumbs, &b.crumb).Label(locales.BrowsePath()).Changed() &&
+				b.crumb < len(b.path) {
+				b.path = b.path[:b.crumb]
+				a.loadFolders(false)
+			}
 		}
-	}
 
-	if b.notice != "" {
-		ui.Row(c).Gap(8).AlignItems(ui.Start).TextColor(t.TextMuted).Children(func() {
-			ui.Icon(c, icons.Stopped)
-			ui.Text(c, b.notice).Grow(1).MinWidth(0)
-		})
-	}
-
-	ui.Column(c).Gap(6).Children(func() {
-		box := func(fn func()) {
-			ui.Column(c).Height(browseHeight).Justify(ui.Center).AlignItems(ui.Center).
-				Padding(t.Space(4)).Border(1, t.Border).Radius(t.Radius).TextColor(t.TextMuted).Children(fn)
+		if b.notice != "" {
+			ui.Row(c).Gap(8).AlignItems(ui.Start).TextColor(p.muted).Children(func() {
+				ui.Icon(c, icons.Stopped).Size(13, 13).TextColor(p.warning)
+				ui.Text(c, b.notice).FontSize(sizeSmall).Grow(1).MinWidth(0).LineHeight(1.45)
+			})
 		}
+
 		switch {
 		case b.loading:
-			box(func() {
+			browseWell(c, p, func() {
 				ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 					ui.Spinner(c).Label(locales.BrowseLoading())
-					ui.Text(c, locales.BrowseLoading())
+					ui.Text(c, locales.BrowseLoading()).FontSize(sizeSmall).TextColor(p.muted)
 				})
 			})
 		case b.failed != "":
-			box(func() { result(c, b.failed, true) })
+			browseWell(c, p, func() {
+				ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+					ui.Icon(c, icons.Failed).Size(13, 13).TextColor(p.danger)
+					ui.Text(c, b.failed).FontSize(sizeSmall).TextColor(p.danger).
+						TextAlign(ui.Center).LineHeight(1.45)
+				})
+			})
 		case len(b.folders) == 0:
 			empty := locales.BrowseEmpty()
 			if shares {
 				empty = locales.StorageSharesNone()
 			}
-			box(func() { ui.Text(c, empty).TextAlign(ui.Center) })
+			browseWell(c, p, func() {
+				ui.Text(c, empty).FontSize(sizeSmall).TextColor(p.muted).
+					TextAlign(ui.Center).LineHeight(1.5)
+			})
 		default:
-			b.list.Selected = &b.choice
-			b.list.Key = func(i int) any { return b.folders[i] }
-			icon, label := icons.Folder, locales.BrowseFolders()
-			if shares {
-				icon, label = icons.Shares, locales.BrowseShares()
-			}
-			list := ui.List(c, &b.list, len(b.folders), func(i int) {
-				ui.Row(c).Gap(8).AlignItems(ui.Center).Height(serverRowHeight).Padding(0, t.Space(2.5)).Children(func() {
-					ui.Icon(c, icon)
-					ui.Text(c, b.folders[i]).SingleLine().Ellipsis("…").MinWidth(0).Grow(1)
-				})
-			}).Label(label).FillWidth().Height(browseHeight).Border(1, t.Border).Radius(t.Radius)
-			if list.Submitted() && b.choice >= 0 && b.choice < len(b.folders) {
-				a.openFolder(b.folders[b.choice])
-				return
-			}
-			ui.Text(c, locales.BrowseHint()).TextColor(t.TextMuted)
+			a.folderList(c, b, p, shares)
+			ui.Text(c, locales.BrowseHint()).FontSize(sizeMicro).TextColor(p.faint).LineHeight(1.4)
 		}
+
 		if shares && !b.loading {
 			a.typeShare(c, b)
 		}
 	})
+}
 
-	ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-		if ui.Button(c, locales.ButtonCancel()).Clicked() {
+// browseWell is the box the browser's list or its state sits in.
+func browseWell(c *ui.Context, p palette, fn func()) {
+	ui.Column(c).Height(browseHeight).Justify(ui.Center).AlignItems(ui.Center).
+		Padding(16).Radius(rowRadius).Background(p.cardAlt).Border(1, p.hairline).
+		Children(fn)
+}
+
+// folderList is the folders of the browser's path, or a server's shares.
+func (a *App) folderList(c *ui.Context, b *folderBrowser, p palette, shares bool) {
+	b.list.Selected = &b.choice
+	b.list.Key = func(i int) any { return b.folders[i] }
+	icon, label := icons.Folder, locales.BrowseFolders()
+	if shares {
+		icon, label = icons.Shares, locales.BrowseShares()
+	}
+	list := ui.List(c, &b.list, len(b.folders), func(i int) {
+		// A chosen row paints the accent behind it, so its words take the
+		// color over the accent.
+		fg, soft := p.text, p.faint
+		if i == b.choice {
+			fg, soft = p.accentText, p.accentText.Alpha(0.72)
+		}
+		row := ui.Row(c).Height(serverRowHeight).Padding(0, gapSmall).AlignItems(ui.Center).Gap(8)
+		row.Children(func() {
+			ui.Icon(c, icon).Size(13, 13).TextColor(soft)
+			ui.Text(c, b.folders[i]).FontSize(sizeSmall).TextColor(fg).SingleLine().
+				Ellipsis("…").MinWidth(0).Grow(1)
+			ui.Icon(c, icons.ChevronRight).Size(11, 11).TextColor(soft)
+		})
+	}).Label(label).FillWidth().Height(browseHeight).Radius(rowRadius).Clip().
+		Border(1, p.hairline).ScrollbarInsets(3, 2, 3)
+	if list.Submitted() && b.choice >= 0 && b.choice < len(b.folders) {
+		a.openFolder(b.folders[b.choice])
+	}
+}
+
+// folderBrowserFoot goes back to the form, or puts the chosen folder into
+// the field the browser was opened for.
+func (a *App) folderBrowserFoot(c *ui.Context) {
+	b := a.taskForm.browser
+	label, path := locales.BrowseChooseCurrent(), b.path
+	chosen := b.choice >= 0 && b.choice < len(b.folders) && !b.loading
+	if chosen {
+		label = locales.BrowseChoose(b.folders[b.choice])
+		path = append(b.path[:len(b.path):len(b.path)], b.folders[b.choice])
+	}
+	// The top of an SMB server holds shares: one of them is the least a
+	// task can name.
+	shares := b.storage.Kind == domain.KindSMB && len(b.path) == 0
+	sheetActions(c, func() {
+		if accentButton(c, "browse-cancel", nil, locales.ButtonCancel(), buttonSoft).Clicked() {
 			a.taskForm.browser = nil
-			return
 		}
-		label, path := locales.BrowseChooseCurrent(), b.path
-		chosen := b.choice >= 0 && b.choice < len(b.folders) && !b.loading
-		if chosen {
-			label = locales.BrowseChoose(b.folders[b.choice])
-			path = append(b.path[:len(b.path):len(b.path)], b.folders[b.choice])
-		}
-		// The top of an SMB server holds shares: one of them is the least
-		// a task can name.
-		if ui.PrimaryButton(c, label).Disabled(b.loading || shares && !chosen).Clicked() {
+		if accentButton(c, "browse-choose", nil, label, buttonPrimary).
+			Disabled(b.loading || shares && !chosen).Clicked() {
 			a.chooseBrowsed(path)
 		}
 	})
@@ -188,18 +222,21 @@ func (a *App) folderBrowserView(c *ui.Context) {
 
 // typeShare opens a share by the name typed, for one the server does not
 // list: a NAS may go on listing a renamed share by its old name, and not
-// by its new one, for a while.
+// by its new name, for a while.
 func (a *App) typeShare(c *ui.Context, b *folderBrowser) {
-	t := c.Theme()
-	ui.Row(c).Gap(6).FillWidth().Children(func() {
-		in := ui.TextInput(c, &b.typed).Placeholder(locales.BrowseShareName()).
-			Label(locales.BrowseShareName()).Grow(1).MinWidth(0)
-		name := strings.Trim(strings.TrimSpace(b.typed), "/")
-		open := ui.Button(c, locales.BrowseOpen()).Disabled(name == "")
-		if (open.Clicked() || in.Submitted()) && name != "" {
-			b.path, b.typed = []string{name}, ""
-			a.loadFolders(false)
-		}
+	p := paletteFor(c.Theme())
+	ui.Column(c).Gap(6).Children(func() {
+		ui.Row(c).Gap(8).FillWidth().Children(func() {
+			in := ui.TextInput(c, &b.typed).Placeholder(locales.BrowseShareName()).
+				Label(locales.BrowseShareName()).Grow(1).MinWidth(0)
+			name := strings.Trim(strings.TrimSpace(b.typed), "/")
+			open := accentButton(c, "browse-open", nil, locales.BrowseOpen(), buttonSoft).
+				Disabled(name == "")
+			if (open.Clicked() || in.Submitted()) && name != "" {
+				b.path, b.typed = []string{name}, ""
+				a.loadFolders(false)
+			}
+		})
+		ui.Text(c, locales.BrowseShareHint()).FontSize(sizeMicro).TextColor(p.muted).LineHeight(1.45)
 	})
-	ui.Text(c, locales.BrowseShareHint()).TextColor(t.TextMuted)
 }
