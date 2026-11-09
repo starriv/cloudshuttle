@@ -330,25 +330,15 @@ func Run(ctx context.Context, job Job, progress func(Progress)) (Progress, error
 			return Progress{}, err
 		}
 	}
-	ctx, ci := fs.AddConfig(ctx)
-	ci.DryRun = job.DryRun
-	if job.Transfers > 0 {
-		ci.Transfers = job.Transfers
+	ctx, err := withFilter(ctx, job)
+	if err != nil {
+		return Progress{}, fmt.Errorf("filter: %w", err)
 	}
-	if job.Checkers > 0 {
-		ci.Checkers = job.Checkers
-	}
-	if job.Retries > 0 {
-		ci.LowLevelRetries = job.Retries
-	}
+	base, ci := fs.AddConfig(ctx)
 	if job.BandwidthMBps > 0 {
 		if err := ci.BwLimit.Set(fmt.Sprintf("%dM", job.BandwidthMBps)); err != nil {
 			return Progress{}, fmt.Errorf("bandwidth limit: %w", err)
 		}
-	}
-	ctx, err := withFilter(ctx, job)
-	if err != nil {
-		return Progress{}, fmt.Errorf("filter: %w", err)
 	}
 	accounting.TokenBucket.SetBwLimit(ci.BwLimit.LimitAt(time.Now()).Bandwidth)
 	defer accounting.TokenBucket.SetBwLimit(fs.BwPair{})
@@ -367,19 +357,70 @@ func Run(ctx context.Context, job Job, progress func(Progress)) (Progress, error
 	if job.MaxSize > 0 {
 		log(appLine("INFO", "leaving out files larger than %d bytes", job.MaxSize))
 	}
+	log(appLine("INFO", "rclone %s", Version()))
 
+	deleteLimit := int64(-1)
+	result := runAttempts(base, attemptsFor(job), pauseFor,
+		func(number int, already Progress) attemptResult {
+			policy := policyFor(job, number)
+			return runAttempt(base, job, number, policy, &deleteLimit, already.Deletes, func(p Progress) {
+				if progress != nil {
+					progress(combine(already, p))
+				}
+			}, log)
+		},
+		func(number int, err error, wait time.Duration) {
+			next := policyFor(job, number)
+			log(appLine("WARN", "the connection to the server was dropped: %v; trying again in %s, %d files and %d checks at a time (attempt %d of %d)",
+				err, wait, next.transfers, next.checkers, number, attemptsFor(job)))
+		})
+	final := result.progress
+	if ctx.Err() != nil {
+		log(appLine("WARN", "stopped: %v", ctx.Err()))
+		return final, ctx.Err()
+	}
+	if result.err != nil {
+		err = classify(result.err)
+		log(appLine("ERROR", "failed: %v", err))
+	} else if result.attempts > 1 {
+		log(appLine("INFO", "the transfer finished on attempt %d of %d", result.attempts, attemptsFor(job)))
+	}
+	if result.trash {
+		pruneTrash(ctx, job, "cloudshuttle-"+job.ID, log)
+	}
+	return final, err
+}
+
+// runAttempt is one try at the job, at the pace its policy sets: it opens the
+// two sides, counts what a sync would delete, opens the trash, and then copies
+// or syncs. The stats group is the attempt's own, so a retry starts from zero
+// instead of adding to what the failed attempt counted.
+func runAttempt(ctx context.Context, job Job, number int, policy attemptPolicy, deleteLimit *int64, deleted int64, progress func(Progress), log func(Line)) attemptResult {
+	ctx, ci := fs.AddConfig(ctx)
+	ci.DryRun = job.DryRun
+	if policy.transfers > 0 {
+		ci.Transfers = policy.transfers
+	}
+	if policy.checkers > 0 {
+		ci.Checkers = policy.checkers
+	}
+	if policy.retries > 0 {
+		ci.LowLevelRetries = policy.retries
+	}
 	group := "cloudshuttle-" + job.ID
+	if number > 1 {
+		group += "-" + strconv.Itoa(number)
+	}
 	ctx = accounting.WithStatsGroup(ctx, group)
 	stats := accounting.StatsGroup(ctx, group)
 	defer deleteStats(group)
 
-	log(appLine("INFO", "rclone %s", Version()))
 	log(appLine("INFO", "opening the source: %s", describe(job.Source)))
 	src, err := newFs(ctx, job.Source)
 	if err != nil {
 		err = classify(err)
 		log(appLine("ERROR", "opening the source failed: %v", err))
-		return Progress{}, fmt.Errorf("source: %w", err)
+		return attemptResult{err: fmt.Errorf("source: %w", err)}
 	}
 	defer shutdown(src)
 	log(appLine("INFO", "source opened: %s", src))
@@ -388,7 +429,7 @@ func Run(ctx context.Context, job Job, progress func(Progress)) (Progress, error
 	if err != nil {
 		err = classify(err)
 		log(appLine("ERROR", "opening the destination failed: %v", err))
-		return Progress{}, fmt.Errorf("destination: %w", err)
+		return attemptResult{err: fmt.Errorf("destination: %w", err)}
 	}
 	defer shutdown(dst)
 	log(appLine("INFO", "destination opened: %s", dst))
@@ -408,14 +449,14 @@ func Run(ctx context.Context, job Job, progress func(Progress)) (Progress, error
 	if job.Sync && !job.DryRun {
 		deletes, err := checkDeletes(ctx, job, src, dst, group, log)
 		if err != nil {
-			return Progress{}, err
+			return attemptResult{err: err}
 		}
 		if deletes >= 0 {
 			// No more than the preview counted, should the source change
 			// as the run goes. A preview that found no deletes allows
 			// none: a file that turned up as one stops the run, rather
 			// than go unannounced.
-			ci.MaxDelete = deletes
+			ci.MaxDelete = remainingDeletes(deleteLimit, deleted, deletes)
 		}
 	}
 	var trash *trashFs
@@ -423,7 +464,7 @@ func Run(ctx context.Context, job Job, progress func(Progress)) (Progress, error
 		trash, err = useTrash(ctx, ci, job)
 		if err != nil {
 			log(appLine("ERROR", "opening the trash failed: %v", err))
-			return Progress{}, err
+			return attemptResult{err: err}
 		}
 		defer shutdown(trash.Fs)
 		log(appLine("INFO", "the files the run deletes or replaces go into %s, kept %d days", job.Trash, job.TrashDays))
@@ -464,24 +505,17 @@ func Run(ctx context.Context, job Job, progress func(Progress)) (Progress, error
 	}
 	close(done)
 	final := measure()
-	log(appLine("INFO", "%d of %d files, %d of %d bytes; %d checks, %d deletes, %d errors, in %s",
-		final.Transfers, final.TotalTransfers, final.Bytes, final.TotalBytes,
+	what := ""
+	if number > 1 {
+		what = fmt.Sprintf("attempt %d: ", number)
+	}
+	log(appLine("INFO", "%s%d of %d files, %d of %d bytes; %d checks, %d deletes, %d errors, in %s",
+		what, final.Transfers, final.TotalTransfers, final.Bytes, final.TotalBytes,
 		final.Checks, final.Deletes, final.Errors, time.Since(started).Round(time.Millisecond)))
 	if trash != nil && final.Trashed > 0 {
 		log(appLine("INFO", "%d files went into %s", final.Trashed, job.Trash))
 	}
-	if ctx.Err() != nil {
-		log(appLine("WARN", "stopped: %v", ctx.Err()))
-		return final, ctx.Err()
-	}
-	if err != nil {
-		err = classify(err)
-		log(appLine("ERROR", "failed: %v", err))
-	}
-	if trash != nil {
-		pruneTrash(ctx, job, group, log)
-	}
-	return final, err
+	return attemptResult{progress: final, err: err, trash: trash != nil}
 }
 
 // checkDeletes runs a sync without changing anything first, and returns what
@@ -585,6 +619,14 @@ func newFs(ctx context.Context, loc Location) (fs.Fs, error) {
 }
 
 func makeFs(ctx context.Context, loc Location, dir bool) (fs.Fs, error) {
+	return makeConfiguredFs(ctx, loc, dir, false, false)
+}
+
+func makeConfiguredFs(ctx context.Context, loc Location, dir, browser, markers bool) (fs.Fs, error) {
+	return makeFsWithOptions(ctx, loc, dir, browser, markers, false)
+}
+
+func makeFsWithOptions(ctx context.Context, loc Location, dir, browser, markers, singleUpload bool) (fs.Fs, error) {
 	if err := validateEndpoint(loc); err != nil {
 		return nil, err
 	}
@@ -614,6 +656,13 @@ func makeFs(ctx context.Context, loc Location, dir bool) (fs.Fs, error) {
 		r := loc.S3
 		backend, root = "s3", path.Join(r.Bucket, loc.Path)
 		cfg["provider"] = r.Provider
+		if browser {
+			cfg["no_check_bucket"] = "true"
+			cfg["directory_markers"] = strconv.FormatBool(markers)
+			if singleUpload {
+				cfg["use_multipart_uploads"] = "false"
+			}
+		}
 		cfg["env_auth"] = "false"
 		cfg["access_key_id"] = r.AccessKeyID
 		cfg["secret_access_key"] = r.SecretAccessKey

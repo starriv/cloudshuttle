@@ -90,8 +90,9 @@ type App struct {
 	active       map[string]service.Active // the same, by task ID
 	loadErr      error
 
-	taskList    ui.ListState
-	storageList ui.ListState
+	taskList     ui.ListState
+	storageList  ui.ListState
+	storageFiles *storageFiles
 
 	history       []domain.Run
 	historyList   ui.ListState
@@ -301,6 +302,7 @@ func (a *App) View(c *ui.Context) {
 	a.storageDialog(c)
 	a.restoreDialog(c)
 	a.globalExcludeDialog(c)
+	a.storageFileEditDialog(c)
 	a.confirmDialog(c)
 }
 
@@ -363,7 +365,7 @@ func (a *App) sidebar(c *ui.Context, p palette, bar ui.TitleBar, vibrant bool) {
 		default:
 			continue
 		}
-		a.page = items[next].page
+		a.selectPage(items[next].page)
 		buttons[next].Focus()
 		break
 	}
@@ -395,7 +397,7 @@ func (a *App) navItem(c *ui.Context, p palette, page, label string, icon *ui.SVG
 		}
 	})
 	if b.Clicked() {
-		a.page = page
+		a.selectPage(page)
 	}
 	return b
 }

@@ -91,7 +91,7 @@ func main() {
 		Current: mygo.App.Version(),
 		// Every run counts, the scheduler's too: the person asked to
 		// wait for the tasks, and a restart would stop the window's.
-		Runs:     func() int { return len(svc.Active()) },
+		Runs:     func() int { return len(svc.Active()) + svc.StorageWork() },
 		Quiet:    func() bool { return !windowShown.Load() },
 		Relaunch: func() { relaunchIntoUpdate(dir, windowShown.Load()) },
 		OnChange: func() {

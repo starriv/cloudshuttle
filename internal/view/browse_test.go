@@ -2,10 +2,13 @@ package view
 
 import (
 	"context"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/egoist/mygo/ui"
 	"github.com/rclone/gofakes3"
 	"github.com/rclone/gofakes3/s3mem"
 	"github.com/starriv/cloudshuttle/internal/domain"
@@ -22,7 +25,7 @@ func (h *harness) fakeBucket(keys ...string) domain.Storage {
 		h.t.Fatal(err)
 	}
 	for _, k := range keys {
-		if _, err := backend.PutObject(ctx, "b", k, nil, strings.NewReader("x"), 1); err != nil {
+		if _, err := backend.PutObject(ctx, "b", k, map[string]string{"Last-Modified": time.Now().UTC().Format(http.TimeFormat)}, strings.NewReader("x"), 1); err != nil {
 			h.t.Fatal(err)
 		}
 	}
@@ -93,5 +96,77 @@ func TestOpenAShareByName(t *testing.T) {
 	h.click(locales.BrowseOpen())
 	if strings.Join(b.path, "/") != "SMB" {
 		t.Fatalf("browser at %q", b.path)
+	}
+}
+
+func TestBrowseStorageFiles(t *testing.T) {
+	h := newHarness(t)
+	h.fakeBucket("photos/a.jpg", "report.txt")
+	h.click(locales.NavStorages())
+	h.click(locales.FilesBrowse())
+	b := h.app.storageFiles
+	if b == nil {
+		t.Fatal("browser did not open")
+	}
+	h.waitFor("storage entries", func() bool { return !b.loading })
+	h.expect("report.txt")
+	h.fill(locales.FilesFilter(), "photos")
+	h.click("photos")
+	h.click(locales.FilesOpenFolder())
+	h.waitFor("nested entries", func() bool { return !b.loading })
+	h.expect("a.jpg")
+	h.click("a.jpg")
+	h.tt.Key(0, ui.KeyF2)
+	h.fill(locales.FilesNewName(), "b.jpg")
+	h.tt.Key(0, ui.KeyEnter)
+	h.waitFor("renamed entry", func() bool {
+		return !b.busy && !b.loading
+	})
+	if len(b.entries) != 1 || b.entries[0].Name != "b.jpg" {
+		t.Fatalf("after rename: %+v, operation %q, load %q", b.entries, b.operationError, b.loadError)
+	}
+	h.expect("b.jpg")
+	h.click("b.jpg")
+	h.click(locales.FilesActions())
+	if err := h.tt.ChooseMenuItem(locales.FilesMove()); err != nil {
+		t.Fatalf("move menu: %v", err)
+	}
+	h.click(locales.FilesParent())
+	h.waitFor("bucket root", func() bool { return !b.loading })
+	h.click(locales.FilesMoveHere())
+	h.waitFor("move to root", func() bool { return !b.busy && !b.loading })
+	h.expect("b.jpg")
+	h.click(locales.NavOverview())
+	if h.app.storageFiles != nil {
+		t.Fatal("browser remained open after leaving storage")
+	}
+}
+
+func TestStorageBrowserCanReturnAfterListFailure(t *testing.T) {
+	h := newHarness(t)
+	if _, err := h.svc.CreateStorage(context.Background(), domain.StorageInput{
+		Name: "NAS", Kind: domain.KindSMB, Host: "127.0.0.1", Port: "1", Username: "guest",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	h.settle()
+	h.click(locales.NavStorages())
+	h.click(locales.FilesBrowse())
+	b := h.app.storageFiles
+	h.waitFor("connection failure", func() bool { return !b.loading })
+	h.expect(locales.ErrorUnreachable())
+	h.click(locales.NavStorages())
+	if h.app.storageFiles != nil {
+		t.Fatal("clicking the selected Storages sidebar item did not return to the cards")
+	}
+	h.click(locales.FilesBrowse())
+	h.click(locales.FilesBack())
+	if h.app.storageFiles != nil {
+		t.Fatal("back did not return to the cards during a list request")
+	}
+	h.click(locales.FilesBrowse())
+	h.click(locales.FilesParent())
+	if h.app.storageFiles != nil {
+		t.Fatal("Up at the storage root did not return to the cards")
 	}
 }

@@ -137,6 +137,7 @@ type Service struct {
 	transferLock *fileLock
 	ownLock      *fileLock // held while this process lives: see alive
 
+	browserWork int           // storage transfers in progress, guarded by mu
 	maintenance chan struct{} // pairs run admission with configuration restore
 	mu          sync.Mutex
 	closed      bool
@@ -471,6 +472,11 @@ func (s *Service) CreateStorage(ctx context.Context, in domain.StorageInput) (do
 // UpdateStorage validates in and changes the storage with id. An empty
 // secret keeps the current one.
 func (s *Service) UpdateStorage(ctx context.Context, id string, in domain.StorageInput) (domain.Storage, error) {
+	unlock, err := s.lockMaintenance(ctx)
+	if err != nil {
+		return domain.Storage{}, err
+	}
+	defer unlock()
 	in = in.Normalize()
 	if err := in.Validate(false); err != nil {
 		return domain.Storage{}, err
@@ -531,6 +537,11 @@ func storageFrom(st domain.Storage, in domain.StorageInput, now time.Time) domai
 // DeleteStorage deletes the storage with id and its secret. It fails with
 // domain.ErrStorageInUse while a task uses it.
 func (s *Service) DeleteStorage(ctx context.Context, id string) error {
+	unlock, err := s.lockMaintenance(ctx)
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	st, err := s.store.Storage(ctx, id)
 	if err != nil {
 		return err
@@ -1286,10 +1297,33 @@ func (s *Service) recordRun(ctx context.Context, a *activeRun, run domain.Run, s
 // rclone's lines belong to the run that wrote them. It returns an error when
 // the file lock fails or ctx ends first, as for a run still queued at quit.
 func (s *Service) takeSlot(ctx context.Context) error {
+	return s.takeSlotQueued(ctx, nil)
+}
+
+// takeSlotQueued is takeSlot that tells queued when it has to wait for a
+// run of this process or the other, and again when the slot is its own.
+func (s *Service) takeSlotQueued(ctx context.Context, queued func(bool)) error {
+	waiting := false
+	wait := func() {
+		if !waiting && queued != nil {
+			waiting = true
+			queued(true)
+		}
+	}
+	defer func() {
+		if waiting {
+			queued(false)
+		}
+	}()
 	select {
 	case s.slot <- struct{}{}:
-	case <-ctx.Done():
-		return ctx.Err()
+	default:
+		wait()
+		select {
+		case s.slot <- struct{}{}:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
 	}
 	// The other process of the app may be transferring: it waits for that
 	// too, and the destination is never written by both.
@@ -1307,6 +1341,7 @@ func (s *Service) takeSlot(ctx context.Context) error {
 			s.transferLock = l
 			return nil
 		}
+		wait()
 		select {
 		case <-time.After(lockPoll):
 		case <-ctx.Done():

@@ -23,6 +23,10 @@ const storageCardGap = gutter
 const storageMinCard = 320
 
 func (a *App) storagesPage(c *ui.Context) {
+	if a.storageFiles != nil {
+		a.storageFilesPage(c, a.storageFiles)
+		return
+	}
 	pageHeader(c, locales.NavStorages(), locales.StoragesSubtitle(), func() {
 		if accentButton(c, "storages-add", icons.Add, locales.StoragesAdd(), buttonPrimary).Clicked() {
 			a.openStorageForm(nil)
@@ -98,7 +102,12 @@ func (a *App) storageCard(c *ui.Context, s domain.Storage) {
 		ui.Row(c).Gap(8).AlignItems(ui.Center).MinWidth(0).Children(func() {
 			ui.Text(c, kind).FontSize(sizeMicro).FontWeight(600).LetterSpacing(0.3).
 				TextColor(p.muted).SingleLine().Ellipsis("…").MinWidth(0).Grow(1)
-			if accentButton(c, "storage-test-"+s.ID, icons.Test, locales.StorageTestShort(), buttonSoft).
+			if accentButton(c, "storage-browse-"+s.ID, icons.FolderOpen, locales.FilesBrowse(), buttonSoft).Clicked() {
+				a.storageFiles = &storageFiles{storage: s}
+				a.loadStorageFiles("")
+			}
+			if iconAction(c, "storage-test-"+s.ID, icons.Test, locales.StorageTestShort()).
+				Tooltip(locales.StorageTestShort()).
 				Disabled(a.checking[s.ID]).Clicked() {
 				a.testStorage(s)
 			}

@@ -98,6 +98,570 @@ func (msgs Messages) NavHistory() string {
 	return Catalog.Format(msgs.locale, "navHistory", nil)
 }
 
+// FilesBrowse says "Browse"
+// in the language the app shows.
+func FilesBrowse() string { return In(i18n.Locale()).FilesBrowse() }
+
+// FilesBrowse says "Browse"
+// in the language of msgs.
+func (msgs Messages) FilesBrowse() string {
+	return Catalog.Format(msgs.locale, "filesBrowse", nil)
+}
+
+// FilesGo says "Go to folder…"
+// in the language the app shows.
+func FilesGo() string { return In(i18n.Locale()).FilesGo() }
+
+// FilesGo says "Go to folder…"
+// in the language of msgs.
+func (msgs Messages) FilesGo() string {
+	return Catalog.Format(msgs.locale, "filesGo", nil)
+}
+
+// FilesParent says "Enclosing folder"
+// in the language the app shows.
+func FilesParent() string { return In(i18n.Locale()).FilesParent() }
+
+// FilesParent says "Enclosing folder"
+// in the language of msgs.
+func (msgs Messages) FilesParent() string {
+	return Catalog.Format(msgs.locale, "filesParent", nil)
+}
+
+// FilesMoving says "Choose a folder for “{name}”"
+// in the language the app shows.
+func FilesMoving(name string) string { return In(i18n.Locale()).FilesMoving(name) }
+
+// FilesMoving says "Choose a folder for “{name}”"
+// in the language of msgs.
+func (msgs Messages) FilesMoving(name string) string {
+	return Catalog.Format(msgs.locale, "filesMoving", map[string]any{"name": name})
+}
+
+// FilesMoveHere says "Move here"
+// in the language the app shows.
+func FilesMoveHere() string { return In(i18n.Locale()).FilesMoveHere() }
+
+// FilesMoveHere says "Move here"
+// in the language of msgs.
+func (msgs Messages) FilesMoveHere() string {
+	return Catalog.Format(msgs.locale, "filesMoveHere", nil)
+}
+
+// FilesCreate says "Create"
+// in the language the app shows.
+func FilesCreate() string { return In(i18n.Locale()).FilesCreate() }
+
+// FilesCreate says "Create"
+// in the language of msgs.
+func (msgs Messages) FilesCreate() string {
+	return Catalog.Format(msgs.locale, "filesCreate", nil)
+}
+
+// FilesSize says "Size"
+// in the language the app shows.
+func FilesSize() string { return In(i18n.Locale()).FilesSize() }
+
+// FilesSize says "Size"
+// in the language of msgs.
+func (msgs Messages) FilesSize() string {
+	return Catalog.Format(msgs.locale, "filesSize", nil)
+}
+
+// FilesModified says "Modified"
+// in the language the app shows.
+func FilesModified() string { return In(i18n.Locale()).FilesModified() }
+
+// FilesModified says "Modified"
+// in the language of msgs.
+func (msgs Messages) FilesModified() string {
+	return Catalog.Format(msgs.locale, "filesModified", nil)
+}
+
+// FilesFilterHint says "Try a different name."
+// in the language the app shows.
+func FilesFilterHint() string { return In(i18n.Locale()).FilesFilterHint() }
+
+// FilesFilterHint says "Try a different name."
+// in the language of msgs.
+func (msgs Messages) FilesFilterHint() string {
+	return Catalog.Format(msgs.locale, "filesFilterHint", nil)
+}
+
+// FilesFolderEmpty says "This folder is empty"
+// in the language the app shows.
+func FilesFolderEmpty() string { return In(i18n.Locale()).FilesFolderEmpty() }
+
+// FilesFolderEmpty says "This folder is empty"
+// in the language of msgs.
+func (msgs Messages) FilesFolderEmpty() string {
+	return Catalog.Format(msgs.locale, "filesFolderEmpty", nil)
+}
+
+// FilesCount says "{count} items"
+// in the language the app shows.
+func FilesCount(count string) string { return In(i18n.Locale()).FilesCount(count) }
+
+// FilesCount says "{count} items"
+// in the language of msgs.
+func (msgs Messages) FilesCount(count string) string {
+	return Catalog.Format(msgs.locale, "filesCount", map[string]any{"count": count})
+}
+
+// FilesActions says "File actions"
+// in the language the app shows.
+func FilesActions() string { return In(i18n.Locale()).FilesActions() }
+
+// FilesActions says "File actions"
+// in the language of msgs.
+func (msgs Messages) FilesActions() string {
+	return Catalog.Format(msgs.locale, "filesActions", nil)
+}
+
+// FilesNewName says "New name"
+// in the language the app shows.
+func FilesNewName() string { return In(i18n.Locale()).FilesNewName() }
+
+// FilesNewName says "New name"
+// in the language of msgs.
+func (msgs Messages) FilesNewName() string {
+	return Catalog.Format(msgs.locale, "filesNewName", nil)
+}
+
+// FilesBack says "Back to storages"
+// in the language the app shows.
+func FilesBack() string { return In(i18n.Locale()).FilesBack() }
+
+// FilesBack says "Back to storages"
+// in the language of msgs.
+func (msgs Messages) FilesBack() string {
+	return Catalog.Format(msgs.locale, "filesBack", nil)
+}
+
+// FilesLocalRoute says "No network route to the server. Check this app’s Local Network permission and your network connection."
+// in the language the app shows.
+func FilesLocalRoute() string { return In(i18n.Locale()).FilesLocalRoute() }
+
+// FilesLocalRoute says "No network route to the server. Check this app’s Local Network permission and your network connection."
+// in the language of msgs.
+func (msgs Messages) FilesLocalRoute() string {
+	return Catalog.Format(msgs.locale, "filesLocalRoute", nil)
+}
+
+// FilesMissingSecret says "The saved credential is missing. Edit this storage to enter it again."
+// in the language the app shows.
+func FilesMissingSecret() string { return In(i18n.Locale()).FilesMissingSecret() }
+
+// FilesMissingSecret says "The saved credential is missing. Edit this storage to enter it again."
+// in the language of msgs.
+func (msgs Messages) FilesMissingSecret() string {
+	return Catalog.Format(msgs.locale, "filesMissingSecret", nil)
+}
+
+// FilesPath says "Path from the storage root"
+// in the language the app shows.
+func FilesPath() string { return In(i18n.Locale()).FilesPath() }
+
+// FilesPath says "Path from the storage root"
+// in the language of msgs.
+func (msgs Messages) FilesPath() string {
+	return Catalog.Format(msgs.locale, "filesPath", nil)
+}
+
+// FilesRefresh says "Refresh"
+// in the language the app shows.
+func FilesRefresh() string { return In(i18n.Locale()).FilesRefresh() }
+
+// FilesRefresh says "Refresh"
+// in the language of msgs.
+func (msgs Messages) FilesRefresh() string {
+	return Catalog.Format(msgs.locale, "filesRefresh", nil)
+}
+
+// FilesFilter says "Filter this folder by name"
+// in the language the app shows.
+func FilesFilter() string { return In(i18n.Locale()).FilesFilter() }
+
+// FilesFilter says "Filter this folder by name"
+// in the language of msgs.
+func (msgs Messages) FilesFilter() string {
+	return Catalog.Format(msgs.locale, "filesFilter", nil)
+}
+
+// FilesOpenFolder says "Open folder"
+// in the language the app shows.
+func FilesOpenFolder() string { return In(i18n.Locale()).FilesOpenFolder() }
+
+// FilesOpenFolder says "Open folder"
+// in the language of msgs.
+func (msgs Messages) FilesOpenFolder() string {
+	return Catalog.Format(msgs.locale, "filesOpenFolder", nil)
+}
+
+// FilesNewFolder says "New folder"
+// in the language the app shows.
+func FilesNewFolder() string { return In(i18n.Locale()).FilesNewFolder() }
+
+// FilesNewFolder says "New folder"
+// in the language of msgs.
+func (msgs Messages) FilesNewFolder() string {
+	return Catalog.Format(msgs.locale, "filesNewFolder", nil)
+}
+
+// FilesUpload says "Upload"
+// in the language the app shows.
+func FilesUpload() string { return In(i18n.Locale()).FilesUpload() }
+
+// FilesUpload says "Upload"
+// in the language of msgs.
+func (msgs Messages) FilesUpload() string {
+	return Catalog.Format(msgs.locale, "filesUpload", nil)
+}
+
+// FilesDownload says "Download"
+// in the language the app shows.
+func FilesDownload() string { return In(i18n.Locale()).FilesDownload() }
+
+// FilesDownload says "Download"
+// in the language of msgs.
+func (msgs Messages) FilesDownload() string {
+	return Catalog.Format(msgs.locale, "filesDownload", nil)
+}
+
+// FilesRenameTitle says "Rename file"
+// in the language the app shows.
+func FilesRenameTitle() string { return In(i18n.Locale()).FilesRenameTitle() }
+
+// FilesRenameTitle says "Rename file"
+// in the language of msgs.
+func (msgs Messages) FilesRenameTitle() string {
+	return Catalog.Format(msgs.locale, "filesRenameTitle", nil)
+}
+
+// FilesRetry says "Try again"
+// in the language the app shows.
+func FilesRetry() string { return In(i18n.Locale()).FilesRetry() }
+
+// FilesRetry says "Try again"
+// in the language of msgs.
+func (msgs Messages) FilesRetry() string {
+	return Catalog.Format(msgs.locale, "filesRetry", nil)
+}
+
+// FilesRename says "Rename"
+// in the language the app shows.
+func FilesRename() string { return In(i18n.Locale()).FilesRename() }
+
+// FilesRename says "Rename"
+// in the language of msgs.
+func (msgs Messages) FilesRename() string {
+	return Catalog.Format(msgs.locale, "filesRename", nil)
+}
+
+// FilesMove says "Move"
+// in the language the app shows.
+func FilesMove() string { return In(i18n.Locale()).FilesMove() }
+
+// FilesMove says "Move"
+// in the language of msgs.
+func (msgs Messages) FilesMove() string {
+	return Catalog.Format(msgs.locale, "filesMove", nil)
+}
+
+// FilesName says "Name"
+// in the language the app shows.
+func FilesName() string { return In(i18n.Locale()).FilesName() }
+
+// FilesName says "Name"
+// in the language of msgs.
+func (msgs Messages) FilesName() string {
+	return Catalog.Format(msgs.locale, "filesName", nil)
+}
+
+// FilesApply says "Apply"
+// in the language the app shows.
+func FilesApply() string { return In(i18n.Locale()).FilesApply() }
+
+// FilesApply says "Apply"
+// in the language of msgs.
+func (msgs Messages) FilesApply() string {
+	return Catalog.Format(msgs.locale, "filesApply", nil)
+}
+
+// FilesReplace says "Replace"
+// in the language the app shows.
+func FilesReplace() string { return In(i18n.Locale()).FilesReplace() }
+
+// FilesReplace says "Replace"
+// in the language of msgs.
+func (msgs Messages) FilesReplace() string {
+	return Catalog.Format(msgs.locale, "filesReplace", nil)
+}
+
+// FilesWorking says "Working…"
+// in the language the app shows.
+func FilesWorking() string { return In(i18n.Locale()).FilesWorking() }
+
+// FilesWorking says "Working…"
+// in the language of msgs.
+func (msgs Messages) FilesWorking() string {
+	return Catalog.Format(msgs.locale, "filesWorking", nil)
+}
+
+// FilesQueued says "Waiting for the running backup to finish…"
+// in the language the app shows.
+func FilesQueued() string { return In(i18n.Locale()).FilesQueued() }
+
+// FilesQueued says "Waiting for the running backup to finish…"
+// in the language of msgs.
+func (msgs Messages) FilesQueued() string {
+	return Catalog.Format(msgs.locale, "filesQueued", nil)
+}
+
+// FilesLimited says "Showing up to 5,000 entries. Filtering applies to the entries shown."
+// in the language the app shows.
+func FilesLimited() string { return In(i18n.Locale()).FilesLimited() }
+
+// FilesLimited says "Showing up to 5,000 entries. Filtering applies to the entries shown."
+// in the language of msgs.
+func (msgs Messages) FilesLimited() string {
+	return Catalog.Format(msgs.locale, "filesLimited", nil)
+}
+
+// FilesEmpty says "No matching files or folders."
+// in the language the app shows.
+func FilesEmpty() string { return In(i18n.Locale()).FilesEmpty() }
+
+// FilesEmpty says "No matching files or folders."
+// in the language of msgs.
+func (msgs Messages) FilesEmpty() string {
+	return Catalog.Format(msgs.locale, "filesEmpty", nil)
+}
+
+// FilesDenied says "The server denied this operation."
+// in the language the app shows.
+func FilesDenied() string { return In(i18n.Locale()).FilesDenied() }
+
+// FilesDenied says "The server denied this operation."
+// in the language of msgs.
+func (msgs Messages) FilesDenied() string {
+	return Catalog.Format(msgs.locale, "filesDenied", nil)
+}
+
+// FilesMissing says "This file, bucket or share could not be found."
+// in the language the app shows.
+func FilesMissing() string { return In(i18n.Locale()).FilesMissing() }
+
+// FilesMissing says "This file, bucket or share could not be found."
+// in the language of msgs.
+func (msgs Messages) FilesMissing() string {
+	return Catalog.Format(msgs.locale, "filesMissing", nil)
+}
+
+// FilesInvalid says "This path or file name is invalid."
+// in the language the app shows.
+func FilesInvalid() string { return In(i18n.Locale()).FilesInvalid() }
+
+// FilesInvalid says "This path or file name is invalid."
+// in the language of msgs.
+func (msgs Messages) FilesInvalid() string {
+	return Catalog.Format(msgs.locale, "filesInvalid", nil)
+}
+
+// FilesExists says "An entry already exists at the destination."
+// in the language the app shows.
+func FilesExists() string { return In(i18n.Locale()).FilesExists() }
+
+// FilesExists says "An entry already exists at the destination."
+// in the language of msgs.
+func (msgs Messages) FilesExists() string {
+	return Catalog.Format(msgs.locale, "filesExists", nil)
+}
+
+// FilesProtected says "This storage path is protected."
+// in the language the app shows.
+func FilesProtected() string { return In(i18n.Locale()).FilesProtected() }
+
+// FilesProtected says "This storage path is protected."
+// in the language of msgs.
+func (msgs Messages) FilesProtected() string {
+	return Catalog.Format(msgs.locale, "filesProtected", nil)
+}
+
+// FilesNotEmpty says "Only empty folders can be deleted here."
+// in the language the app shows.
+func FilesNotEmpty() string { return In(i18n.Locale()).FilesNotEmpty() }
+
+// FilesNotEmpty says "Only empty folders can be deleted here."
+// in the language of msgs.
+func (msgs Messages) FilesNotEmpty() string {
+	return Catalog.Format(msgs.locale, "filesNotEmpty", nil)
+}
+
+// FilesMoveUnsupported says "Moves are unavailable for this provider because CloudShuttle cannot verify that they prevent overwrites."
+// in the language the app shows.
+func FilesMoveUnsupported() string { return In(i18n.Locale()).FilesMoveUnsupported() }
+
+// FilesMoveUnsupported says "Moves are unavailable for this provider because CloudShuttle cannot verify that they prevent overwrites."
+// in the language of msgs.
+func (msgs Messages) FilesMoveUnsupported() string {
+	return Catalog.Format(msgs.locale, "filesMoveUnsupported", nil)
+}
+
+// FilesMoveTooLarge says "This object is too large for a move that prevents overwriting on this storage."
+// in the language the app shows.
+func FilesMoveTooLarge() string { return In(i18n.Locale()).FilesMoveTooLarge() }
+
+// FilesMoveTooLarge says "This object is too large for a move that prevents overwriting on this storage."
+// in the language of msgs.
+func (msgs Messages) FilesMoveTooLarge() string {
+	return Catalog.Format(msgs.locale, "filesMoveTooLarge", nil)
+}
+
+// FilesIncompleteWrite says "The destination may contain an incomplete file. Check it before retrying."
+// in the language the app shows.
+func FilesIncompleteWrite() string { return In(i18n.Locale()).FilesIncompleteWrite() }
+
+// FilesIncompleteWrite says "The destination may contain an incomplete file. Check it before retrying."
+// in the language of msgs.
+func (msgs Messages) FilesIncompleteWrite() string {
+	return Catalog.Format(msgs.locale, "filesIncompleteWrite", nil)
+}
+
+// FilesEntryChanged says "The file changed. Select it again after refreshing."
+// in the language the app shows.
+func FilesEntryChanged() string { return In(i18n.Locale()).FilesEntryChanged() }
+
+// FilesEntryChanged says "The file changed. Select it again after refreshing."
+// in the language of msgs.
+func (msgs Messages) FilesEntryChanged() string {
+	return Catalog.Format(msgs.locale, "filesEntryChanged", nil)
+}
+
+// FilesChanged says "The storage configuration changed. Reopen the storage to continue."
+// in the language the app shows.
+func FilesChanged() string { return In(i18n.Locale()).FilesChanged() }
+
+// FilesChanged says "The storage configuration changed. Reopen the storage to continue."
+// in the language of msgs.
+func (msgs Messages) FilesChanged() string {
+	return Catalog.Format(msgs.locale, "filesChanged", nil)
+}
+
+// FilesTimeout says "The server took too long to respond."
+// in the language the app shows.
+func FilesTimeout() string { return In(i18n.Locale()).FilesTimeout() }
+
+// FilesTimeout says "The server took too long to respond."
+// in the language of msgs.
+func (msgs Messages) FilesTimeout() string {
+	return Catalog.Format(msgs.locale, "filesTimeout", nil)
+}
+
+// FilesFailed says "The file operation failed."
+// in the language the app shows.
+func FilesFailed() string { return In(i18n.Locale()).FilesFailed() }
+
+// FilesFailed says "The file operation failed."
+// in the language of msgs.
+func (msgs Messages) FilesFailed() string {
+	return Catalog.Format(msgs.locale, "filesFailed", nil)
+}
+
+// FilesDownloaded says "File downloaded."
+// in the language the app shows.
+func FilesDownloaded() string { return In(i18n.Locale()).FilesDownloaded() }
+
+// FilesDownloaded says "File downloaded."
+// in the language of msgs.
+func (msgs Messages) FilesDownloaded() string {
+	return Catalog.Format(msgs.locale, "filesDownloaded", nil)
+}
+
+// FilesDeleteTitle says "Delete remote entry?"
+// in the language the app shows.
+func FilesDeleteTitle() string { return In(i18n.Locale()).FilesDeleteTitle() }
+
+// FilesDeleteTitle says "Delete remote entry?"
+// in the language of msgs.
+func (msgs Messages) FilesDeleteTitle() string {
+	return Catalog.Format(msgs.locale, "filesDeleteTitle", nil)
+}
+
+// FilesDeleteConfirm says "Delete {path}? CloudShuttle will not move it to the task trash."
+// in the language the app shows.
+func FilesDeleteConfirm(path string) string { return In(i18n.Locale()).FilesDeleteConfirm(path) }
+
+// FilesDeleteConfirm says "Delete {path}? CloudShuttle will not move it to the task trash."
+// in the language of msgs.
+func (msgs Messages) FilesDeleteConfirm(path string) string {
+	return Catalog.Format(msgs.locale, "filesDeleteConfirm", map[string]any{"path": path})
+}
+
+// FilesTaskTitle says "Change files a task uses?"
+// in the language the app shows.
+func FilesTaskTitle() string { return In(i18n.Locale()).FilesTaskTitle() }
+
+// FilesTaskTitle says "Change files a task uses?"
+// in the language of msgs.
+func (msgs Messages) FilesTaskTitle() string {
+	return Catalog.Format(msgs.locale, "filesTaskTitle", nil)
+}
+
+// FilesTaskConfirm says "This change touches the destination of {tasks}. A later sync may overwrite or remove manual changes."
+// in the language the app shows.
+func FilesTaskConfirm(tasks string) string { return In(i18n.Locale()).FilesTaskConfirm(tasks) }
+
+// FilesTaskConfirm says "This change touches the destination of {tasks}. A later sync may overwrite or remove manual changes."
+// in the language of msgs.
+func (msgs Messages) FilesTaskConfirm(tasks string) string {
+	return Catalog.Format(msgs.locale, "filesTaskConfirm", map[string]any{"tasks": tasks})
+}
+
+// FilesTaskSourceConfirm says "This change touches the source of {tasks}. Their next run carries it to the destination, and a sync also removes ther…"
+// in the language the app shows.
+func FilesTaskSourceConfirm(tasks string) string {
+	return In(i18n.Locale()).FilesTaskSourceConfirm(tasks)
+}
+
+// FilesTaskSourceConfirm says "This change touches the source of {tasks}. Their next run carries it to the destination, and a sync also removes ther…"
+// in the language of msgs.
+func (msgs Messages) FilesTaskSourceConfirm(tasks string) string {
+	return Catalog.Format(msgs.locale, "filesTaskSourceConfirm", map[string]any{"tasks": tasks})
+}
+
+// FilesReplaceTitle says "Replace the remote file?"
+// in the language the app shows.
+func FilesReplaceTitle() string { return In(i18n.Locale()).FilesReplaceTitle() }
+
+// FilesReplaceTitle says "Replace the remote file?"
+// in the language of msgs.
+func (msgs Messages) FilesReplaceTitle() string {
+	return Catalog.Format(msgs.locale, "filesReplaceTitle", nil)
+}
+
+// FilesReplaceConfirm says "Upload the selected file over {path}?"
+// in the language the app shows.
+func FilesReplaceConfirm(path string) string { return In(i18n.Locale()).FilesReplaceConfirm(path) }
+
+// FilesReplaceConfirm says "Upload the selected file over {path}?"
+// in the language of msgs.
+func (msgs Messages) FilesReplaceConfirm(path string) string {
+	return Catalog.Format(msgs.locale, "filesReplaceConfirm", map[string]any{"path": path})
+}
+
+// FilesPartialMove says "Copied {source} to {target}, but could not remove the source. Check both locations before retrying."
+// in the language the app shows.
+func FilesPartialMove(source string, target string) string {
+	return In(i18n.Locale()).FilesPartialMove(source, target)
+}
+
+// FilesPartialMove says "Copied {source} to {target}, but could not remove the source. Check both locations before retrying."
+// in the language of msgs.
+func (msgs Messages) FilesPartialMove(source string, target string) string {
+	return Catalog.Format(msgs.locale, "filesPartialMove", map[string]any{"source": source, "target": target})
+}
+
 // NavSettings says "Settings"
 // in the language the app shows.
 func NavSettings() string { return In(i18n.Locale()).NavSettings() }
